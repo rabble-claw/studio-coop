@@ -164,6 +164,52 @@
     padding-top: 160px;
     padding-bottom: 120px;
     text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero-bg {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: url('images/hero-studio.png') center/cover no-repeat;
+    opacity: 0.08;
+    z-index: 0;
+  }
+
+  .hero .container { position: relative; z-index: 1; }
+
+  .mockup-img {
+    width: 100%;
+    max-width: 800px;
+    border-radius: 16px;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.12);
+    margin: 0 auto;
+    display: block;
+  }
+
+  .mockup-img-sm {
+    width: 100%;
+    max-width: 400px;
+    border-radius: 16px;
+    box-shadow: 0 16px 60px rgba(0,0,0,0.1);
+    margin: 0 auto;
+    display: block;
+  }
+
+  .mockup-row {
+    display: flex;
+    gap: 32px;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 40px;
+  }
+
+  .mockup-row img {
+    max-width: 380px;
+    width: 100%;
+    border-radius: 16px;
+    box-shadow: 0 16px 60px rgba(0,0,0,0.1);
   }
 
   .hero p {
@@ -519,6 +565,7 @@
 
 <!-- HERO -->
 <section class="hero">
+  <div class="hero-bg"></div>
   <div class="container">
     <div class="section-label">Platform Cooperative</div>
     <h1>Your studio. Your platform.<br>Your <span style="color: var(--accent);">co-op</span>.</h1>
@@ -540,6 +587,9 @@
         <div class="hero-stat-number">48h</div>
         <div class="hero-stat-label">migration from Mindbody</div>
       </div>
+    </div>
+    <div style="margin-top: 64px;">
+      <img src="images/dashboard-mockup.png" alt="studio.coop dashboard" class="mockup-img">
     </div>
   </div>
 </section>
@@ -620,6 +670,10 @@
         <h3>Insights & Reporting</h3>
         <p>Revenue, attendance, retention, member engagement. See who's thriving and who's drifting. Make decisions with data, not guesses.</p>
       </div>
+    </div>
+    <div class="mockup-row">
+      <img src="images/community-feed.png" alt="Community social feed">
+      <img src="images/mobile-app.png" alt="Branded mobile app">
     </div>
   </div>
 </section>
@@ -711,7 +765,8 @@
     <h2>You don't just use it.<br>You own it.</h2>
     <div class="coop-grid">
       <div>
-        <p style="font-size: 18px; color: var(--fg-muted); margin-bottom: 24px;">
+        <img src="images/ai-website.png" alt="AI-built studio website" style="width: 100%; border-radius: 16px; box-shadow: 0 16px 60px rgba(0,0,0,0.08); margin-bottom: 32px;">
+      <p style="font-size: 18px; color: var(--fg-muted); margin-bottom: 24px;">
           studio.coop is a platform cooperative — owned and governed by the studios that use it. Every dollar you pay builds your equity in the platform. No VCs. No PE firms. No acqui-hire exits. Just studios building the tool they need.
         </p>
         <p style="font-size: 18px; color: var(--fg-muted);">
