@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { authMiddleware } from '../middleware/auth'
 import { badRequest, forbidden, notFound } from '../lib/errors'
 import { createServiceClient } from '../lib/supabase'
+import { checkAndCreateMilestones } from '../lib/milestones'
 
 // Mounted at /api/classes — handles roster, batch check-in, walk-in, complete
 const checkin = new Hono()
@@ -210,6 +211,14 @@ checkin.post('/:classId/checkin', authMiddleware, async (c) => {
       .eq('id', classId)
   }
 
+  // Check milestones for newly checked-in attendees (fire-and-forget)
+  const newlyCheckedIn = attendees.filter((a) => a.checkedIn && !existingByUser.has(a.userId))
+  for (const entry of newlyCheckedIn) {
+    checkAndCreateMilestones(entry.userId, cls.studio_id, classId).catch(() => {
+      // Milestone errors are non-fatal
+    })
+  }
+
   return c.json({ ok: true, processed: attendees.length })
 })
 
@@ -269,6 +278,7 @@ checkin.post('/:classId/walkin', authMiddleware, async (c) => {
     .eq('user_id', targetUserId)
     .single()
 
+  const isNew = !existing
   if (existing) {
     await supabase
       .from('attendance')
@@ -288,6 +298,18 @@ checkin.post('/:classId/walkin', authMiddleware, async (c) => {
       checked_in_at: now,
       checked_in_by: user.id,
     })
+  }
+
+  // Check milestones for new check-ins (fire-and-forget)
+  if (isNew) {
+    const { data: cls2 } = await supabase
+      .from('class_instances')
+      .select('studio_id')
+      .eq('id', classId)
+      .single()
+    if (cls2) {
+      checkAndCreateMilestones(targetUserId, cls2.studio_id, classId).catch(() => {})
+    }
   }
 
   return c.json({ ok: true, userId: targetUserId }, 201)
