@@ -1,11 +1,19 @@
 # Deployment Guide
 
+## Architecture
+- **Database:** Supabase (hosted Postgres + Auth + Realtime + Storage)
+- **Web App:** Cloudflare Pages (Next.js via `@cloudflare/next-on-pages`)
+- **API:** Cloudflare Workers (Hono)
+- **Mobile:** Expo / EAS Build
+- **Admin:** Cloudflare Pages
+
 ## Local Development
 
 ### Prerequisites
 - Node.js 20+
 - pnpm 9+
-- Docker (for Postgres)
+- Supabase CLI (`npx supabase init` / `npx supabase start` for local)
+- Wrangler CLI (`pnpm add -g wrangler`) for Cloudflare
 
 ### Quick Start
 
@@ -44,48 +52,86 @@ This starts Postgres, the API, and the web app together.
 
 ## Production Deployment
 
-### Web App (Vercel)
+### Database (Supabase)
 
-The web app deploys to Vercel automatically on push to `main`.
+1. Create a project at [supabase.com](https://supabase.com)
+2. Link your local project:
+   ```bash
+   npx supabase link --project-ref <your-project-ref>
+   ```
+3. Push migrations:
+   ```bash
+   npx supabase db push
+   ```
+4. Optionally seed: `npx supabase db seed`
+5. Note your connection string, anon key, and service role key
 
-1. Import the repo in Vercel
-2. Set framework to Next.js
-3. Set root directory to `apps/web` (or use the `vercel.json` config)
-4. Add environment variables:
-   - `DATABASE_URL` — production Postgres connection string
-   - `JWT_SECRET` — secure random string
-   - `STRIPE_SECRET_KEY` — live Stripe key
-   - `STRIPE_WEBHOOK_SECRET` — from Stripe dashboard
-   - `NEXT_PUBLIC_API_URL` — URL of the deployed API
-   - `NEXT_PUBLIC_APP_URL` — Vercel deployment URL
-   - `RESEND_API_KEY` — for email notifications
+### API (Cloudflare Workers)
 
-### API (standalone or Vercel)
+The Hono API deploys as a Cloudflare Worker:
 
-**Option A: Vercel Edge Functions**
-The API can be deployed as a Vercel Edge Function alongside the web app. Add a catch-all API route that proxies to the Hono app.
-
-**Option B: Standalone (VPS/Docker)**
 ```bash
-docker build -f packages/api/Dockerfile -t studio-coop-api .
-docker run -p 3001:3001 \
-  -e DATABASE_URL=postgres://... \
-  -e JWT_SECRET=... \
-  -e STRIPE_SECRET_KEY=... \
-  studio-coop-api
+cd packages/api
+
+# Configure wrangler
+cat > wrangler.toml << 'EOF'
+name = "studio-coop-api"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+NEXT_PUBLIC_APP_URL = "https://studio.coop"
+
+# Secrets (set via wrangler secret put):
+# SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, JWT_SECRET
+# STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
+# RESEND_API_KEY
+EOF
+
+# Set secrets
+wrangler secret put SUPABASE_URL
+wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+wrangler secret put JWT_SECRET
+wrangler secret put STRIPE_SECRET_KEY
+wrangler secret put STRIPE_WEBHOOK_SECRET
+wrangler secret put RESEND_API_KEY
+
+# Deploy
+wrangler deploy
 ```
 
-### Database
+### Web App (Cloudflare Pages)
 
-**Option A: Supabase (hosted Postgres)**
-- Create a project at supabase.com
-- Run migrations via the Supabase CLI or dashboard
-- Use the connection string for `DATABASE_URL`
+```bash
+cd apps/web
 
-**Option B: Self-hosted Postgres**
-- Any PostgreSQL 16+ instance
-- Run `supabase/migrations/*.sql` in order
-- Optionally run `supabase/seed.sql` for demo data
+# Install CF adapter
+pnpm add @cloudflare/next-on-pages
+
+# Build for CF Pages
+npx @cloudflare/next-on-pages
+
+# Deploy via Wrangler or connect your GitHub repo in the CF dashboard:
+# - Build command: npx @cloudflare/next-on-pages
+# - Build output directory: apps/web/.vercel/output/static
+# - Or connect via CF Pages GitHub integration
+
+# Set environment variables in CF Pages dashboard:
+# NEXT_PUBLIC_API_URL, NEXT_PUBLIC_APP_URL, NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY
+```
+
+### Custom Domain
+
+In Cloudflare dashboard:
+1. Add `studio.coop` to your Cloudflare account (transfer DNS from Gandi, or use CF as DNS)
+2. Point `studio.coop` to your CF Pages deployment
+3. Point `api.studio.coop` to your CF Worker
+4. SSL is automatic
+
+### Admin Panel (Cloudflare Pages)
+
+Same as web app but deploy `apps/admin` as a separate CF Pages project at `admin.studio.coop`.
 
 ### Mobile App
 

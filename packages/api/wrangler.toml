@@ -1,0 +1,21 @@
+name = "studio-coop-api"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENVIRONMENT = "production"
+
+# Secrets (set via `wrangler secret put <NAME>`):
+# SUPABASE_URL
+# SUPABASE_SERVICE_ROLE_KEY
+# JWT_SECRET
+# STRIPE_SECRET_KEY
+# STRIPE_WEBHOOK_SECRET
+# STRIPE_CONNECT_CLIENT_ID
+# RESEND_API_KEY
+
+[env.staging]
+name = "studio-coop-api-staging"
+[env.staging.vars]
+ENVIRONMENT = "staging"
