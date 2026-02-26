@@ -9,3 +9,4 @@ dist/
 .env.*.local
 ios/
 android/
+pnpm-lock.yaml

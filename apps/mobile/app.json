@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "Studio Co-op",
+    "slug": "studio-coop",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "studio-coop",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#faf8f5"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "coop.studio.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#faf8f5"
+      },
+      "package": "coop.studio.app"
+    },
+    "plugins": [
+      "expo-router"
+    ]
+  }
+}
