@@ -213,3 +213,223 @@ create index idx_coupon_redemptions_user on public.coupon_redemptions(user_id);
 create index idx_private_bookings_studio on public.private_bookings(studio_id);
 create index idx_private_bookings_user on public.private_bookings(user_id);
 create index idx_private_bookings_date on public.private_bookings(studio_id, date);
+
+-- ============================================================
+-- ROW LEVEL SECURITY
+-- ============================================================
+
+alter table public.membership_plans enable row level security;
+alter table public.subscriptions enable row level security;
+alter table public.class_passes enable row level security;
+alter table public.payments enable row level security;
+alter table public.comp_classes enable row level security;
+alter table public.coupons enable row level security;
+alter table public.coupon_redemptions enable row level security;
+alter table public.studio_networks enable row level security;
+alter table public.studio_network_members enable row level security;
+alter table public.private_bookings enable row level security;
+alter table public.migration_imports enable row level security;
+
+-- ---------- Membership Plans ----------
+-- Public read (studio pages show plans to potential members)
+create policy "Membership plans are publicly viewable"
+  on public.membership_plans for select
+  using (true);
+
+-- Staff can insert plans
+create policy "Staff can create membership plans"
+  on public.membership_plans for insert
+  with check (public.is_studio_staff(studio_id));
+
+-- Staff can update plans
+create policy "Staff can update membership plans"
+  on public.membership_plans for update
+  using (public.is_studio_staff(studio_id));
+
+-- Staff can delete plans
+create policy "Staff can delete membership plans"
+  on public.membership_plans for delete
+  using (public.is_studio_staff(studio_id));
+
+-- ---------- Subscriptions ----------
+-- Users can view their own subscriptions
+create policy "Users can view own subscriptions"
+  on public.subscriptions for select
+  using (user_id = auth.uid());
+
+-- Staff can view all subscriptions in their studio
+create policy "Staff can view studio subscriptions"
+  on public.subscriptions for select
+  using (public.is_studio_staff(studio_id));
+
+-- Staff (and system via service role) can insert subscriptions
+create policy "Staff can create subscriptions"
+  on public.subscriptions for insert
+  with check (public.is_studio_staff(studio_id));
+
+-- Staff can update subscriptions (e.g. pause, cancel)
+create policy "Staff can update subscriptions"
+  on public.subscriptions for update
+  using (public.is_studio_staff(studio_id));
+
+-- ---------- Class Passes ----------
+-- Users can view their own class passes
+create policy "Users can view own class passes"
+  on public.class_passes for select
+  using (user_id = auth.uid());
+
+-- Staff can view all class passes in their studio
+create policy "Staff can view studio class passes"
+  on public.class_passes for select
+  using (public.is_studio_staff(studio_id));
+
+-- Staff can insert class passes (e.g. comp passes, manual entry)
+create policy "Staff can create class passes"
+  on public.class_passes for insert
+  with check (public.is_studio_staff(studio_id));
+
+-- Staff can update class passes (e.g. adjust remaining classes)
+create policy "Staff can update class passes"
+  on public.class_passes for update
+  using (public.is_studio_staff(studio_id));
+
+-- ---------- Payments ----------
+-- Users can view their own payment records
+create policy "Users can view own payments"
+  on public.payments for select
+  using (user_id = auth.uid());
+
+-- Staff can view all payments in their studio
+create policy "Staff can view studio payments"
+  on public.payments for select
+  using (public.is_studio_staff(studio_id));
+
+-- Staff can insert payment records
+create policy "Staff can create payments"
+  on public.payments for insert
+  with check (public.is_studio_staff(studio_id));
+
+-- ---------- Comp Classes ----------
+-- Users can view their own comp classes
+create policy "Users can view own comp classes"
+  on public.comp_classes for select
+  using (user_id = auth.uid());
+
+-- Staff can view all comp classes in their studio
+create policy "Staff can view studio comp classes"
+  on public.comp_classes for select
+  using (public.is_studio_staff(studio_id));
+
+-- Staff can grant comp classes
+create policy "Staff can create comp classes"
+  on public.comp_classes for insert
+  with check (public.is_studio_staff(studio_id));
+
+-- Staff can update comp classes (e.g. adjust remaining)
+create policy "Staff can update comp classes"
+  on public.comp_classes for update
+  using (public.is_studio_staff(studio_id));
+
+-- ---------- Coupons ----------
+-- Public read for active coupons (needed for code validation)
+create policy "Active coupons are publicly viewable"
+  on public.coupons for select
+  using (active = true);
+
+-- Staff can view all coupons (including inactive)
+create policy "Staff can view all studio coupons"
+  on public.coupons for select
+  using (public.is_studio_staff(studio_id));
+
+-- Staff can create coupons
+create policy "Staff can create coupons"
+  on public.coupons for insert
+  with check (public.is_studio_staff(studio_id));
+
+-- Staff can update coupons
+create policy "Staff can update coupons"
+  on public.coupons for update
+  using (public.is_studio_staff(studio_id));
+
+-- Staff can delete coupons
+create policy "Staff can delete coupons"
+  on public.coupons for delete
+  using (public.is_studio_staff(studio_id));
+
+-- ---------- Coupon Redemptions ----------
+-- Users can view their own redemptions
+create policy "Users can view own coupon redemptions"
+  on public.coupon_redemptions for select
+  using (user_id = auth.uid());
+
+-- Staff can view all redemptions in their studio
+create policy "Staff can view studio coupon redemptions"
+  on public.coupon_redemptions for select
+  using (public.is_studio_staff(studio_id));
+
+-- Authenticated users can redeem coupons
+create policy "Authenticated users can redeem coupons"
+  on public.coupon_redemptions for insert
+  with check (user_id = auth.uid());
+
+-- ---------- Studio Networks ----------
+-- Public read
+create policy "Studio networks are publicly viewable"
+  on public.studio_networks for select
+  using (true);
+
+-- ---------- Studio Network Members ----------
+-- Public read
+create policy "Studio network members are publicly viewable"
+  on public.studio_network_members for select
+  using (true);
+
+-- Studio owners can manage their studio's network memberships
+create policy "Owners can manage studio network membership"
+  on public.studio_network_members for insert
+  with check (public.is_studio_staff(studio_id));
+
+create policy "Owners can update studio network membership"
+  on public.studio_network_members for update
+  using (public.is_studio_staff(studio_id));
+
+create policy "Owners can remove studio from network"
+  on public.studio_network_members for delete
+  using (public.is_studio_staff(studio_id));
+
+-- ---------- Private Bookings ----------
+-- Users can view their own private bookings
+create policy "Users can view own private bookings"
+  on public.private_bookings for select
+  using (user_id = auth.uid());
+
+-- Staff can view all private bookings in their studio
+create policy "Staff can view studio private bookings"
+  on public.private_bookings for select
+  using (public.is_studio_staff(studio_id));
+
+-- Authenticated users can request private bookings
+create policy "Authenticated users can request private bookings"
+  on public.private_bookings for insert
+  with check (user_id = auth.uid());
+
+-- Staff can update private bookings (confirm, complete, cancel)
+create policy "Staff can update private bookings"
+  on public.private_bookings for update
+  using (public.is_studio_staff(studio_id));
+
+-- ---------- Migration Imports ----------
+-- Owners can view their own migration imports
+create policy "Owners can view migration imports"
+  on public.migration_imports for select
+  using (public.is_studio_staff(studio_id));
+
+-- Owners can create migration imports
+create policy "Owners can create migration imports"
+  on public.migration_imports for insert
+  with check (public.is_studio_staff(studio_id));
+
+-- Owners can update migration imports (e.g. status updates)
+create policy "Owners can update migration imports"
+  on public.migration_imports for update
+  using (public.is_studio_staff(studio_id));
