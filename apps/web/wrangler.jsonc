@@ -14,9 +14,8 @@
     "NEXT_PUBLIC_APP_URL": "https://studio.coop",
     "NEXT_PUBLIC_API_URL": "https://api.studio.coop"
   },
-  // Custom domain — auto-creates DNS record
   "routes": [
-    { "pattern": "studio.coop", "zone_name": "studio.coop" },
-    { "pattern": "www.studio.coop", "zone_name": "studio.coop" }
+    { "pattern": "studio.coop/*", "zone_name": "studio.coop" },
+    { "pattern": "www.studio.coop/*", "zone_name": "studio.coop" }
   ]
 }
