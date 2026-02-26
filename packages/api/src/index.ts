@@ -3,6 +3,7 @@ import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 import { errorHandler } from './middleware/error-handler'
 import plans from './routes/plans'
+import webhooks from './routes/webhooks'
 
 const app = new Hono()
 
@@ -29,6 +30,7 @@ app.get('/health', (c) => c.json({
 
 // Route groups
 app.route('/api/studios', plans)
+app.route('/api/webhooks', webhooks)
 
 export default app
 export { app }
