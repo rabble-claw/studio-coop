@@ -9,6 +9,8 @@ import subscriptions from './routes/subscriptions'
 import schedule from './routes/schedule'
 import bookings from './routes/bookings'
 import my from './routes/my'
+import checkin from './routes/checkin'
+import attendance from './routes/attendance'
 
 const app = new Hono()
 
@@ -37,11 +39,14 @@ app.get('/health', (c) => c.json({
 app.route('/api/studios', plans)
 app.route('/api/studios', classes)
 app.route('/api/studios', schedule)
-app.route('/api/studios', bookings)   // /:studioId/classes/:classId/book + staff booking management
+app.route('/api/studios', bookings)
 app.route('/api/subscriptions', subscriptions)
 app.route('/api/webhooks', webhooks)
-app.route('/api', my)                 // /bookings/:id, /bookings/:id/confirm, /my/bookings
+app.route('/api', my)
 app.route('/', schedule)  // for /api/admin/generate-classes
+app.route('/api/classes', checkin)
+app.route('/api/studios', attendance)
+app.route('/api/my', attendance)
 
 export default app
 export { app }
