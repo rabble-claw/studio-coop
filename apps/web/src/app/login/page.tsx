@@ -3,10 +3,10 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { isDemoMode } from '@/lib/demo-data'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -16,13 +16,33 @@ export default function LoginPage() {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const router = useRouter()
-  const supabase = createClient()
+  const demo = isDemoMode()
 
   async function handleEmailLogin(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError('')
     setMessage('')
+
+    if (demo) {
+      // Demo mode — simulate auth
+      await new Promise(r => setTimeout(r, 800))
+      if (mode === 'magic') {
+        setMessage('✨ Demo mode — redirecting to dashboard...')
+        setTimeout(() => router.push('/dashboard'), 1000)
+      } else if (mode === 'signup') {
+        setMessage('✨ Account created! Redirecting to dashboard...')
+        setTimeout(() => router.push('/dashboard'), 1000)
+      } else {
+        router.push('/dashboard')
+      }
+      setLoading(false)
+      return
+    }
+
+    // Real Supabase auth
+    const { createClient } = await import('@/lib/supabase/client')
+    const supabase = createClient()
 
     if (mode === 'magic') {
       const { error } = await supabase.auth.signInWithOtp({ email })
@@ -67,6 +87,12 @@ export default function LoginPage() {
           <p className="text-muted-foreground text-sm mt-1">Your studio community awaits</p>
         </div>
 
+        {demo && (
+          <div className="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+            <strong>Demo mode</strong> — enter any email to explore the dashboard
+          </div>
+        )}
+
         <Card>
           <CardHeader className="pb-4">
             <CardTitle className="text-lg">
@@ -98,8 +124,8 @@ export default function LoginPage() {
                     placeholder="Password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    required
-                    minLength={6}
+                    required={!demo}
+                    minLength={demo ? 0 : 6}
                   />
                 </div>
               )}
