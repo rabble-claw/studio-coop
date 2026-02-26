@@ -172,3 +172,44 @@ create table public.migration_imports (
   completed_at timestamptz,
   created_at timestamptz default now()
 );
+
+-- ============================================================
+-- INDEXES
+-- ============================================================
+
+-- Membership Plans
+create index idx_membership_plans_studio on public.membership_plans(studio_id);
+create index idx_membership_plans_studio_active on public.membership_plans(studio_id) where active = true;
+
+-- Subscriptions
+create index idx_subscriptions_user on public.subscriptions(user_id);
+create index idx_subscriptions_studio on public.subscriptions(studio_id);
+create index idx_subscriptions_stripe on public.subscriptions(stripe_subscription_id);
+create index idx_subscriptions_status on public.subscriptions(studio_id, status);
+
+-- Class Passes
+create index idx_class_passes_user on public.class_passes(user_id);
+create index idx_class_passes_studio on public.class_passes(studio_id);
+create index idx_class_passes_remaining on public.class_passes(user_id) where remaining_classes > 0;
+
+-- Payments
+create index idx_payments_user on public.payments(user_id);
+create index idx_payments_studio on public.payments(studio_id);
+create index idx_payments_stripe on public.payments(stripe_payment_intent_id);
+
+-- Comp Classes
+create index idx_comp_classes_user on public.comp_classes(user_id);
+create index idx_comp_classes_remaining on public.comp_classes(user_id) where remaining_classes > 0;
+
+-- Coupons
+create index idx_coupons_studio on public.coupons(studio_id);
+create index idx_coupons_code on public.coupons(code);
+
+-- Coupon Redemptions
+create index idx_coupon_redemptions_coupon on public.coupon_redemptions(coupon_id);
+create index idx_coupon_redemptions_user on public.coupon_redemptions(user_id);
+
+-- Private Bookings
+create index idx_private_bookings_studio on public.private_bookings(studio_id);
+create index idx_private_bookings_user on public.private_bookings(user_id);
+create index idx_private_bookings_date on public.private_bookings(studio_id, date);
