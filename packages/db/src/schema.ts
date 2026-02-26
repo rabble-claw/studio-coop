@@ -113,3 +113,157 @@ export const notifications = pgTable('notifications', {
   readAt: timestamp('read_at', { withTimezone: true }),
   scheduledFor: timestamp('scheduled_for', { withTimezone: true }),
 })
+
+// ============================================================
+// V2: PAYMENTS & FEATURES
+// ============================================================
+
+export const membershipPlans = pgTable('membership_plans', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  studioId: uuid('studio_id').references(() => studios.id).notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  type: text('type').notNull(), // unlimited, limited, class_pack, drop_in, intro
+  priceCents: integer('price_cents').notNull(),
+  currency: text('currency').notNull().default('USD'),
+  interval: text('interval').notNull(), // month, year, once
+  classLimit: integer('class_limit'),
+  validityDays: integer('validity_days'),
+  stripePriceId: text('stripe_price_id'),
+  active: boolean('active').notNull().default(true),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+})
+
+export const subscriptions = pgTable('subscriptions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id).notNull(),
+  studioId: uuid('studio_id').references(() => studios.id).notNull(),
+  planId: uuid('plan_id').references(() => membershipPlans.id).notNull(),
+  stripeSubscriptionId: text('stripe_subscription_id'),
+  stripeCustomerId: text('stripe_customer_id'),
+  status: text('status').notNull().default('active'), // active, past_due, cancelled, paused
+  currentPeriodStart: timestamp('current_period_start', { withTimezone: true }),
+  currentPeriodEnd: timestamp('current_period_end', { withTimezone: true }),
+  classesUsedThisPeriod: integer('classes_used_this_period').notNull().default(0),
+  cancelledAt: timestamp('cancelled_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+})
+
+export const classPasses = pgTable('class_passes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id).notNull(),
+  studioId: uuid('studio_id').references(() => studios.id).notNull(),
+  planId: uuid('plan_id').references(() => membershipPlans.id),
+  totalClasses: integer('total_classes').notNull(),
+  remainingClasses: integer('remaining_classes').notNull(),
+  purchasedAt: timestamp('purchased_at', { withTimezone: true }).defaultNow(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  stripePaymentIntentId: text('stripe_payment_intent_id'),
+})
+
+export const payments = pgTable('payments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id).notNull(),
+  studioId: uuid('studio_id').references(() => studios.id).notNull(),
+  type: text('type').notNull(), // subscription, class_pack, drop_in, private_booking
+  amountCents: integer('amount_cents').notNull(),
+  currency: text('currency').notNull().default('USD'),
+  stripePaymentIntentId: text('stripe_payment_intent_id'),
+  refunded: boolean('refunded').notNull().default(false),
+  refundAmountCents: integer('refund_amount_cents').notNull().default(0),
+  metadata: jsonb('metadata').notNull().default('{}'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+})
+
+export const compClasses = pgTable('comp_classes', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id).notNull(),
+  studioId: uuid('studio_id').references(() => studios.id).notNull(),
+  grantedBy: uuid('granted_by').references(() => users.id),
+  reason: text('reason'),
+  totalClasses: integer('total_classes').notNull(),
+  remainingClasses: integer('remaining_classes').notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+})
+
+export const coupons = pgTable('coupons', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  studioId: uuid('studio_id').references(() => studios.id).notNull(),
+  code: text('code').notNull(),
+  type: text('type').notNull(), // percent_off, amount_off, free_classes
+  value: integer('value').notNull(),
+  appliesTo: text('applies_to').notNull().default('any'), // any, plan, drop_in, new_member
+  planIds: uuid('plan_ids').array().default([]),
+  maxRedemptions: integer('max_redemptions'),
+  currentRedemptions: integer('current_redemptions').notNull().default(0),
+  validFrom: timestamp('valid_from', { withTimezone: true }),
+  validUntil: timestamp('valid_until', { withTimezone: true }),
+  active: boolean('active').notNull().default(true),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+}, (t) => [
+  unique().on(t.studioId, t.code),
+])
+
+export const couponRedemptions = pgTable('coupon_redemptions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  couponId: uuid('coupon_id').references(() => coupons.id).notNull(),
+  userId: uuid('user_id').references(() => users.id).notNull(),
+  studioId: uuid('studio_id').references(() => studios.id).notNull(),
+  appliedToType: text('applied_to_type'),
+  appliedToId: uuid('applied_to_id'),
+  discountAmountCents: integer('discount_amount_cents').notNull().default(0),
+  redeemedAt: timestamp('redeemed_at', { withTimezone: true }).defaultNow(),
+})
+
+export const studioNetworks = pgTable('studio_networks', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  description: text('description'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+})
+
+export const studioNetworkMembers = pgTable('studio_network_members', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  networkId: uuid('network_id').references(() => studioNetworks.id).notNull(),
+  studioId: uuid('studio_id').references(() => studios.id).notNull(),
+  crossBookingPolicy: text('cross_booking_policy').notNull().default('full_price'), // full_price, discounted, included
+  discountPercent: integer('discount_percent'),
+  joinedAt: timestamp('joined_at', { withTimezone: true }).defaultNow(),
+}, (t) => [
+  unique().on(t.networkId, t.studioId),
+])
+
+export const privateBookings = pgTable('private_bookings', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  studioId: uuid('studio_id').references(() => studios.id).notNull(),
+  userId: uuid('user_id').references(() => users.id).notNull(),
+  type: text('type').notNull(), // party, private_tuition, group
+  title: text('title').notNull(),
+  description: text('description'),
+  notes: text('notes'),
+  date: date('date').notNull(),
+  startTime: time('start_time').notNull(),
+  endTime: time('end_time').notNull(),
+  attendeeCount: integer('attendee_count'),
+  priceCents: integer('price_cents'),
+  depositCents: integer('deposit_cents'),
+  depositPaid: boolean('deposit_paid').notNull().default(false),
+  status: text('status').notNull().default('requested'), // requested, confirmed, completed, cancelled
+  stripePaymentIntentId: text('stripe_payment_intent_id'),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+})
+
+export const migrationImports = pgTable('migration_imports', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  studioId: uuid('studio_id').references(() => studios.id).notNull(),
+  source: text('source').notNull(), // mindbody, vagaro, csv
+  fileName: text('file_name'),
+  status: text('status').notNull().default('pending'), // pending, processing, completed, failed
+  importedCounts: jsonb('imported_counts').notNull().default('{}'),
+  errors: jsonb('errors').notNull().default('[]'),
+  startedAt: timestamp('started_at', { withTimezone: true }),
+  completedAt: timestamp('completed_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
+})
