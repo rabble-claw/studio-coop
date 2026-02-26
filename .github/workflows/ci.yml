@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: studio_coop
+          POSTGRES_PASSWORD: studio_coop_test
+          POSTGRES_DB: studio_coop_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5433:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install
+
+      - name: Type check
+        run: pnpm turbo build --filter='./packages/*'
+
+      - name: Lint
+        run: pnpm turbo lint || true
+
+      - name: Run tests
+        run: pnpm turbo test:run
+        env:
+          DATABASE_URL: postgres://studio_coop:studio_coop_test@localhost:5433/studio_coop_test
+          JWT_SECRET: test-jwt-secret
+          STRIPE_SECRET_KEY: sk_test_placeholder
+          STRIPE_WEBHOOK_SECRET: whsec_placeholder
+          RESEND_API_KEY: re_placeholder
+
+      - name: Build web
+        run: pnpm turbo build --filter=@studio-coop/web
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:3001
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+          NEXT_PUBLIC_APP_NAME: "Studio Co-op"

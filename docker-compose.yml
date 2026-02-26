@@ -1,0 +1,59 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: studio_coop
+      POSTGRES_PASSWORD: studio_coop_dev
+      POSTGRES_DB: studio_coop
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./supabase/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U studio_coop"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: packages/api/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      DATABASE_URL: postgres://studio_coop:studio_coop_dev@db:5432/studio_coop
+      JWT_SECRET: dev-jwt-secret-change-in-production
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-sk_test_placeholder}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-whsec_placeholder}
+      RESEND_API_KEY: ${RESEND_API_KEY:-re_placeholder}
+      PORT: 3001
+      NODE_ENV: development
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      NEXT_PUBLIC_APP_NAME: "Studio Co-op"
+      DATABASE_URL: postgres://studio_coop:studio_coop_dev@db:5432/studio_coop
+      JWT_SECRET: dev-jwt-secret-change-in-production
+      NODE_ENV: development
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
