@@ -266,3 +266,81 @@ export const demoMembership = {
   status: 'active' as const,
   studios: demoStudio,
 }
+
+// ============================================================
+// V2: Membership Plans & Coupons
+// ============================================================
+
+export const demoMembershipPlans = [
+  {
+    id: 'plan-unlimited',
+    studio_id: STUDIO_ID,
+    name: 'Unlimited Monthly',
+    description: 'Unlimited classes every month. The best value if you love to train! Come as often as you like.',
+    type: 'unlimited' as const,
+    price_cents: 18000,
+    currency: 'NZD',
+    interval: 'month' as const,
+    class_limit: null,
+    validity_days: null,
+    active: true,
+    sort_order: 1,
+  },
+  {
+    id: 'plan-8pack',
+    studio_id: STUDIO_ID,
+    name: '8-Class Pack',
+    description: 'Eight classes to use at your own pace. Valid for 60 days from purchase.',
+    type: 'class_pack' as const,
+    price_cents: 16000,
+    currency: 'NZD',
+    interval: 'once' as const,
+    class_limit: 8,
+    validity_days: 60,
+    active: true,
+    sort_order: 2,
+  },
+  {
+    id: 'plan-dropin',
+    studio_id: STUDIO_ID,
+    name: 'Drop-In Class',
+    description: 'Single class, pay as you go. No commitment needed.',
+    type: 'drop_in' as const,
+    price_cents: 2500,
+    currency: 'NZD',
+    interval: 'once' as const,
+    class_limit: 1,
+    validity_days: null,
+    active: true,
+    sort_order: 3,
+  },
+]
+
+export const demoCoupons = [
+  {
+    id: 'coupon-welcome20',
+    studio_id: STUDIO_ID,
+    code: 'WELCOME20',
+    type: 'percent_off' as const,
+    value: 20,
+    applies_to: 'new_member' as const,
+    max_redemptions: null,
+    current_redemptions: 0,
+    valid_from: '2026-01-01T00:00:00Z',
+    valid_until: '2026-12-31T23:59:59Z',
+    active: true,
+  },
+  {
+    id: 'coupon-bringafriend',
+    studio_id: STUDIO_ID,
+    code: 'BRINGAFRIEND',
+    type: 'free_classes' as const,
+    value: 1,
+    applies_to: 'drop_in' as const,
+    max_redemptions: 100,
+    current_redemptions: 0,
+    valid_from: '2026-02-01T00:00:00Z',
+    valid_until: '2026-06-30T23:59:59Z',
+    active: true,
+  },
+]

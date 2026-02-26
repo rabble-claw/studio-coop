@@ -7,8 +7,12 @@
 -- ============================================================
 
 -- Clean slate (idempotent)
-truncate public.feed_posts, public.attendance, public.bookings,
-         public.class_instances, public.class_templates,
+truncate public.coupon_redemptions, public.coupons, public.comp_classes,
+         public.payments, public.class_passes, public.subscriptions,
+         public.membership_plans, public.migration_imports,
+         public.private_bookings, public.studio_network_members,
+         public.studio_networks, public.feed_posts, public.attendance,
+         public.bookings, public.class_instances, public.class_templates,
          public.memberships, public.notifications, public.studios,
          public.users cascade;
 
@@ -515,3 +519,65 @@ insert into public.feed_posts (class_instance_id, user_id, content, post_type, c
    'Alex pushed us hard tonight and it was exactly what I needed.', 'post', '2026-02-25 20:15:00+13'),
   ('dd000000-0000-0000-0000-000000000061', 'aa000000-0000-0000-0000-000000000001',
    'L3 crew absolutely smashed it tonight! The progress in this group is unreal.', 'post', '2026-02-25 20:30:00+13');
+
+-- ============================================================
+-- V2 SEED DATA: Membership Plans, Coupons, Comp Classes
+-- ============================================================
+
+-- MEMBERSHIP PLANS — Empire Aerial Arts (NZD)
+insert into public.membership_plans (id, studio_id, name, description, type, price_cents, currency, interval, class_limit, validity_days, active, sort_order) values
+  ('ee000000-0000-0000-0000-000000000001',
+   'bb000000-0000-0000-0000-000000000001',
+   'Unlimited Monthly',
+   'Unlimited classes every month. The best value if you love to train! Come as often as you like.',
+   'unlimited', 18000, 'NZD', 'month', null, null, true, 1),
+
+  ('ee000000-0000-0000-0000-000000000002',
+   'bb000000-0000-0000-0000-000000000001',
+   '8-Class Pack',
+   'Eight classes to use at your own pace. Valid for 60 days from purchase.',
+   'class_pack', 16000, 'NZD', 'once', 8, 60, true, 2),
+
+  ('ee000000-0000-0000-0000-000000000003',
+   'bb000000-0000-0000-0000-000000000001',
+   'Drop-In Class',
+   'Single class, pay as you go. No commitment needed.',
+   'drop_in', 2500, 'NZD', 'once', 1, null, true, 3);
+
+-- COUPONS
+insert into public.coupons (id, studio_id, code, type, value, applies_to, max_redemptions, valid_from, valid_until, active) values
+  ('ff000000-0000-0000-0000-000000000001',
+   'bb000000-0000-0000-0000-000000000001',
+   'WELCOME20',
+   'percent_off', 20,
+   'new_member',
+   null,
+   '2026-01-01 00:00:00+00',
+   '2026-12-31 23:59:59+00',
+   true),
+
+  ('ff000000-0000-0000-0000-000000000002',
+   'bb000000-0000-0000-0000-000000000001',
+   'BRINGAFRIEND',
+   'free_classes', 1,
+   'drop_in',
+   100,
+   '2026-02-01 00:00:00+00',
+   '2026-06-30 23:59:59+00',
+   true);
+
+-- COMP CLASSES (a few sample grants)
+insert into public.comp_classes (studio_id, user_id, granted_by, reason, total_classes, remaining_classes, expires_at) values
+  ('bb000000-0000-0000-0000-000000000001',
+   'aa000000-0000-0000-0000-000000000013',
+   'aa000000-0000-0000-0000-000000000001',
+   'Helped set up for the showcase performance',
+   2, 2,
+   '2026-06-01 00:00:00+00'),
+
+  ('bb000000-0000-0000-0000-000000000001',
+   'aa000000-0000-0000-0000-000000000017',
+   'aa000000-0000-0000-0000-000000000001',
+   'Birthday treat — enjoy!',
+   1, 1,
+   '2026-04-01 00:00:00+00');
