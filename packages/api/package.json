@@ -4,12 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch src/serve.ts",
     "build": "tsc",
     "test": "vitest",
     "test:run": "vitest run"
   },
   "dependencies": {
+    "@hono/node-server": "^1.14",
     "hono": "^4.7",
     "@supabase/supabase-js": "^2.49",
     "@studio-coop/shared": "workspace:*",
