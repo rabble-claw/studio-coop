@@ -2,10 +2,15 @@
 
 ## Architecture
 - **Database:** Supabase (hosted Postgres + Auth + Realtime + Storage)
-- **Web App:** Cloudflare Pages (Next.js via `@cloudflare/next-on-pages`)
-- **API:** Cloudflare Workers (Hono)
+- **Web App:** Cloudflare Workers (Next.js via `@opennextjs/cloudflare`) → `studio.coop`
+- **API:** Cloudflare Workers (Hono) → `api.studio.coop`
 - **Mobile:** Expo / EAS Build
-- **Admin:** Cloudflare Pages
+- **Admin:** Cloudflare Workers (planned) → `admin.studio.coop`
+
+## Live URLs
+- **Web:** https://studio.coop (backup: https://studio-coop.protestnet.workers.dev)
+- **API:** https://api.studio.coop (backup: https://studio-coop-api.protestnet.workers.dev)
+- **API Health:** https://api.studio.coop/health
 
 ## Local Development
 
@@ -68,70 +73,59 @@ This starts Postgres, the API, and the web app together.
 
 ### API (Cloudflare Workers)
 
-The Hono API deploys as a Cloudflare Worker:
+The Hono API deploys as a Cloudflare Worker with a custom esbuild step:
 
 ```bash
 cd packages/api
 
-# Configure wrangler
-cat > wrangler.toml << 'EOF'
-name = "studio-coop-api"
-main = "src/index.ts"
-compatibility_date = "2024-01-01"
-compatibility_flags = ["nodejs_compat"]
-
-[vars]
-NEXT_PUBLIC_APP_URL = "https://studio.coop"
-
-# Secrets (set via wrangler secret put):
-# SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, JWT_SECRET
-# STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET
-# RESEND_API_KEY
-EOF
-
-# Set secrets
+# Set secrets (first time only)
 wrangler secret put SUPABASE_URL
 wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+wrangler secret put SUPABASE_ANON_KEY
 wrangler secret put JWT_SECRET
 wrangler secret put STRIPE_SECRET_KEY
 wrangler secret put STRIPE_WEBHOOK_SECRET
 wrangler secret put RESEND_API_KEY
 
 # Deploy
-wrangler deploy
+wrangler deploy --env=""
 ```
 
-### Web App (Cloudflare Pages)
+The build uses `build.mjs` (esbuild) to bundle for Workers, externalizing Node builtins (provided by `nodejs_compat`) and `expo-server-sdk` (dynamically imported for push notifications).
+
+### Web App (Cloudflare Workers via OpenNext)
 
 ```bash
 cd apps/web
 
-# Install CF adapter
-pnpm add @cloudflare/next-on-pages
+# Build and deploy
+npx @opennextjs/cloudflare build
+npx wrangler deploy
 
-# Build for CF Pages
-npx @cloudflare/next-on-pages
-
-# Deploy via Wrangler or connect your GitHub repo in the CF dashboard:
-# - Build command: npx @cloudflare/next-on-pages
-# - Build output directory: apps/web/.vercel/output/static
-# - Or connect via CF Pages GitHub integration
-
-# Set environment variables in CF Pages dashboard:
-# NEXT_PUBLIC_API_URL, NEXT_PUBLIC_APP_URL, NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY
+# Or use the shorthand:
+pnpm deploy
 ```
 
-### Custom Domain
+**Environment variables** are set in `wrangler.jsonc`. For secrets:
+```bash
+cd apps/web
+wrangler secret put NEXT_PUBLIC_SUPABASE_URL
+wrangler secret put NEXT_PUBLIC_SUPABASE_ANON_KEY
+```
 
-In Cloudflare dashboard:
-1. Add `studio.coop` to your Cloudflare account (transfer DNS from Gandi, or use CF as DNS)
-2. Point `studio.coop` to your CF Pages deployment
-3. Point `api.studio.coop` to your CF Worker
-4. SSL is automatic
+### Custom Domains
 
-### Admin Panel (Cloudflare Pages)
+DNS for `studio.coop` is managed by Cloudflare (zone: `a5b77a4ea14830fa6fe265811f0f5ef1`).
 
-Same as web app but deploy `apps/admin` as a separate CF Pages project at `admin.studio.coop`.
+Routes are configured in the wrangler configs:
+- `studio.coop` + `www.studio.coop` → `studio-coop` Worker (web app)
+- `api.studio.coop/*` → `studio-coop-api` Worker (API)
+
+SSL is automatic via Cloudflare.
+
+### Admin Panel
+
+Same as web app but deploy `apps/admin` as a separate Worker at `admin.studio.coop`.
 
 ### Mobile App
 
@@ -156,18 +150,21 @@ eas submit --platform android
 
 ## Environment Variables Reference
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DATABASE_URL` | Yes | Postgres connection string |
-| `JWT_SECRET` | Yes | Secret for signing auth tokens |
-| `STRIPE_SECRET_KEY` | Yes | Stripe API key |
-| `STRIPE_WEBHOOK_SECRET` | Yes | Stripe webhook signing secret |
-| `STRIPE_CONNECT_CLIENT_ID` | For onboarding | Stripe Connect platform ID |
-| `RESEND_API_KEY` | For email | Resend email service key |
-| `RESEND_FROM_EMAIL` | For email | Sender email address |
-| `NEXT_PUBLIC_API_URL` | Yes | Public API URL |
-| `NEXT_PUBLIC_APP_URL` | Yes | Public web app URL |
-| `NEXT_PUBLIC_APP_NAME` | No | App display name (default: "Studio Co-op") |
+| Variable | Required | Where | Description |
+|----------|----------|-------|-------------|
+| `SUPABASE_URL` | Yes | API Worker secret | Supabase project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | API Worker secret | Supabase service role key |
+| `SUPABASE_ANON_KEY` | Yes | API Worker secret | Supabase anon key |
+| `JWT_SECRET` | Yes | API Worker secret | Secret for signing auth tokens |
+| `STRIPE_SECRET_KEY` | Yes | API Worker secret | Stripe API key |
+| `STRIPE_WEBHOOK_SECRET` | Yes | API Worker secret | Stripe webhook signing secret |
+| `STRIPE_CONNECT_CLIENT_ID` | For onboarding | API Worker secret | Stripe Connect platform ID |
+| `RESEND_API_KEY` | For email | API Worker secret | Resend email service key |
+| `NEXT_PUBLIC_API_URL` | Yes | Web Worker var | Public API URL (`https://api.studio.coop`) |
+| `NEXT_PUBLIC_APP_URL` | Yes | Web Worker var | Public web app URL (`https://studio.coop`) |
+| `NEXT_PUBLIC_APP_NAME` | No | Web Worker var | App display name (default: "Studio Co-op") |
+| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Web Worker secret | Supabase URL for client-side |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Web Worker secret | Supabase anon key for client-side |
 
 ---
 
@@ -181,29 +178,6 @@ GitHub Actions runs on every push and PR:
 - Build web app
 
 See `.github/workflows/ci.yml`.
-
-## Cloudflare Pages Deployment
-
-### Setup
-
-1. Connect the repo to Cloudflare Pages
-2. Set build settings:
-   - **Build command:** `cd apps/web && npx @cloudflare/next-on-pages`
-   - **Build output directory:** `apps/web/.vercel/output/static`
-   - **Root directory:** `/`
-3. Add environment variables in Cloudflare dashboard:
-   - `NEXT_PUBLIC_SUPABASE_URL`
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `NEXT_PUBLIC_APP_URL` (your Pages URL)
-   - `NEXT_PUBLIC_APP_NAME`
-
-### Local Preview
-
-```bash
-cd apps/web
-pnpm build:cf-pages
-pnpm preview:cf
-```
 
 ### Supabase Hosted
 

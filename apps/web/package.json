@@ -11,8 +11,9 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "build:static": "NEXT_CONFIG_FILE=next.config.static.ts next build",
-    "build:cf-pages": "npx @cloudflare/next-on-pages",
-    "preview:cf": "npx wrangler pages dev .vercel/output/static"
+    "build:worker": "npx @opennextjs/cloudflare build",
+    "preview:cf": "npx @opennextjs/cloudflare build && npx wrangler dev",
+    "deploy": "npx @opennextjs/cloudflare build && npx wrangler deploy"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.2",
@@ -38,6 +39,7 @@
     "tailwind-merge": "^2.6.0"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "^1.17.1",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.6.0",
     "@testing-library/react": "^16.0.0",

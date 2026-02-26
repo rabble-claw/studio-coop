@@ -1,10 +1,15 @@
 name = "studio-coop-api"
-main = "src/index.ts"
-compatibility_date = "2024-01-01"
+main = "dist/worker.js"
+compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+[build]
+command = "node build.mjs"
 
 [vars]
 ENVIRONMENT = "production"
+WEB_URL = "https://studio.coop"
 
 # Secrets (set via `wrangler secret put <NAME>`):
 # SUPABASE_URL
@@ -14,6 +19,11 @@ ENVIRONMENT = "production"
 # STRIPE_WEBHOOK_SECRET
 # STRIPE_CONNECT_CLIENT_ID
 # RESEND_API_KEY
+
+# Custom domain — auto-creates DNS record
+[[routes]]
+pattern = "api.studio.coop/*"
+zone_name = "studio.coop"
 
 [env.staging]
 name = "studio-coop-api-staging"

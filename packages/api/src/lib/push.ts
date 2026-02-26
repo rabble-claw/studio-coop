@@ -1,4 +1,3 @@
-import Expo, { type ExpoPushMessage, type ExpoPushTicket } from 'expo-server-sdk'
 import { createServiceClient } from './supabase'
 
 export interface PushPayload {
@@ -14,10 +13,11 @@ export interface RegisterTokenPayload {
   platform: 'ios' | 'android'
 }
 
-let _expo: Expo | null = null
+let _expo: any = null
 
-function getExpoClient(): Expo {
+async function getExpoClient(): Promise<any> {
   if (!_expo) {
+    const { default: Expo } = await import('expo-server-sdk')
     _expo = new Expo({ accessToken: process.env.EXPO_ACCESS_TOKEN })
   }
   return _expo
@@ -25,7 +25,7 @@ function getExpoClient(): Expo {
 
 /**
  * Send a push notification to all registered Expo tokens for a user.
- * No-op if user has no registered tokens.
+ * No-op if user has no registered tokens or if expo-server-sdk is unavailable.
  * Invalid/expired tokens are removed from the DB automatically.
  */
 export async function sendPushNotification(payload: PushPayload): Promise<void> {
@@ -38,11 +38,21 @@ export async function sendPushNotification(payload: PushPayload): Promise<void> 
 
   if (!tokens || tokens.length === 0) return
 
-  const expo = getExpoClient()
-  const validTokens = tokens.filter((t) => Expo.isExpoPushToken(t.token))
+  let expo: any
+  let Expo: any
+  try {
+    const mod = await import('expo-server-sdk')
+    Expo = mod.default
+    expo = await getExpoClient()
+  } catch {
+    console.warn('expo-server-sdk not available, skipping push notification')
+    return
+  }
+
+  const validTokens = tokens.filter((t: any) => Expo.isExpoPushToken(t.token))
   if (validTokens.length === 0) return
 
-  const messages: ExpoPushMessage[] = validTokens.map((t) => ({
+  const messages = validTokens.map((t: any) => ({
     to: t.token,
     sound: 'default' as const,
     title: payload.title,
@@ -54,14 +64,14 @@ export async function sendPushNotification(payload: PushPayload): Promise<void> 
   const invalidTokenIds: string[] = []
 
   for (const chunk of chunks) {
-    let tickets: ExpoPushTicket[]
+    let tickets: any[]
     try {
       tickets = await expo.sendPushNotificationsAsync(chunk)
     } catch {
       continue
     }
 
-    tickets.forEach((ticket, i) => {
+    tickets.forEach((ticket: any, i: number) => {
       if (ticket.status === 'error') {
         const details = (ticket as any).details
         if (details?.error === 'DeviceNotRegistered') {

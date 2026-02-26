@@ -10,3 +10,5 @@ dist/
 ios/
 android/
 pnpm-lock.yaml
+.open-next/
+.vercel/

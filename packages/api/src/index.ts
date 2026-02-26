@@ -27,6 +27,7 @@ app.use('*', cors({
   origin: [
     'http://localhost:3000',      // web dev
     'http://localhost:8081',      // expo dev
+    'https://studio.coop',       // production
     process.env.WEB_URL ?? '',
   ].filter(Boolean),
   credentials: true,
