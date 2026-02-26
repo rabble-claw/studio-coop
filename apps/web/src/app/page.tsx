@@ -157,7 +157,7 @@ export default function LandingPage() {
             Not another generic gym platform.&rdquo;
           </blockquote>
           <div className="text-muted-foreground">
-            <span className="font-medium text-foreground">Emma Hartley</span>
+            <span className="font-medium text-foreground">Alex Rivera</span>
             <span className="mx-2">&middot;</span>
             Empire Aerial Arts, Wellington NZ
           </div>

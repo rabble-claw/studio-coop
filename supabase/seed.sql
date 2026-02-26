@@ -1,7 +1,7 @@
 -- ============================================================
 -- SEED DATA: Empire Aerial Arts — Wellington, NZ
 -- ============================================================
--- Emma's studio on Cuba Street, Wellington.
+-- The studio on Cuba Street, Wellington.
 -- Disciplines: pole, aerial hoop, aerial silks, handbalance,
 --              hula hoop, flexibility, strength & conditioning
 -- ============================================================
@@ -17,8 +17,8 @@ truncate public.feed_posts, public.attendance, public.bookings,
 -- ============================================================
 -- Owner
 insert into public.users (id, email, name, avatar_url) values
-  ('aa000000-0000-0000-0000-000000000001', 'emma@empireaerialarts.com', 'Emma Hartley',
-   'https://api.dicebear.com/9.x/avataaars/svg?seed=Emma&backgroundColor=ffd5dc');
+  ('aa000000-0000-0000-0000-000000000001', 'alex@empireaerialarts.com', 'Alex Rivera',
+   'https://api.dicebear.com/9.x/avataaars/svg?seed=Alex&backgroundColor=ffd5dc');
 
 -- Teachers
 insert into public.users (id, email, name, avatar_url) values
@@ -113,7 +113,7 @@ insert into public.memberships (user_id, studio_id, role, status, tags) values
 -- ============================================================
 -- CLASS TEMPLATES
 -- ============================================================
--- Pole classes (taught by Emma + Jade)
+-- Pole classes (taught by Alex + Jade)
 insert into public.class_templates (id, studio_id, name, description, teacher_id, day_of_week, start_time, duration_min, max_capacity, location, recurrence) values
   ('cc000000-0000-0000-0000-000000000001',
    'bb000000-0000-0000-0000-000000000001',
@@ -487,7 +487,7 @@ insert into public.feed_posts (class_instance_id, user_id, content, post_type, c
   ('dd000000-0000-0000-0000-000000000056', 'aa000000-0000-0000-0000-000000000013',
    'First time nailing the fireman spin! So stoked!', 'achievement', '2026-02-23 19:15:00+13'),
   ('dd000000-0000-0000-0000-000000000056', 'aa000000-0000-0000-0000-000000000018',
-   'Those body waves at the end were everything. Thanks Emma!', 'post', '2026-02-23 19:20:00+13'),
+   'Those body waves at the end were everything. Thanks Alex!', 'post', '2026-02-23 19:20:00+13'),
   ('dd000000-0000-0000-0000-000000000056', 'aa000000-0000-0000-0000-000000000024',
    'Week 4 and I can finally climb to the top! This community is the best.', 'milestone', '2026-02-23 19:30:00+13'),
   ('dd000000-0000-0000-0000-000000000056', 'aa000000-0000-0000-0000-000000000001',
@@ -512,6 +512,6 @@ insert into public.feed_posts (class_instance_id, user_id, content, post_type, c
   ('dd000000-0000-0000-0000-000000000061', 'aa000000-0000-0000-0000-000000000012',
    'Butterfly combo is officially in the bag. Time to film it!', 'achievement', '2026-02-25 20:00:00+13'),
   ('dd000000-0000-0000-0000-000000000061', 'aa000000-0000-0000-0000-000000000022',
-   'Emma pushed us hard tonight and it was exactly what I needed.', 'post', '2026-02-25 20:15:00+13'),
+   'Alex pushed us hard tonight and it was exactly what I needed.', 'post', '2026-02-25 20:15:00+13'),
   ('dd000000-0000-0000-0000-000000000061', 'aa000000-0000-0000-0000-000000000001',
    'L3 crew absolutely smashed it tonight! The progress in this group is unreal.', 'post', '2026-02-25 20:30:00+13');

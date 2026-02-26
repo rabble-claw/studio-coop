@@ -30,7 +30,7 @@ export const demoStudio = {
 }
 
 export const demoTeachers = [
-  { id: TEACHER_EMMA_ID, name: 'Emma', email: 'emma@empireaerialarts.com', avatar_url: null },
+  { id: TEACHER_EMMA_ID, name: 'Alex', email: 'alex@empireaerialarts.com', avatar_url: null },
   { id: TEACHER_JADE_ID, name: 'Jade', email: 'jade@empireaerialarts.com', avatar_url: null },
   { id: TEACHER_SAM_ID, name: 'Sam', email: 'sam@empireaerialarts.com', avatar_url: null },
   { id: TEACHER_ARIA_ID, name: 'Aria', email: 'aria@empireaerialarts.com', avatar_url: null },
@@ -124,7 +124,7 @@ function generateWeekSchedule(): typeof demoClasses {
   const today = new Date()
   const teachers = [TEACHER_EMMA_ID, TEACHER_JADE_ID, TEACHER_SAM_ID, TEACHER_ARIA_ID]
   const teacherMap: Record<string, string> = {
-    [TEACHER_EMMA_ID]: 'Emma',
+    [TEACHER_EMMA_ID]: 'Alex',
     [TEACHER_JADE_ID]: 'Jade',
     [TEACHER_SAM_ID]: 'Sam',
     [TEACHER_ARIA_ID]: 'Aria',
@@ -205,7 +205,7 @@ export const demoMembers = [
   { id: 'member-6', name: 'Riley', email: 'riley@example.com', role: 'member', joined: '2024-12-05', avatar_url: null },
   { id: 'member-7', name: 'Quinn', email: 'quinn@example.com', role: 'member', joined: '2025-01-22', avatar_url: null },
   { id: 'member-8', name: 'Avery', email: 'avery@example.com', role: 'member', joined: '2025-04-18', avatar_url: null },
-  { id: TEACHER_EMMA_ID, name: 'Emma', email: 'emma@empireaerialarts.com', role: 'owner', joined: '2024-01-15', avatar_url: null },
+  { id: TEACHER_EMMA_ID, name: 'Alex', email: 'alex@empireaerialarts.com', role: 'owner', joined: '2024-01-15', avatar_url: null },
   { id: TEACHER_JADE_ID, name: 'Jade', email: 'jade@empireaerialarts.com', role: 'teacher', joined: '2024-02-01', avatar_url: null },
   { id: TEACHER_SAM_ID, name: 'Sam', email: 'sam@empireaerialarts.com', role: 'teacher', joined: '2024-03-10', avatar_url: null },
   { id: TEACHER_ARIA_ID, name: 'Aria', email: 'aria@empireaerialarts.com', role: 'teacher', joined: '2024-06-01', avatar_url: null },
@@ -214,7 +214,7 @@ export const demoMembers = [
 export const demoFeedPosts = [
   {
     id: 'post-1',
-    author: 'Emma',
+    author: 'Alex',
     content: 'Amazing progress in Level 2 tonight! 🤩 Everyone nailed their first shoulder mount. So proud of this crew.',
     created_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
     class_name: 'Pole Technique Level 2',
