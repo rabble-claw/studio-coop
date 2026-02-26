@@ -3,6 +3,7 @@ import { formatTime, formatDate } from '@/lib/utils'
 import { isDemoMode, demoStudio, demoClasses, demoMembers, demoMembershipPlans } from '@/lib/demo-data'
 import Link from 'next/link'
 import Image from 'next/image'
+import { CouponInput } from '@/components/coupon-input'
 
 type MembershipPlan = {
   id: string
@@ -388,6 +389,13 @@ export default async function PublicStudioPage({ params }: { params: Promise<{ s
                 >
                   See Membership Options
                 </Link>
+              </div>
+            )}
+
+            {/* Coupon code input — shown when plans are visible */}
+            {plans.length > 0 && !isDemoMode() && (
+              <div className="mt-8 text-center">
+                <CouponInput studioId={studio.id} />
               </div>
             )}
           </div>

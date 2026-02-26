@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, RefreshControl } from 'react-
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth-context'
+import { CouponInput } from '@/components/coupon-input'
 
 interface UserProfile {
   name: string
@@ -24,15 +25,17 @@ interface AttendanceRecord {
 
 export default function ProfileScreen() {
   const { user, signOut } = useAuth()
-  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [profile, setProfile]   = useState<UserProfile | null>(null)
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([])
-  const [loading, setLoading] = useState(true)
+  const [studioId, setStudioId] = useState<string | null>(null)
+  const [loading, setLoading]   = useState(true)
+  const [couponApplied, setCouponApplied] = useState<{ description: string } | null>(null)
 
   async function loadProfile() {
     if (!user) return
     setLoading(true)
 
-    const [{ data: profileData }, { data: attendanceData }] = await Promise.all([
+    const [{ data: profileData }, { data: attendanceData }, { data: memberships }] = await Promise.all([
       supabase.from('users').select('*').eq('id', user.id).single(),
       supabase
         .from('attendance')
@@ -48,10 +51,20 @@ export default function ProfileScreen() {
         .eq('checked_in', true)
         .order('checked_in_at', { ascending: false })
         .limit(20),
+      supabase
+        .from('memberships')
+        .select('studio_id')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .order('joined_at', { ascending: true })
+        .limit(1),
     ])
 
     setProfile(profileData)
     setAttendance((attendanceData ?? []) as unknown as AttendanceRecord[])
+    if (memberships && memberships.length > 0) {
+      setStudioId(memberships[0].studio_id)
+    }
     setLoading(false)
   }
 
@@ -89,6 +102,26 @@ export default function ProfileScreen() {
             </View>
           </View>
         </View>
+
+        {/* Redeem Coupon */}
+        {studioId && (
+          <View className="bg-card rounded-2xl border border-border p-5 mb-6">
+            <Text className="text-lg font-semibold text-foreground mb-3">Redeem Coupon</Text>
+            {couponApplied ? (
+              <View className="bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+                <Text className="text-green-700 font-medium text-sm">{couponApplied.description} applied!</Text>
+                <TouchableOpacity onPress={() => setCouponApplied(null)} activeOpacity={0.7}>
+                  <Text className="text-green-700 text-xs underline mt-1">Apply another code</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <CouponInput
+                studioId={studioId}
+                onApplied={(discount) => setCouponApplied({ description: discount.description })}
+              />
+            )}
+          </View>
+        )}
 
         {/* Attendance History */}
         <View className="mb-6">
