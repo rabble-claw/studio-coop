@@ -214,5 +214,102 @@ schedule.post('/:studioId/classes', authMiddleware, requireAdmin, async (c) => {
   return c.json(instance, 201)
 })
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Task 5: Schedule view API
+// GET /api/studios/:studioId/schedule?from=YYYY-MM-DD&to=YYYY-MM-DD
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Returns class instances for a date range with template info, teacher info,
+ * booking count vs capacity, and status.
+ *
+ * Query params:
+ *   from        ISO date (required)
+ *   to          ISO date (required)
+ *   teacher     UUID — filter by teacher
+ *   template    UUID — filter by template
+ *   day         Comma-separated weekday numbers (0-6) — filter by day of week
+ */
+schedule.get('/:studioId/schedule', authMiddleware, requireAdmin, async (c) => {
+  const studioId = c.get('studioId' as never) as string
+  const supabase = createServiceClient()
+
+  const from = c.req.query('from')
+  const to = c.req.query('to')
+
+  if (!from) throw badRequest('from date is required')
+  if (!to) throw badRequest('to date is required')
+
+  // Validate date format
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+    throw badRequest('Dates must be in YYYY-MM-DD format')
+  }
+
+  if (from > to) throw badRequest('from must be before to')
+
+  const teacherFilter = c.req.query('teacher')
+  const templateFilter = c.req.query('template')
+  const dayFilter = c.req.query('day')
+
+  // Build query with joins for template and teacher info, and booking count
+  let query = supabase
+    .from('class_instances')
+    .select(`
+      id,
+      date,
+      start_time,
+      end_time,
+      status,
+      max_capacity,
+      notes,
+      feed_enabled,
+      template:class_templates(id, name, description, recurrence),
+      teacher:users(id, name, avatar_url),
+      bookings:bookings(count)
+    `)
+    .eq('studio_id', studioId)
+    .gte('date', from)
+    .lte('date', to)
+    .order('date', { ascending: true })
+    .order('start_time', { ascending: true })
+
+  if (teacherFilter) query = query.eq('teacher_id', teacherFilter)
+  if (templateFilter) query = query.eq('template_id', templateFilter)
+
+  const { data: instances, error } = await query
+
+  if (error) throw error
+
+  // Apply day-of-week filter in memory (Supabase doesn't expose DOW extraction easily)
+  let results = instances ?? []
+  if (dayFilter) {
+    const targetDays = dayFilter
+      .split(',')
+      .map((d) => parseInt(d.trim(), 10))
+      .filter((d) => d >= 0 && d <= 6)
+
+    if (targetDays.length > 0) {
+      results = results.filter((inst) => {
+        const dow = new Date(inst.date + 'T00:00:00Z').getUTCDay()
+        return targetDays.includes(dow)
+      })
+    }
+  }
+
+  // Normalize booking count from PostgREST array format [{ count: N }] → number
+  const normalized = results.map((inst) => {
+    const bookingCount = Array.isArray(inst.bookings)
+      ? (inst.bookings[0] as any)?.count ?? 0
+      : 0
+    return {
+      ...inst,
+      bookings: undefined,
+      booking_count: Number(bookingCount),
+    }
+  })
+
+  return c.json(normalized)
+})
+
 export { schedule }
 export default schedule
