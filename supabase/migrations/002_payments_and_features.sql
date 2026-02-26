@@ -114,3 +114,61 @@ create table public.coupon_redemptions (
   discount_amount_cents integer not null default 0,
   redeemed_at timestamptz not null default now()
 );
+
+-- ============================================================
+-- STUDIO NETWORKS, PRIVATE BOOKINGS & MIGRATION TRACKING
+-- ============================================================
+
+-- Studio Networks (groups of studios with cross-booking agreements)
+create table public.studio_networks (
+  id uuid primary key default uuid_generate_v4(),
+  name text not null,
+  description text,
+  created_at timestamptz default now()
+);
+
+-- Studio Network Members (which studios belong to which network)
+create table public.studio_network_members (
+  id uuid primary key default uuid_generate_v4(),
+  network_id uuid not null references public.studio_networks(id) on delete cascade,
+  studio_id uuid not null references public.studios(id) on delete cascade,
+  cross_booking_policy text not null default 'full_price' check (cross_booking_policy in ('full_price','discounted','included')),
+  discount_percent integer check (discount_percent between 0 and 100),
+  joined_at timestamptz not null default now(),
+  unique(network_id, studio_id)
+);
+
+-- Private Bookings (parties, private tuition, group events)
+create table public.private_bookings (
+  id uuid primary key default uuid_generate_v4(),
+  studio_id uuid not null references public.studios(id) on delete cascade,
+  user_id uuid not null references public.users(id) on delete cascade,
+  type text not null check (type in ('party','private_tuition','group')),
+  title text not null,
+  description text,
+  notes text,
+  date date not null,
+  start_time time not null,
+  end_time time not null,
+  attendee_count integer check (attendee_count > 0),
+  price_cents integer check (price_cents >= 0),
+  deposit_cents integer check (deposit_cents >= 0),
+  deposit_paid boolean not null default false,
+  status text not null default 'requested' check (status in ('requested','confirmed','completed','cancelled')),
+  stripe_payment_intent_id text,
+  created_at timestamptz default now()
+);
+
+-- Migration Imports (tracking imports from other platforms)
+create table public.migration_imports (
+  id uuid primary key default uuid_generate_v4(),
+  studio_id uuid not null references public.studios(id) on delete cascade,
+  source text not null check (source in ('mindbody','vagaro','csv')),
+  file_name text,
+  status text not null default 'pending' check (status in ('pending','processing','completed','failed')),
+  imported_counts jsonb not null default '{}',
+  errors jsonb not null default '[]',
+  started_at timestamptz,
+  completed_at timestamptz,
+  created_at timestamptz default now()
+);
