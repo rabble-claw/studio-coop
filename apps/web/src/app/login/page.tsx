@@ -11,6 +11,7 @@ import { isDemoMode } from '@/lib/demo-data'
 export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [name, setName] = useState('')
   const [mode, setMode] = useState<'login' | 'signup' | 'magic'>('login')
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
@@ -18,15 +19,15 @@ export default function LoginPage() {
   const router = useRouter()
   const demo = isDemoMode()
 
-  async function handleEmailLogin(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setError('')
     setMessage('')
 
     if (demo) {
-      // Demo mode — simulate auth
-      await new Promise(r => setTimeout(r, 800))
+      // Demo mode — simulate auth without a real backend
+      await new Promise((r) => setTimeout(r, 800))
       if (mode === 'magic') {
         setMessage('✨ Demo mode — redirecting to dashboard...')
         setTimeout(() => router.push('/dashboard'), 1000)
@@ -40,35 +41,27 @@ export default function LoginPage() {
       return
     }
 
-    // Real Supabase auth
-    const { createClient } = await import('@/lib/supabase/client')
-    const supabase = createClient()
-
+    // Real backend auth via our API routes
     if (mode === 'magic') {
-      const { error } = await supabase.auth.signInWithOtp({ email })
-      if (error) {
-        setError(error.message)
-      } else {
-        setMessage('Check your email for a magic link!')
-      }
-    } else if (mode === 'signup') {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { emailRedirectTo: `${window.location.origin}/dashboard` },
-      })
-      if (error) {
-        setError(error.message)
-      } else {
-        setMessage('Check your email to confirm your account!')
-      }
+      setError('Magic links require Supabase. Use email/password instead.')
+      setLoading(false)
+      return
+    }
+
+    const endpoint = mode === 'signup' ? '/api/auth/signup' : '/api/auth/login'
+    const body = mode === 'signup' ? { email, password, name } : { email, password }
+
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    const data = await res.json()
+
+    if (!res.ok) {
+      setError(data.error || 'Something went wrong')
     } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) {
-        setError(error.message)
-      } else {
-        router.push('/dashboard')
-      }
+      router.push('/dashboard')
     }
 
     setLoading(false)
@@ -107,7 +100,18 @@ export default function LoginPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleEmailLogin} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {mode === 'signup' && (
+                <div>
+                  <Input
+                    type="text"
+                    placeholder="Your name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required={!demo}
+                  />
+                </div>
+              )}
               <div>
                 <Input
                   type="email"
@@ -130,22 +134,27 @@ export default function LoginPage() {
                 </div>
               )}
 
-              {error && (
-                <p className="text-sm text-destructive">{error}</p>
-              )}
-              {message && (
-                <p className="text-sm text-green-600">{message}</p>
-              )}
+              {error && <p className="text-sm text-destructive">{error}</p>}
+              {message && <p className="text-sm text-green-600">{message}</p>}
 
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? 'Loading...' : mode === 'magic' ? 'Send magic link' : mode === 'signup' ? 'Create account' : 'Sign in'}
+                {loading
+                  ? 'Loading...'
+                  : mode === 'magic'
+                    ? 'Send magic link'
+                    : mode === 'signup'
+                      ? 'Create account'
+                      : 'Sign in'}
               </Button>
             </form>
 
             <div className="mt-4 space-y-2 text-center text-sm">
               {mode === 'login' && (
                 <>
-                  <button onClick={() => setMode('magic')} className="text-primary hover:underline block w-full">
+                  <button
+                    onClick={() => setMode('magic')}
+                    className="text-primary hover:underline block w-full"
+                  >
                     Sign in with magic link instead
                   </button>
                   <p className="text-muted-foreground">

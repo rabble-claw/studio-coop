@@ -6,10 +6,18 @@ const TEACHER_JADE_ID = 'demo-teacher-jade'
 const TEACHER_SAM_ID = 'demo-teacher-sam'
 const TEACHER_ARIA_ID = 'demo-teacher-aria'
 
-export const isDemoMode = () =>
-  !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-  process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder') ||
-  process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-project')
+export const isDemoMode = () => {
+  // Explicitly disabled
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === 'false') return false
+  // Explicitly enabled
+  if (process.env.NEXT_PUBLIC_DEMO_MODE === 'true') return true
+  // Legacy: demo if Supabase URL is placeholder and no demo mode override
+  return (
+    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder') ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-project')
+  )
+}
 
 export const demoStudio = {
   id: STUDIO_ID,
