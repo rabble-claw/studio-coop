@@ -16,7 +16,8 @@ import coupons from './routes/coupons'
 import notifications from './routes/notifications'
 import jobs from './routes/jobs'
 import studioSettings from './routes/studio-settings'
-import feed from './routes/feed'
+import feed, { postFeed } from './routes/feed'
+import { upload } from './routes/upload'
 
 const app = new Hono()
 
@@ -60,6 +61,8 @@ app.route('/api/my', notifications)
 app.route('/api/jobs', jobs)
 app.route('/api/studios', studioSettings)
 app.route('/api/classes', feed)
+app.route('/api/feed', postFeed)
+app.route('/api/upload', upload)
 
 export default app
 export { app }
