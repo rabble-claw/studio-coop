@@ -13,6 +13,9 @@ import checkin from './routes/checkin'
 import attendance from './routes/attendance'
 import comps from './routes/comps'
 import coupons from './routes/coupons'
+import notifications from './routes/notifications'
+import jobs from './routes/jobs'
+import studioSettings from './routes/studio-settings'
 
 const app = new Hono()
 
@@ -52,6 +55,9 @@ app.route('/api/my', attendance)
 app.route('/api/studios', comps)
 app.route('/api/my', comps)
 app.route('/api/studios', coupons)
+app.route('/api/my', notifications)
+app.route('/api/jobs', jobs)
+app.route('/api/studios', studioSettings)
 
 export default app
 export { app }
