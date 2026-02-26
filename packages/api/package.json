@@ -15,6 +15,7 @@
     "@supabase/supabase-js": "^2.49",
     "expo-server-sdk": "^6.0.0",
     "hono": "^4.7",
+    "resend": "^6.9.2",
     "stripe": "^17.7",
     "zod": "^3.24"
   },
