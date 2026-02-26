@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 import { errorHandler } from './middleware/error-handler'
+import plans from './routes/plans'
 
 const app = new Hono()
 
@@ -26,11 +27,8 @@ app.get('/health', (c) => c.json({
   version: process.env.npm_package_version ?? '0.0.1',
 }))
 
-// Route groups will be added here:
-// app.route('/api/studios', studioRoutes)
-// app.route('/api/classes', classRoutes)
-// app.route('/api/bookings', bookingRoutes)
-// etc.
+// Route groups
+app.route('/api/studios', plans)
 
 export default app
 export { app }
