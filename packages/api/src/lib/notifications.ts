@@ -12,18 +12,71 @@ export interface NotificationPayload {
   channels: ('push' | 'email' | 'in_app')[]
 }
 
+interface UserPrefs {
+  push: boolean
+  email: boolean
+  reminders: boolean
+  feed: boolean
+  marketing: boolean
+}
+
+// Notification types that fall under each preference key
+const REMINDER_TYPES = new Set(['class_reminder_24h', 'class_reminder_2h'])
+const FEED_TYPES = new Set(['class_completed', 'feed_milestone'])
+const MARKETING_TYPES = new Set(['reengagement', 'promotion'])
+
+/** Fetch user notification preferences, returning defaults if no row exists. */
+async function getUserPrefs(userId: string): Promise<UserPrefs> {
+  const supabase = createServiceClient()
+  const { data } = await supabase
+    .from('notification_preferences')
+    .select('push, email, reminders, feed, marketing')
+    .eq('user_id', userId)
+    .maybeSingle()
+  return {
+    push: data?.push ?? true,
+    email: data?.email ?? true,
+    reminders: data?.reminders ?? true,
+    feed: data?.feed ?? true,
+    marketing: data?.marketing ?? false,
+  }
+}
+
+/** Returns true if the notification type is allowed by the user's preferences. */
+function isTypeAllowed(type: string, prefs: UserPrefs): boolean {
+  if (REMINDER_TYPES.has(type) && !prefs.reminders) return false
+  if (FEED_TYPES.has(type) && !prefs.feed) return false
+  if (MARKETING_TYPES.has(type) && !prefs.marketing) return false
+  return true
+}
+
 /**
  * Send a notification via one or more channels.
  *
  * Flow:
- * 1. Create a notifications DB record (persists the in_app notification)
- * 2. For each channel, dispatch to channel-specific sender
- * 3. Update sent_at on success
+ * 1. Check user's notification preferences; skip channels the user opted out of
+ * 2. Create a notifications DB record (persists the in_app notification)
+ * 3. For each allowed channel, dispatch to channel-specific sender
+ * 4. Update sent_at on success
  */
 export async function sendNotification(payload: NotificationPayload): Promise<void> {
   const supabase = createServiceClient()
 
-  // 1. Create notification DB record
+  // 1. Load preferences and filter channels
+  const prefs = await getUserPrefs(payload.userId)
+
+  if (!isTypeAllowed(payload.type, prefs)) return
+
+  const allowedChannels = payload.channels.filter((channel) => {
+    if (channel === 'push' && !prefs.push) return false
+    if (channel === 'email' && !prefs.email) return false
+    return true
+  })
+
+  // If all external channels are blocked and we only had in_app, still record it
+  const effectiveChannels = allowedChannels.length > 0 ? allowedChannels : ['in_app' as const]
+
+  // 2. Create notification DB record
   const { data: notification, error } = await supabase
     .from('notifications')
     .insert({
@@ -41,10 +94,10 @@ export async function sendNotification(payload: NotificationPayload): Promise<vo
     throw new Error(`Failed to create notification record: ${error?.message ?? 'unknown'}`)
   }
 
-  // 2. Dispatch to each channel, collecting errors without aborting
+  // 3. Dispatch to each allowed channel, collecting errors without aborting
   const errors: string[] = []
 
-  for (const channel of payload.channels) {
+  for (const channel of effectiveChannels) {
     try {
       if (channel === 'push') {
         await sendPushNotification({
@@ -68,7 +121,7 @@ export async function sendNotification(payload: NotificationPayload): Promise<vo
     }
   }
 
-  // 3. Update sent_at — in_app was delivered; external channels were attempted
+  // 4. Update sent_at — in_app was delivered; external channels were attempted
   await supabase
     .from('notifications')
     .update({ sent_at: new Date().toISOString() })

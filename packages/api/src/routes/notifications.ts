@@ -3,6 +3,8 @@
 // Mounted at /api/my in index.ts so paths here are:
 //   POST   /push-token                     — Task 2: register device token
 //   DELETE /push-token                     — Task 2: unregister device token
+//   GET    /notification-preferences       — Task 7: get member preferences
+//   PUT    /notification-preferences       — Task 7: update member preferences
 //   GET    /notifications                  — Task 4: list notifications
 //   POST   /notifications/:id/read         — Task 4: mark single notification read
 //   POST   /notifications/read-all         — Task 4: mark all notifications read
@@ -149,6 +151,78 @@ notifications.post('/notifications/:id/read', authMiddleware, async (c) => {
   }
 
   return c.json({ read: true })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Task 7: Get notification preferences
+// GET /api/my/notification-preferences
+// ─────────────────────────────────────────────────────────────────────────────
+
+notifications.get('/notification-preferences', authMiddleware, async (c) => {
+  const user = c.get('user' as never) as { id: string }
+  const supabase = createServiceClient()
+
+  const { data: prefs } = await supabase
+    .from('notification_preferences')
+    .select('push, email, reminders, feed, marketing, updated_at')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  // Return defaults if no row exists yet
+  return c.json({
+    push: prefs?.push ?? true,
+    email: prefs?.email ?? true,
+    reminders: prefs?.reminders ?? true,
+    feed: prefs?.feed ?? true,
+    marketing: prefs?.marketing ?? false,
+    updated_at: prefs?.updated_at ?? null,
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Task 7: Update notification preferences
+// PUT /api/my/notification-preferences
+// ─────────────────────────────────────────────────────────────────────────────
+
+notifications.put('/notification-preferences', authMiddleware, async (c) => {
+  const user = c.get('user' as never) as { id: string }
+  const supabase = createServiceClient()
+
+  const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
+
+  // Only accept boolean values; ignore unknown keys
+  const updates: Record<string, boolean | string> = {}
+  for (const key of ['push', 'email', 'reminders', 'feed', 'marketing'] as const) {
+    if (key in body && typeof body[key] === 'boolean') {
+      updates[key] = body[key] as boolean
+    }
+  }
+
+  if (Object.keys(updates).length === 0) {
+    throw badRequest('Provide at least one preference to update (push, email, reminders, feed, marketing)')
+  }
+
+  updates.updated_at = new Date().toISOString()
+
+  const { data: prefs, error } = await supabase
+    .from('notification_preferences')
+    .upsert(
+      { user_id: user.id, ...updates },
+      { onConflict: 'user_id' },
+    )
+    .select('push, email, reminders, feed, marketing, updated_at')
+    .single()
+
+  if (error || !prefs) throw badRequest('Failed to update preferences')
+
+  return c.json({
+    push: prefs.push,
+    email: prefs.email,
+    reminders: prefs.reminders,
+    feed: prefs.feed,
+    marketing: prefs.marketing,
+    updated_at: prefs.updated_at,
+  })
 })
 
 export { notifications }
