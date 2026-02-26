@@ -135,3 +135,35 @@ GitHub Actions runs on every push and PR:
 - Build web app
 
 See `.github/workflows/ci.yml`.
+
+## Cloudflare Pages Deployment
+
+### Setup
+
+1. Connect the repo to Cloudflare Pages
+2. Set build settings:
+   - **Build command:** `cd apps/web && npx @cloudflare/next-on-pages`
+   - **Build output directory:** `apps/web/.vercel/output/static`
+   - **Root directory:** `/`
+3. Add environment variables in Cloudflare dashboard:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `NEXT_PUBLIC_APP_URL` (your Pages URL)
+   - `NEXT_PUBLIC_APP_NAME`
+
+### Local Preview
+
+```bash
+cd apps/web
+pnpm build:cf-pages
+pnpm preview:cf
+```
+
+### Supabase Hosted
+
+The project uses hosted Supabase (project: `lomrjhkneodiowwarrzz`, region: Asia-Pacific).
+
+To push migrations to the hosted instance:
+```bash
+npx supabase db push --project-ref lomrjhkneodiowwarrzz
+```

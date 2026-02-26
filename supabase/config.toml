@@ -2,7 +2,7 @@
 # Docs: https://supabase.com/docs/guides/cli/config
 
 [project]
-id = "studio-coop"
+id = "lomrjhkneodiowwarrzz"
 
 [api]
 enabled = true

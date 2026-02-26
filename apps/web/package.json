@@ -9,7 +9,10 @@
     "lint": "next lint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "build:static": "NEXT_CONFIG_FILE=next.config.static.ts next build",
+    "build:cf-pages": "npx @cloudflare/next-on-pages",
+    "preview:cf": "npx wrangler pages dev .vercel/output/static"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.2",
