@@ -24,6 +24,12 @@ interface Booking {
   user: { id: string; name: string; avatar_url: string | null }
 }
 
+interface AttendanceRecord {
+  id: string
+  user_id: string
+  checked_in: boolean
+}
+
 interface FeedPost {
   id: string
   content: string | null
@@ -45,6 +51,7 @@ export default function ClassDetailScreen() {
   const [classData, setClassData] = useState<ClassDetail | null>(null)
   const [bookings, setBookings] = useState<Booking[]>([])
   const [feed, setFeed] = useState<FeedPost[]>([])
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>([])
   const [myBooking, setMyBooking] = useState<Booking | null>(null)
   const [isStaff, setIsStaff] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -63,7 +70,7 @@ export default function ClassDetailScreen() {
     if (!cls) return setLoading(false)
     setClassData(cls)
 
-    const [{ data: bks }, { data: fd }, { data: membership }] = await Promise.all([
+    const [{ data: bks }, { data: fd }, { data: att }, { data: membership }] = await Promise.all([
       supabase
         .from('bookings')
         .select('*, user:users!bookings_user_id_fkey(id, name, avatar_url)')
@@ -75,6 +82,10 @@ export default function ClassDetailScreen() {
         .eq('class_instance_id', id)
         .order('created_at', { ascending: false }),
       supabase
+        .from('attendance')
+        .select('id, user_id, checked_in')
+        .eq('class_instance_id', id),
+      supabase
         .from('memberships')
         .select('role')
         .eq('studio_id', cls.studio_id)
@@ -84,6 +95,7 @@ export default function ClassDetailScreen() {
 
     setBookings(bks ?? [])
     setFeed(fd ?? [])
+    setAttendance(att ?? [])
     setMyBooking((bks ?? []).find((b) => b.user.id === user.id) ?? null)
     setIsStaff(['teacher', 'admin', 'owner'].includes(membership?.role ?? ''))
     setLoading(false)
@@ -275,23 +287,27 @@ export default function ClassDetailScreen() {
               <Text className="text-lg font-semibold text-foreground mb-1">Check-in</Text>
               <Text className="text-muted text-sm mb-4">Tap to toggle attendance</Text>
               <View className="flex-row flex-wrap gap-3">
-                {bookings.map((b) => (
-                  <TouchableOpacity
-                    key={b.id}
-                    className="items-center w-20"
-                    onPress={() => toggleCheckIn(b.user.id)}
-                    activeOpacity={0.7}
-                  >
-                    <View className="w-16 h-16 rounded-2xl bg-secondary items-center justify-center border-2 border-border">
-                      <Text className="text-xl font-bold">
-                        {b.user.name.split(' ').map((n) => n[0]).join('').toUpperCase()}
+                {bookings.map((b) => {
+                  const isCheckedIn = attendance.find((a) => a.user_id === b.user.id)?.checked_in
+                  return (
+                    <TouchableOpacity
+                      key={b.id}
+                      className="items-center w-20"
+                      onPress={() => toggleCheckIn(b.user.id)}
+                      activeOpacity={0.7}
+                    >
+                      <View className={`w-16 h-16 rounded-2xl items-center justify-center border-2 ${isCheckedIn ? 'bg-green-50 border-green-500' : 'bg-secondary border-border'}`}>
+                        <Text className="text-xl font-bold">
+                          {b.user.name.split(' ').map((n) => n[0]).join('').toUpperCase()}
+                        </Text>
+                      </View>
+                      <Text className="text-xs font-medium text-foreground mt-1 text-center" numberOfLines={1}>
+                        {b.user.name.split(' ')[0]}
                       </Text>
-                    </View>
-                    <Text className="text-xs font-medium text-foreground mt-1 text-center" numberOfLines={1}>
-                      {b.user.name.split(' ')[0]}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                      {isCheckedIn && <Text className="text-[10px] text-green-600 font-medium">Present</Text>}
+                    </TouchableOpacity>
+                  )
+                })}
               </View>
             </View>
           )}
