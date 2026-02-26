@@ -9,9 +9,13 @@ import { Button } from '@/components/ui/button'
 const navItems = [
   { href: '/dashboard', label: 'Overview', icon: '🏠' },
   { href: '/dashboard/schedule', label: 'Schedule', icon: '📅' },
-  { href: '/dashboard/feed', label: 'Feed', icon: '📸' },
   { href: '/dashboard/members', label: 'Members', icon: '👥' },
+  { href: '/dashboard/plans', label: 'Plans', icon: '💳' },
+  { href: '/dashboard/feed', label: 'Feed', icon: '📸' },
   { href: '/dashboard/coupons', label: 'Coupons', icon: '🏷️' },
+  { href: '/dashboard/private-bookings', label: 'Bookings', icon: '🔒' },
+  { href: '/dashboard/reports', label: 'Reports', icon: '📊' },
+  { href: '/dashboard/settings', label: 'Settings', icon: '⚙️' },
 ]
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
