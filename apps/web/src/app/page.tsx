@@ -153,13 +153,13 @@ export default function LandingPage() {
         <div className="rounded-2xl bg-secondary/50 border p-8 sm:p-12 text-center max-w-3xl mx-auto">
           <div className="text-4xl mb-6">&#x1F3AA;</div>
           <blockquote className="text-xl sm:text-2xl font-medium leading-relaxed mb-6">
-            &ldquo;I wanted something that felt like our studio — warm, personal, community-first.
+            &ldquo;We wanted something that felt like our studio — warm, personal, community-first.
             Not another generic gym platform.&rdquo;
           </blockquote>
           <div className="text-muted-foreground">
-            <span className="font-medium text-foreground">Alex Rivera</span>
+            <span className="font-medium text-foreground">Empire Aerial Arts</span>
             <span className="mx-2">&middot;</span>
-            Empire Aerial Arts, Wellington NZ
+            Cuba Street, Wellington NZ
           </div>
         </div>
       </section>

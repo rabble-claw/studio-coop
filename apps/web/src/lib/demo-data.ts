@@ -17,7 +17,7 @@ export const demoStudio = {
   slug: 'empire-aerial-arts',
   discipline: 'pole',
   description:
-    'Wellington\'s home for pole, aerial, and cirque arts. A queer-owned studio on Cuba Street building community through movement.',
+    'A queer-owned boutique studio in a gorgeously secret location right in the middle of Wellington\'s central Cuba Street! Our instructors all bring a love of sharing their skills with new learners, and our classes are for all adults of all experience levels.',
   timezone: 'Pacific/Auckland',
   tier: 'studio',
   created_at: '2024-01-15T00:00:00Z',
@@ -40,7 +40,7 @@ export const demoTemplates = [
   {
     id: 'tpl-pole-1',
     name: 'Pole Technique Level 1',
-    description: 'Foundation skills: spins, climbs, and basic transitions. No experience needed.',
+    description: 'Brand new to pole dance? Level 1 is perfect for you! We\'ll take care of you from your very first spin.',
     discipline_config: { level: 1, style: 'technique' },
     default_duration_min: 60,
     default_capacity: 12,
@@ -72,7 +72,7 @@ export const demoTemplates = [
   {
     id: 'tpl-aerial-hoop',
     name: 'Aerial Hoop (Lyra)',
-    description: 'Graceful spins, poses, and sequences on the aerial hoop.',
+    description: 'Aerial apparatus technique — graceful spins, poses, and sequences on the hoop. Part of our Movement & Cirque collection.',
     discipline_config: { apparatus: 'hoop' },
     default_duration_min: 60,
     default_capacity: 8,
@@ -87,8 +87,8 @@ export const demoTemplates = [
   },
   {
     id: 'tpl-handbalance',
-    name: 'Handbalance & Acro',
-    description: 'Handstands, press work, and partner acrobatics.',
+    name: 'Handbalance',
+    description: 'Part of our Movement & Cirque suite — handstands, press work, and balance skills.',
     discipline_config: { style: 'acro' },
     default_duration_min: 60,
     default_capacity: 12,
@@ -96,15 +96,15 @@ export const demoTemplates = [
   {
     id: 'tpl-flex',
     name: 'Flexibility & Conditioning',
-    description: 'Deep stretching and strength work to support your aerial practice.',
+    description: 'New to fitness but can\'t get into the gym life? Work on those splits and backbends with active flexibility and a little cardio in our lush spaces!',
     discipline_config: { style: 'conditioning' },
     default_duration_min: 50,
     default_capacity: 16,
   },
   {
     id: 'tpl-hula-hoop',
-    name: 'Hula Hoop Flow',
-    description: 'On-body and off-body hoop tricks, flow arts, and dance.',
+    name: 'Hula Hoop',
+    description: 'Incredibly fun cirque skills! Find a new way to have fun and move with hula hoop flow and tricks.',
     discipline_config: { apparatus: 'hula-hoop' },
     default_duration_min: 60,
     default_capacity: 14,
