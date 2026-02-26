@@ -10,6 +10,7 @@ const navItems = [
   { href: '/dashboard', label: 'Overview', icon: '🏠' },
   { href: '/dashboard/schedule', label: 'Schedule', icon: '📅' },
   { href: '/dashboard/members', label: 'Members', icon: '👥' },
+  { href: '/dashboard/coupons', label: 'Coupons', icon: '🏷️' },
 ]
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
