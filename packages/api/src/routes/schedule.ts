@@ -135,5 +135,84 @@ schedule.put('/:studioId/classes/:classId', authMiddleware, requireAdmin, async 
   return c.json(updated)
 })
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Task 4: One-off class creation
+// POST /api/studios/:studioId/classes
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Create a one-off class instance without a template.
+ * Used for workshops, special events, makeup classes.
+ *
+ * Since class_instances has no name/description columns, we create a minimal
+ * class_template (recurrence='once', active=false) and link the instance to it.
+ * This keeps the data model consistent while supporting ad-hoc classes.
+ */
+schedule.post('/:studioId/classes', authMiddleware, requireAdmin, async (c) => {
+  const studioId = c.get('studioId' as never) as string
+  const supabase = createServiceClient()
+
+  const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
+
+  // Required fields
+  const name = body.name as string | undefined
+  const date = body.date as string | undefined
+  const startTime = (body.start_time ?? body.startTime) as string | undefined
+  const durationMin = Number(body.duration_min ?? body.durationMin)
+
+  if (!name) throw badRequest('name is required')
+  if (!date) throw badRequest('date is required')
+  if (!startTime) throw badRequest('start_time is required')
+  if (!durationMin || durationMin <= 0) throw badRequest('duration_min must be a positive number')
+
+  // Create a one-off template (active=false so the generator ignores it)
+  const { data: template, error: tplError } = await supabase
+    .from('class_templates')
+    .insert({
+      studio_id: studioId,
+      name,
+      description: body.description as string | undefined,
+      teacher_id: body.teacher_id as string | undefined,
+      day_of_week: new Date(date).getUTCDay(),
+      start_time: startTime,
+      duration_min: durationMin,
+      max_capacity: body.capacity ?? body.max_capacity,
+      recurrence: 'once',
+      active: false,
+    })
+    .select('id')
+    .single()
+
+  if (tplError) throw tplError
+
+  // Calculate end_time
+  const [h, m] = startTime.split(':').map(Number)
+  const totalMin = h * 60 + m + durationMin
+  const endH = Math.floor(totalMin / 60) % 24
+  const endM = totalMin % 60
+  const endTime = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}:00`
+
+  const { data: instance, error: instError } = await supabase
+    .from('class_instances')
+    .insert({
+      template_id: template.id,
+      studio_id: studioId,
+      teacher_id: body.teacher_id as string | undefined,
+      date,
+      start_time: startTime,
+      end_time: endTime,
+      status: 'scheduled',
+      max_capacity: body.capacity ?? body.max_capacity,
+      notes: body.notes as string | undefined,
+      feed_enabled: body.feed_enabled !== false,
+    })
+    .select('*')
+    .single()
+
+  if (instError) throw instError
+
+  return c.json(instance, 201)
+})
+
 export { schedule }
 export default schedule
