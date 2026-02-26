@@ -1,0 +1,18 @@
+{
+  "name": "studio-coop",
+  "private": true,
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "db:migrate": "turbo db:migrate --filter=@studio-coop/db",
+    "db:seed": "turbo db:seed --filter=@studio-coop/db"
+  },
+  "devDependencies": {
+    "turbo": "^2"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20"
+  }
+}
