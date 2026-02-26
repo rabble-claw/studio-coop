@@ -1,8 +1,35 @@
 import { notFound } from 'next/navigation'
 import { formatTime, formatDate } from '@/lib/utils'
-import { isDemoMode, demoStudio, demoClasses, demoMembers } from '@/lib/demo-data'
+import { isDemoMode, demoStudio, demoClasses, demoMembers, demoMembershipPlans } from '@/lib/demo-data'
 import Link from 'next/link'
 import Image from 'next/image'
+
+type MembershipPlan = {
+  id: string
+  name: string
+  description?: string | null
+  type: string
+  price_cents: number
+  currency: string
+  interval: string
+  class_limit?: number | null
+  validity_days?: number | null
+  active: boolean
+  sort_order: number
+}
+
+function formatPlanPrice(plan: MembershipPlan): string {
+  const amount = (plan.price_cents / 100).toFixed(2).replace(/\.00$/, '')
+  const currency = plan.currency.toUpperCase()
+  const symbol = currency === 'NZD' ? 'NZ$' : currency === 'AUD' ? 'A$' : '$'
+  return `${symbol}${amount}`
+}
+
+function formatPlanInterval(plan: MembershipPlan): string {
+  if (plan.interval === 'month') return '/ month'
+  if (plan.interval === 'year') return '/ year'
+  return ''
+}
 
 async function getStudioData(slug: string) {
   if (isDemoMode()) {
@@ -12,7 +39,12 @@ async function getStudioData(slug: string) {
       acc[cls.date]!.push(cls)
       return acc
     }, {})
-    return { studio: demoStudio, classesByDate, memberCount: demoMembers.length }
+    return {
+      studio: demoStudio,
+      classesByDate,
+      memberCount: demoMembers.length,
+      plans: demoMembershipPlans as MembershipPlan[],
+    }
   }
 
   const { createClient } = await import('@/lib/supabase/server')
@@ -37,13 +69,25 @@ async function getStudioData(slug: string) {
     .eq('studio_id', studio.id)
     .eq('status', 'active')
 
+  const { data: plans } = await supabase
+    .from('membership_plans')
+    .select('*')
+    .eq('studio_id', studio.id)
+    .eq('active', true)
+    .order('sort_order')
+
   const classesByDate = (classes ?? []).reduce<Record<string, typeof classes>>((acc, cls) => {
     if (!acc[cls.date]) acc[cls.date] = []
     acc[cls.date]!.push(cls)
     return acc
   }, {})
 
-  return { studio, classesByDate, memberCount: memberCount ?? 0 }
+  return {
+    studio,
+    classesByDate,
+    memberCount: memberCount ?? 0,
+    plans: (plans ?? []) as MembershipPlan[],
+  }
 }
 
 // Empire-specific content (will be data-driven later)
@@ -80,7 +124,7 @@ export default async function PublicStudioPage({ params }: { params: Promise<{ s
   const { slug } = await params
   const data = await getStudioData(slug)
   if (!data) notFound()
-  const { studio, classesByDate, memberCount } = data
+  const { studio, classesByDate, memberCount, plans } = data
   const isEmpire = studio.slug === 'empire-aerial-arts'
   const content = isEmpire ? empireContent : null
 
@@ -239,27 +283,114 @@ export default async function PublicStudioPage({ params }: { params: Promise<{ s
         </div>
       </section>
 
-      {/* Membership */}
-      {content && (
-        <section className="max-w-3xl mx-auto px-6 py-16 text-center">
-          <div className="relative rounded-2xl overflow-hidden mb-8">
-            <img src="/empire/membership.jpg" alt="Membership" className="w-full h-48 object-cover" style={{ filter: 'brightness(0.8)' }} />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#3d2e47]/80 to-transparent flex items-end justify-center pb-6">
-              <h2 className="text-3xl font-bold text-white" style={{ fontVariant: 'small-caps' }}>
-                Become a Member
+      {/* Membership & Pricing */}
+      {(content || plans.length > 0) && (
+        <section className="py-16" id="membership">
+          <div className="max-w-5xl mx-auto px-6">
+            {isEmpire && (
+              <div className="relative rounded-2xl overflow-hidden mb-10">
+                <img src="/empire/membership.jpg" alt="Membership" className="w-full h-48 object-cover" style={{ filter: 'brightness(0.8)' }} />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#3d2e47]/80 to-transparent flex items-end justify-center pb-6">
+                  <h2 className="text-3xl font-bold text-white" style={{ fontVariant: 'small-caps' }}>
+                    Membership &amp; Pricing
+                  </h2>
+                </div>
+              </div>
+            )}
+
+            {!isEmpire && (
+              <h2 className="text-3xl font-bold text-center mb-3" style={{ color: '#3d2e47', fontVariant: 'small-caps' }}>
+                Membership &amp; Pricing
               </h2>
-            </div>
+            )}
+
+            {content && (
+              <p className="text-base leading-relaxed mb-10 text-center max-w-2xl mx-auto" style={{ color: '#706477' }}>
+                {content.membershipText}
+              </p>
+            )}
+
+            {plans.length > 0 ? (
+              <div className={`grid gap-6 ${plans.length === 1 ? 'max-w-sm mx-auto' : plans.length === 2 ? 'md:grid-cols-2 max-w-2xl mx-auto' : 'md:grid-cols-3'}`}>
+                {plans.map((plan) => {
+                  const isUnlimited = plan.type === 'unlimited'
+                  return (
+                    <div
+                      key={plan.id}
+                      className="rounded-2xl border-2 p-6 flex flex-col"
+                      style={{
+                        borderColor: isUnlimited ? '#7c3aed' : '#e8e0ec',
+                        background: isUnlimited ? '#faf7ff' : '#fff',
+                      }}
+                    >
+                      {isUnlimited && (
+                        <div className="mb-3">
+                          <span
+                            className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
+                            style={{ background: '#7c3aed', color: '#fff' }}
+                          >
+                            Most popular
+                          </span>
+                        </div>
+                      )}
+                      <h3 className="text-lg font-bold mb-1" style={{ color: '#3d2e47' }}>
+                        {plan.name}
+                      </h3>
+                      {plan.description && (
+                        <p className="text-sm leading-relaxed mb-4" style={{ color: '#706477' }}>
+                          {plan.description}
+                        </p>
+                      )}
+                      <div className="mt-auto">
+                        <div className="flex items-baseline gap-1 mb-1">
+                          <span className="text-3xl font-bold" style={{ color: '#3d2e47' }}>
+                            {formatPlanPrice(plan)}
+                          </span>
+                          {formatPlanInterval(plan) && (
+                            <span className="text-sm" style={{ color: '#9e8da8' }}>
+                              {formatPlanInterval(plan)}
+                            </span>
+                          )}
+                        </div>
+                        {plan.class_limit && plan.type === 'class_pack' && (
+                          <p className="text-xs mb-1" style={{ color: '#9e8da8' }}>
+                            {plan.class_limit} classes
+                            {plan.validity_days ? ` · valid ${plan.validity_days} days` : ''}
+                          </p>
+                        )}
+                        {plan.type === 'limited' && plan.class_limit && (
+                          <p className="text-xs mb-1" style={{ color: '#9e8da8' }}>
+                            Up to {plan.class_limit} classes / month
+                          </p>
+                        )}
+                        <Link
+                          href="/login"
+                          className="mt-4 inline-flex w-full items-center justify-center rounded-full border-2 px-5 py-2.5 text-sm font-medium transition-colors hover:bg-[#7c3aed] hover:text-white hover:border-[#7c3aed]"
+                          style={{
+                            borderColor: '#7c3aed',
+                            color: isUnlimited ? '#fff' : '#7c3aed',
+                            background: isUnlimited ? '#7c3aed' : 'transparent',
+                          }}
+                        >
+                          {plan.type === 'drop_in' ? 'Book a class' : plan.interval === 'once' ? 'Buy now' : 'Get started'}
+                        </Link>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="text-center">
+                <Link
+                  href="/login"
+                  className="inline-flex items-center rounded-full border-2 px-8 py-3 font-medium transition-colors hover:bg-[#7c3aed] hover:text-white hover:border-[#7c3aed]"
+                  style={{ borderColor: '#7c3aed', color: '#7c3aed' }}
+                >
+                  See Membership Options
+                </Link>
+              </div>
+            )}
           </div>
-          <p className="text-base leading-relaxed mb-8" style={{ color: '#706477' }}>
-            {content.membershipText}
-          </p>
-          <Link
-            href="/login"
-            className="inline-flex items-center rounded-full border-2 px-8 py-3 font-medium transition-colors hover:bg-[#7c3aed] hover:text-white hover:border-[#7c3aed]"
-            style={{ borderColor: '#7c3aed', color: '#7c3aed' }}
-          >
-            See Membership Options
-          </Link>
         </section>
       )}
 

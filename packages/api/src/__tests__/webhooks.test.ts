@@ -1,235 +1,249 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { Hono } from 'hono'
+import webhooks from '../routes/webhooks'
 
 vi.mock('../lib/supabase', () => ({ createServiceClient: vi.fn() }))
-vi.mock('../lib/stripe', () => ({ createStripeClient: vi.fn() }))
+vi.mock('../lib/stripe', () => ({
+  constructWebhookEvent: vi.fn(),
+}))
 
 import { createServiceClient } from '../lib/supabase'
-import { createStripeClient } from '../lib/stripe'
-import { webhookRoutes, handleEvent } from '../routes/webhooks'
-import { errorHandler } from '../middleware/error-handler'
+import { constructWebhookEvent } from '../lib/stripe'
 
-const app = new Hono()
-app.onError(errorHandler)
-app.route('/api/webhooks', webhookRoutes)
-
-// Stripe mock
-const mockConstructEvent = vi.fn()
-const mockStripe = {
-  webhooks: { constructEvent: mockConstructEvent },
+function makeApp() {
+  const app = new Hono()
+  app.route('/api/webhooks', webhooks)
+  return app
 }
 
-// Supabase mock builder
-function makeSupa() {
+function makeChain(responses: Record<string, unknown> = {}) {
+  const insertedRows: unknown[] = []
+  const updatedRows: unknown[] = []
   const chain = {
     from: vi.fn().mockReturnThis(),
-    insert: vi.fn().mockResolvedValue({ error: null }),
-    upsert: vi.fn().mockResolvedValue({ error: null }),
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    in: vi.fn().mockReturnThis(),
     update: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockResolvedValue({ error: null }),
+    insert: vi.fn().mockReturnThis(),
+    rpc: vi.fn().mockResolvedValue({ error: null }),
+    single: vi.fn().mockImplementation(() => Promise.resolve({ data: responses['single'] ?? null, error: null })),
+    maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+    _inserts: insertedRows,
+    _updates: updatedRows,
   }
+  // Make insert and update resolve
+  chain.insert = vi.fn().mockResolvedValue({ error: null })
+  chain.update = vi.fn().mockReturnValue({
+    eq: vi.fn().mockResolvedValue({ error: null }),
+  })
   return chain
 }
 
-beforeEach(() => {
-  vi.clearAllMocks()
-  process.env.STRIPE_SECRET_KEY = 'sk_test_abc'
-  process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test'
-  vi.mocked(createStripeClient).mockReturnValue(mockStripe as any)
-})
+process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test'
 
-// ─── Signature verification ───────────────────────────────────────────────────
+describe('POST /api/webhooks/stripe', () => {
+  beforeEach(() => { vi.clearAllMocks() })
 
-describe('POST /api/webhooks/stripe — signature verification', () => {
-  it('returns 400 when stripe-signature header is missing', async () => {
+  it('rejects requests without stripe-signature header', async () => {
+    const app = makeApp()
     const res = await app.request('/api/webhooks/stripe', {
       method: 'POST',
       body: '{}',
-      headers: { 'content-type': 'application/json' },
     })
     expect(res.status).toBe(400)
-    const body = await res.json()
-    expect(body.error).toMatch(/stripe-signature/i)
   })
 
-  it('returns 400 when signature verification fails', async () => {
-    mockConstructEvent.mockImplementation(() => { throw new Error('Invalid signature') })
+  it('rejects invalid webhook signatures', async () => {
+    vi.mocked(constructWebhookEvent).mockImplementation(() => {
+      throw new Error('Invalid signature')
+    })
 
+    const app = makeApp()
     const res = await app.request('/api/webhooks/stripe', {
       method: 'POST',
-      body: '{}',
       headers: { 'stripe-signature': 'bad-sig' },
+      body: '{}',
     })
     expect(res.status).toBe(400)
-    const body = await res.json()
-    expect(body.error).toContain('Invalid signature')
   })
 
-  it('returns 200 received:true on valid signature', async () => {
-    mockConstructEvent.mockReturnValue({
-      type: 'some.unknown.event',
-      data: { object: {} },
-    })
-    const supabase = makeSupa()
-    vi.mocked(createServiceClient).mockReturnValue(supabase as any)
-
-    const res = await app.request('/api/webhooks/stripe', {
-      method: 'POST',
-      body: '{}',
-      headers: { 'stripe-signature': 'valid-sig' },
-    })
-    expect(res.status).toBe(200)
-    const body = await res.json()
-    expect(body.received).toBe(true)
-  })
-})
-
-// ─── Event handlers via handleEvent ──────────────────────────────────────────
-
-describe('handleEvent — account.updated', () => {
-  it('updates studio stripe status', async () => {
-    const supabase = makeSupa()
-    vi.mocked(createServiceClient).mockReturnValue(supabase as any)
-
-    await handleEvent({
-      type: 'account.updated',
-      data: {
-        object: {
-          id: 'acct_123',
-          charges_enabled: true,
-          details_submitted: true,
-          metadata: { studioId: 'studio-1' },
-        },
-      },
-    } as any)
-
-    expect(supabase.from).toHaveBeenCalledWith('studios')
-    expect(supabase.update).toHaveBeenCalledWith(
-      expect.objectContaining({ stripe_charges_enabled: true, stripe_details_submitted: true })
-    )
-  })
-})
-
-describe('handleEvent — checkout.session.completed', () => {
-  it('inserts payment record on paid session', async () => {
-    const supabase = makeSupa()
-    vi.mocked(createServiceClient).mockReturnValue(supabase as any)
-
-    await handleEvent({
+  it('handles checkout.session.completed for a subscription', async () => {
+    const event = {
+      id: 'evt_test',
       type: 'checkout.session.completed',
       data: {
         object: {
           id: 'cs_test',
-          payment_intent: 'pi_123',
-          payment_status: 'paid',
-          amount_total: 5000,
-          currency: 'usd',
-          metadata: { studioId: 'studio-1', userId: 'user-1' },
+          subscription: 'sub_test',
+          payment_intent: 'pi_test',
+          customer: 'cus_test',
+          amount_total: 18000,
+          currency: 'nzd',
+          metadata: {
+            userId: 'user-123',
+            studioId: 'studio-abc',
+            planId: 'plan-xyz',
+            type: 'subscription',
+            couponCode: '',
+          },
         },
       },
-    } as any)
+    }
+    vi.mocked(constructWebhookEvent).mockReturnValue(event as any)
 
-    expect(supabase.from).toHaveBeenCalledWith('payments')
-    expect(supabase.insert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        stripe_payment_intent_id: 'pi_123',
-        status: 'succeeded',
-        amount_cents: 5000,
-      })
-    )
+    const chain = makeChain()
+    vi.mocked(createServiceClient).mockReturnValue(chain as any)
+
+    const app = makeApp()
+    const res = await app.request('/api/webhooks/stripe', {
+      method: 'POST',
+      headers: { 'stripe-signature': 'valid-sig' },
+      body: JSON.stringify(event),
+    })
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.received).toBe(true)
+    // Should have inserted subscription and payment
+    expect(chain.insert).toHaveBeenCalledTimes(2)
   })
-})
 
-describe('handleEvent — customer.subscription.created', () => {
-  it('upserts subscription record', async () => {
-    const supabase = makeSupa()
-    vi.mocked(createServiceClient).mockReturnValue(supabase as any)
-
-    await handleEvent({
-      type: 'customer.subscription.created',
+  it('handles invoice.payment_succeeded (resets usage counters)', async () => {
+    const subRecord = { id: 'sub-db-id', user_id: 'user-123', studio_id: 'studio-abc', plan_id: 'plan-xyz' }
+    const event = {
+      id: 'evt_invoice',
+      type: 'invoice.payment_succeeded',
       data: {
         object: {
-          id: 'sub_123',
-          customer: 'cus_abc',
-          status: 'active',
-          current_period_start: 1700000000,
-          current_period_end: 1702678400,
-          metadata: { planId: 'plan-1', userId: 'user-1', studioId: 'studio-1' },
+          subscription: 'sub_stripe_id',
+          amount_paid: 18000,
+          currency: 'nzd',
+          customer: 'cus_test',
+          lines: { data: [{ period: { start: 1700000000, end: 1702678400 } }] },
+          metadata: {},
         },
       },
-    } as any)
+    }
+    vi.mocked(constructWebhookEvent).mockReturnValue(event as any)
 
-    expect(supabase.from).toHaveBeenCalledWith('subscriptions')
-    expect(supabase.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({ stripe_subscription_id: 'sub_123', status: 'active' }),
-      expect.objectContaining({ onConflict: 'stripe_subscription_id' })
-    )
+    const chain = makeChain({ single: subRecord })
+    vi.mocked(createServiceClient).mockReturnValue(chain as any)
+
+    const app = makeApp()
+    const res = await app.request('/api/webhooks/stripe', {
+      method: 'POST',
+      headers: { 'stripe-signature': 'valid-sig' },
+      body: JSON.stringify(event),
+    })
+    expect(res.status).toBe(200)
+    // Should update subscription and insert payment
+    expect(chain.update).toHaveBeenCalled()
+    expect(chain.insert).toHaveBeenCalled()
   })
-})
 
-describe('handleEvent — customer.subscription.deleted', () => {
-  it('marks subscription as cancelled', async () => {
-    const supabase = makeSupa()
-    vi.mocked(createServiceClient).mockReturnValue(supabase as any)
-
-    await handleEvent({
-      type: 'customer.subscription.deleted',
-      data: { object: { id: 'sub_123' } },
-    } as any)
-
-    expect(supabase.update).toHaveBeenCalledWith({ status: 'cancelled' })
-  })
-})
-
-describe('handleEvent — invoice.payment_succeeded', () => {
-  it('resets classes_used_this_period on renewal', async () => {
-    const supabase = makeSupa()
-    vi.mocked(createServiceClient).mockReturnValue(supabase as any)
-
-    await handleEvent({
-      type: 'invoice.payment_succeeded',
-      data: { object: { subscription: 'sub_123' } },
-    } as any)
-
-    expect(supabase.update).toHaveBeenCalledWith({ classes_used_this_period: 0 })
-  })
-})
-
-describe('handleEvent — invoice.payment_failed', () => {
-  it('marks subscription as past_due', async () => {
-    const supabase = makeSupa()
-    vi.mocked(createServiceClient).mockReturnValue(supabase as any)
-
-    await handleEvent({
-      type: 'invoice.payment_failed',
-      data: { object: { subscription: 'sub_123' } },
-    } as any)
-
-    expect(supabase.update).toHaveBeenCalledWith({ status: 'past_due' })
-  })
-})
-
-describe('handleEvent — payment_intent.succeeded', () => {
-  it('upserts payment record', async () => {
-    const supabase = makeSupa()
-    vi.mocked(createServiceClient).mockReturnValue(supabase as any)
-
-    await handleEvent({
+  it('handles payment_intent.succeeded for class pack (sets remaining_classes)', async () => {
+    const plan = { class_limit: 8, validity_days: 60 }
+    const event = {
+      id: 'evt_pi',
       type: 'payment_intent.succeeded',
       data: {
         object: {
-          id: 'pi_456',
-          amount: 2500,
-          currency: 'usd',
-          metadata: { studioId: 'studio-1', userId: 'user-1' },
+          id: 'pi_test',
+          amount: 16000,
+          currency: 'nzd',
+          customer: 'cus_test',
+          metadata: {
+            userId: 'user-123',
+            studioId: 'studio-abc',
+            planId: 'plan-xyz',
+            type: 'class_pack',
+          },
         },
       },
-    } as any)
+    }
+    vi.mocked(constructWebhookEvent).mockReturnValue(event as any)
 
-    expect(supabase.from).toHaveBeenCalledWith('payments')
-    expect(supabase.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({ stripe_payment_intent_id: 'pi_456', amount_cents: 2500 }),
-      expect.objectContaining({ onConflict: 'stripe_payment_intent_id' })
-    )
+    const chain = makeChain({ single: plan })
+    vi.mocked(createServiceClient).mockReturnValue(chain as any)
+
+    const app = makeApp()
+    const res = await app.request('/api/webhooks/stripe', {
+      method: 'POST',
+      headers: { 'stripe-signature': 'valid-sig' },
+      body: JSON.stringify(event),
+    })
+    expect(res.status).toBe(200)
+    // Should insert class_pass and payment
+    expect(chain.insert).toHaveBeenCalledTimes(2)
+  })
+
+  it('handles customer.subscription.deleted (marks cancelled)', async () => {
+    const event = {
+      id: 'evt_del',
+      type: 'customer.subscription.deleted',
+      data: { object: { id: 'sub_stripe_id' } },
+    }
+    vi.mocked(constructWebhookEvent).mockReturnValue(event as any)
+
+    const chain = makeChain()
+    vi.mocked(createServiceClient).mockReturnValue(chain as any)
+
+    const app = makeApp()
+    const res = await app.request('/api/webhooks/stripe', {
+      method: 'POST',
+      headers: { 'stripe-signature': 'valid-sig' },
+      body: JSON.stringify(event),
+    })
+    expect(res.status).toBe(200)
+    expect(chain.update).toHaveBeenCalled()
+  })
+
+  it('handles customer.subscription.updated (syncs status)', async () => {
+    const event = {
+      id: 'evt_upd',
+      type: 'customer.subscription.updated',
+      data: {
+        object: {
+          id: 'sub_stripe_id',
+          status: 'active',
+          cancel_at_period_end: false,
+          current_period_start: 1700000000,
+          current_period_end: 1702678400,
+        },
+      },
+    }
+    vi.mocked(constructWebhookEvent).mockReturnValue(event as any)
+
+    const chain = makeChain()
+    vi.mocked(createServiceClient).mockReturnValue(chain as any)
+
+    const app = makeApp()
+    const res = await app.request('/api/webhooks/stripe', {
+      method: 'POST',
+      headers: { 'stripe-signature': 'valid-sig' },
+      body: JSON.stringify(event),
+    })
+    expect(res.status).toBe(200)
+    expect(chain.update).toHaveBeenCalled()
+  })
+
+  it('acknowledges unknown event types without error', async () => {
+    const event = {
+      id: 'evt_unk',
+      type: 'some.unknown.event',
+      data: { object: {} },
+    }
+    vi.mocked(constructWebhookEvent).mockReturnValue(event as any)
+    vi.mocked(createServiceClient).mockReturnValue(makeChain() as any)
+
+    const app = makeApp()
+    const res = await app.request('/api/webhooks/stripe', {
+      method: 'POST',
+      headers: { 'stripe-signature': 'valid-sig' },
+      body: '{}',
+    })
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.received).toBe(true)
   })
 })

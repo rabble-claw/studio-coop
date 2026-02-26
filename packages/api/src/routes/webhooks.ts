@@ -1,152 +1,235 @@
 import { Hono } from 'hono'
-import type Stripe from 'stripe'
-import { createStripeClient } from '../lib/stripe'
 import { createServiceClient } from '../lib/supabase'
+import { constructWebhookEvent } from '../lib/stripe'
+import { badRequest } from '../lib/errors'
 
-const webhookRoutes = new Hono()
+// Mounted at /api/webhooks
+const webhooks = new Hono()
 
 /**
- * POST /api/webhooks/stripe
- * No auth — verified via Stripe-Signature header.
- * Returns 200 immediately; event handling runs asynchronously.
+ * POST /stripe — Stripe webhook endpoint.
+ *
+ * Handles:
+ *   checkout.session.completed   → create subscription or class_pass record
+ *   payment_intent.succeeded     → create class_pass record for one-time pack purchase
+ *   invoice.payment_succeeded    → reset usage counters + update period dates
+ *   customer.subscription.deleted → mark subscription cancelled
+ *   customer.subscription.updated → sync subscription status
  */
-webhookRoutes.post('/stripe', async (c) => {
-  const signature = c.req.header('stripe-signature')
-  if (!signature) {
-    return c.json({ error: 'Missing stripe-signature header' }, 400)
-  }
+webhooks.post('/stripe', async (c) => {
+  const sig = c.req.header('stripe-signature')
+  if (!sig) throw badRequest('Missing stripe-signature header')
 
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
-  if (!webhookSecret) {
-    return c.json({ error: 'Missing STRIPE_WEBHOOK_SECRET' }, 500)
-  }
+  if (!webhookSecret) throw new Error('Missing STRIPE_WEBHOOK_SECRET')
 
-  const body = await c.req.text()
-  const stripe = createStripeClient()
+  // Read raw body for signature verification
+  const rawBody = await c.req.text()
 
-  let event: Stripe.Event
+  let event: ReturnType<typeof constructWebhookEvent>
   try {
-    event = stripe.webhooks.constructEvent(body, signature, webhookSecret)
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Signature verification failed'
-    return c.json({ error: message }, 400)
+    event = constructWebhookEvent(rawBody, sig, webhookSecret)
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Invalid webhook signature'
+    throw badRequest(msg)
   }
 
-  // Return 200 immediately; process event in the background
-  handleEvent(event).catch((err) =>
-    console.error('[webhook] Error handling event:', event.type, err)
-  )
-
-  return c.json({ received: true })
-})
-
-async function handleEvent(event: Stripe.Event): Promise<void> {
   const supabase = createServiceClient()
 
   switch (event.type) {
-    case 'account.updated': {
-      const account = event.data.object as Stripe.Account
-      const studioId = account.metadata?.studioId
-      if (studioId) {
-        await supabase
-          .from('studios')
-          .update({
-            stripe_charges_enabled: account.charges_enabled,
-            stripe_details_submitted: account.details_submitted,
-          })
-          .eq('stripe_account_id', account.id)
+    // ─── Task 2: Subscription created via Checkout ─────────────────────────
+    case 'checkout.session.completed': {
+      const session = event.data.object as {
+        id: string
+        subscription: string | null
+        payment_intent: string | null
+        customer: string
+        metadata: Record<string, string>
+        amount_total: number
+        currency: string
+      }
+      const { userId, studioId, planId, type, couponCode } = session.metadata
+
+      if (type === 'subscription' && session.subscription) {
+        // Create subscription record
+        await supabase.from('subscriptions').insert({
+          user_id: userId,
+          studio_id: studioId,
+          plan_id: planId,
+          stripe_subscription_id: session.subscription,
+          stripe_customer_id: session.customer,
+          status: 'active',
+          classes_used_this_period: 0,
+        })
+
+        // Create initial payment record
+        await supabase.from('payments').insert({
+          user_id: userId,
+          studio_id: studioId,
+          plan_id: planId,
+          amount_cents: session.amount_total ?? 0,
+          currency: (session.currency ?? 'usd').toUpperCase(),
+          stripe_payment_intent_id: session.payment_intent,
+          type: 'subscription',
+          status: 'succeeded',
+        })
+
+        // Record coupon redemption if one was used
+        if (couponCode) {
+          await supabase.rpc('increment_coupon_redemptions', { coupon_code: couponCode, studio: studioId })
+        }
       }
       break
     }
 
-    case 'checkout.session.completed': {
-      const session = event.data.object as Stripe.Checkout.Session
-      if (session.payment_status === 'paid') {
+    // ─── Task 3: Class pack purchased via PaymentIntent ────────────────────
+    case 'payment_intent.succeeded': {
+      const pi = event.data.object as {
+        id: string
+        amount: number
+        currency: string
+        customer: string | null
+        metadata: Record<string, string>
+      }
+      const { userId, studioId, planId, type } = pi.metadata
+
+      if (type === 'class_pack' && planId) {
+        // Fetch plan to get class limit and validity
+        const { data: plan } = await supabase
+          .from('membership_plans')
+          .select('class_limit, validity_days')
+          .eq('id', planId)
+          .single()
+
+        if (plan) {
+          const expiresAt = plan.validity_days
+            ? new Date(Date.now() + plan.validity_days * 24 * 60 * 60 * 1000).toISOString()
+            : null
+
+          await supabase.from('class_passes').insert({
+            user_id: userId,
+            studio_id: studioId,
+            plan_id: planId,
+            total_classes: plan.class_limit ?? 1,
+            remaining_classes: plan.class_limit ?? 1,
+            expires_at: expiresAt,
+            stripe_payment_intent_id: pi.id,
+          })
+
+          await supabase.from('payments').insert({
+            user_id: userId,
+            studio_id: studioId,
+            plan_id: planId,
+            amount_cents: pi.amount,
+            currency: pi.currency.toUpperCase(),
+            stripe_payment_intent_id: pi.id,
+            type: 'class_pack',
+            status: 'succeeded',
+          })
+        }
+      } else if (type === 'drop_in') {
+        // Drop-in payment handled separately (booking created by the drop-in route)
         await supabase.from('payments').insert({
-          stripe_payment_intent_id: session.payment_intent as string,
-          stripe_session_id: session.id,
-          amount_cents: session.amount_total ?? 0,
-          currency: session.currency ?? 'usd',
+          user_id: userId,
+          studio_id: studioId,
+          amount_cents: pi.amount,
+          currency: pi.currency.toUpperCase(),
+          stripe_payment_intent_id: pi.id,
+          type: 'drop_in',
           status: 'succeeded',
-          user_id: session.metadata?.userId,
-          studio_id: session.metadata?.studioId,
-          metadata: session.metadata,
         })
       }
       break
     }
 
-    case 'customer.subscription.created':
-    case 'customer.subscription.updated': {
-      const sub = event.data.object as Stripe.Subscription
-      await supabase.from('subscriptions').upsert(
-        {
-          stripe_subscription_id: sub.id,
-          stripe_customer_id: sub.customer as string,
-          status: sub.status,
-          current_period_start: new Date(sub.current_period_start * 1000).toISOString(),
-          current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
-          plan_id: sub.metadata?.planId,
-          user_id: sub.metadata?.userId,
-          studio_id: sub.metadata?.studioId,
-        },
-        { onConflict: 'stripe_subscription_id' }
-      )
+    // ─── Task 5: Subscription renewal ─────────────────────────────────────
+    case 'invoice.payment_succeeded': {
+      const invoice = event.data.object as {
+        subscription: string | null
+        amount_paid: number
+        currency: string
+        customer: string
+        lines: { data: Array<{ period: { start: number; end: number } }> }
+        metadata: Record<string, string>
+      }
+
+      if (!invoice.subscription) break
+
+      // Find subscription record
+      const { data: sub } = await supabase
+        .from('subscriptions')
+        .select('id, user_id, studio_id, plan_id')
+        .eq('stripe_subscription_id', invoice.subscription)
+        .single()
+
+      if (!sub) break
+
+      const period = invoice.lines.data[0]?.period
+      const updates: Record<string, unknown> = {
+        status: 'active',
+        classes_used_this_period: 0,
+      }
+      if (period) {
+        updates.current_period_start = new Date(period.start * 1000).toISOString()
+        updates.current_period_end = new Date(period.end * 1000).toISOString()
+      }
+
+      await supabase
+        .from('subscriptions')
+        .update(updates)
+        .eq('id', sub.id)
+
+      // Record renewal payment
+      await supabase.from('payments').insert({
+        user_id: sub.user_id,
+        studio_id: sub.studio_id,
+        plan_id: sub.plan_id,
+        amount_cents: invoice.amount_paid,
+        currency: invoice.currency.toUpperCase(),
+        type: 'subscription',
+        status: 'succeeded',
+      })
       break
     }
 
+    // ─── Task 5: Subscription cancelled ───────────────────────────────────
     case 'customer.subscription.deleted': {
-      const sub = event.data.object as Stripe.Subscription
+      const sub = event.data.object as { id: string }
       await supabase
         .from('subscriptions')
-        .update({ status: 'cancelled' })
+        .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
         .eq('stripe_subscription_id', sub.id)
       break
     }
 
-    case 'invoice.payment_succeeded': {
-      const invoice = event.data.object as Stripe.Invoice
-      if (invoice.subscription) {
-        await supabase
-          .from('subscriptions')
-          .update({ classes_used_this_period: 0 })
-          .eq('stripe_subscription_id', invoice.subscription as string)
+    // ─── Task 5: Subscription status sync ─────────────────────────────────
+    case 'customer.subscription.updated': {
+      const sub = event.data.object as {
+        id: string
+        status: string
+        cancel_at_period_end: boolean
+        current_period_start: number
+        current_period_end: number
       }
-      break
-    }
-
-    case 'invoice.payment_failed': {
-      const invoice = event.data.object as Stripe.Invoice
-      if (invoice.subscription) {
-        await supabase
-          .from('subscriptions')
-          .update({ status: 'past_due' })
-          .eq('stripe_subscription_id', invoice.subscription as string)
-      }
-      break
-    }
-
-    case 'payment_intent.succeeded': {
-      const pi = event.data.object as Stripe.PaymentIntent
-      await supabase.from('payments').upsert(
-        {
-          stripe_payment_intent_id: pi.id,
-          amount_cents: pi.amount,
-          currency: pi.currency,
-          status: 'succeeded',
-          user_id: pi.metadata?.userId,
-          studio_id: pi.metadata?.studioId,
-          metadata: pi.metadata,
-        },
-        { onConflict: 'stripe_payment_intent_id' }
-      )
+      await supabase
+        .from('subscriptions')
+        .update({
+          status: sub.status,
+          cancel_at_period_end: sub.cancel_at_period_end,
+          current_period_start: new Date(sub.current_period_start * 1000).toISOString(),
+          current_period_end: new Date(sub.current_period_end * 1000).toISOString(),
+        })
+        .eq('stripe_subscription_id', sub.id)
       break
     }
 
     default:
-      // Unhandled event type — no action needed
+      // Unhandled event type — acknowledge receipt
       break
   }
-}
 
-export { webhookRoutes, handleEvent }
+  return c.json({ received: true })
+})
+
+export { webhooks }
+export default webhooks

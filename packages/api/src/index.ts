@@ -2,8 +2,10 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 import { errorHandler } from './middleware/error-handler'
-import { stripeRoutes } from './routes/stripe'
-import { webhookRoutes } from './routes/webhooks'
+import plans from './routes/plans'
+import webhooks from './routes/webhooks'
+import classes from './routes/classes'
+import subscriptions from './routes/subscriptions'
 
 const app = new Hono()
 
@@ -28,15 +30,11 @@ app.get('/health', (c) => c.json({
   version: process.env.npm_package_version ?? '0.0.1',
 }))
 
-// Stripe Connect — studio onboarding, status, dashboard
-app.route('/api/studios', stripeRoutes)
-
-// Webhooks — no auth, Stripe-Signature verified internally
-app.route('/api/webhooks', webhookRoutes)
-
-// Future route groups:
-// app.route('/api/classes', classRoutes)
-// app.route('/api/bookings', bookingRoutes)
+// Route groups
+app.route('/api/studios', plans)
+app.route('/api/studios', classes)
+app.route('/api/subscriptions', subscriptions)
+app.route('/api/webhooks', webhooks)
 
 export default app
 export { app }
