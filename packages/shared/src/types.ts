@@ -116,3 +116,164 @@ export interface FeedPost {
   postType: FeedPostType
   createdAt: Date
 }
+
+// ============================================================
+// V2: PAYMENTS & FEATURES
+// ============================================================
+
+export type MembershipPlanType = 'unlimited' | 'limited' | 'class_pack' | 'drop_in' | 'intro'
+export type MembershipPlanInterval = 'month' | 'year' | 'once'
+export type SubscriptionStatus = 'active' | 'past_due' | 'cancelled' | 'paused'
+export type CouponType = 'percent_off' | 'amount_off' | 'free_classes'
+export type CouponAppliesTo = 'any' | 'plan' | 'drop_in' | 'new_member'
+export type PrivateBookingType = 'party' | 'private_tuition' | 'group'
+export type PrivateBookingStatus = 'requested' | 'confirmed' | 'completed' | 'cancelled'
+export type CrossBookingPolicy = 'full_price' | 'discounted' | 'included'
+export type MigrationSource = 'mindbody' | 'vagaro' | 'csv'
+export type MigrationStatus = 'pending' | 'processing' | 'completed' | 'failed'
+
+export interface MembershipPlan {
+  id: string
+  studioId: string
+  name: string
+  description?: string
+  type: MembershipPlanType
+  priceCents: number
+  currency: string
+  interval: MembershipPlanInterval
+  classLimit?: number
+  validityDays?: number
+  stripePriceId?: string
+  active: boolean
+  sortOrder: number
+  createdAt: Date
+}
+
+export interface Subscription {
+  id: string
+  userId: string
+  studioId: string
+  planId: string
+  stripeSubscriptionId?: string
+  stripeCustomerId?: string
+  status: SubscriptionStatus
+  currentPeriodStart?: Date
+  currentPeriodEnd?: Date
+  classesUsedThisPeriod: number
+  cancelledAt?: Date
+  createdAt: Date
+}
+
+export interface ClassPass {
+  id: string
+  userId: string
+  studioId: string
+  planId?: string
+  totalClasses: number
+  remainingClasses: number
+  purchasedAt: Date
+  expiresAt?: Date
+  stripePaymentIntentId?: string
+}
+
+export interface Payment {
+  id: string
+  userId: string
+  studioId: string
+  type: 'subscription' | 'class_pack' | 'drop_in' | 'private_booking'
+  amountCents: number
+  currency: string
+  stripePaymentIntentId?: string
+  refunded: boolean
+  refundAmountCents: number
+  metadata: Record<string, unknown>
+  createdAt: Date
+}
+
+export interface CompClass {
+  id: string
+  userId: string
+  studioId: string
+  grantedBy?: string
+  reason?: string
+  totalClasses: number
+  remainingClasses: number
+  expiresAt?: Date
+  createdAt: Date
+}
+
+export interface Coupon {
+  id: string
+  studioId: string
+  code: string
+  type: CouponType
+  value: number
+  appliesTo: CouponAppliesTo
+  planIds: string[]
+  maxRedemptions?: number
+  currentRedemptions: number
+  validFrom?: Date
+  validUntil?: Date
+  active: boolean
+  createdAt: Date
+}
+
+export interface CouponRedemption {
+  id: string
+  couponId: string
+  userId: string
+  studioId: string
+  appliedToType?: string
+  appliedToId?: string
+  discountAmountCents: number
+  redeemedAt: Date
+}
+
+export interface StudioNetwork {
+  id: string
+  name: string
+  description?: string
+  createdAt: Date
+}
+
+export interface StudioNetworkMember {
+  id: string
+  networkId: string
+  studioId: string
+  crossBookingPolicy: CrossBookingPolicy
+  discountPercent?: number
+  joinedAt: Date
+}
+
+export interface PrivateBooking {
+  id: string
+  studioId: string
+  userId: string
+  type: PrivateBookingType
+  title: string
+  description?: string
+  notes?: string
+  date: string        // "2026-03-15"
+  startTime: string   // "19:00"
+  endTime: string     // "21:00"
+  attendeeCount?: number
+  priceCents?: number
+  depositCents?: number
+  depositPaid: boolean
+  status: PrivateBookingStatus
+  stripePaymentIntentId?: string
+  createdAt: Date
+}
+
+export interface MigrationImport {
+  id: string
+  studioId: string
+  source: MigrationSource
+  fileName?: string
+  status: MigrationStatus
+  importedCounts: Record<string, number>
+  errors: unknown[]
+  startedAt?: Date
+  completedAt?: Date
+  createdAt: Date
+}
