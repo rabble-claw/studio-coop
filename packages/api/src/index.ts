@@ -5,6 +5,7 @@ import { errorHandler } from './middleware/error-handler'
 import plans from './routes/plans'
 import webhooks from './routes/webhooks'
 import classes from './routes/classes'
+import subscriptions from './routes/subscriptions'
 
 const app = new Hono()
 
@@ -32,6 +33,7 @@ app.get('/health', (c) => c.json({
 // Route groups
 app.route('/api/studios', plans)
 app.route('/api/studios', classes)
+app.route('/api/subscriptions', subscriptions)
 app.route('/api/webhooks', webhooks)
 
 export default app
