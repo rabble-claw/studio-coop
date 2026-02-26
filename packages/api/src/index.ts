@@ -6,6 +6,7 @@ import plans from './routes/plans'
 import webhooks from './routes/webhooks'
 import classes from './routes/classes'
 import subscriptions from './routes/subscriptions'
+import schedule from './routes/schedule'
 
 const app = new Hono()
 
@@ -33,8 +34,10 @@ app.get('/health', (c) => c.json({
 // Route groups
 app.route('/api/studios', plans)
 app.route('/api/studios', classes)
+app.route('/api/studios', schedule)
 app.route('/api/subscriptions', subscriptions)
 app.route('/api/webhooks', webhooks)
+app.route('/', schedule)  // for /api/admin/generate-classes
 
 export default app
 export { app }
