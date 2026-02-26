@@ -8,6 +8,7 @@ import classes from './routes/classes'
 import subscriptions from './routes/subscriptions'
 import schedule from './routes/schedule'
 import checkin from './routes/checkin'
+import attendance from './routes/attendance'
 
 const app = new Hono()
 
@@ -40,6 +41,8 @@ app.route('/api/subscriptions', subscriptions)
 app.route('/api/webhooks', webhooks)
 app.route('/', schedule)  // for /api/admin/generate-classes
 app.route('/api/classes', checkin)
+app.route('/api/studios', attendance)
+app.route('/api/my', attendance)
 
 export default app
 export { app }
