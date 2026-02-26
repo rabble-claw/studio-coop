@@ -11,6 +11,8 @@ import bookings from './routes/bookings'
 import my from './routes/my'
 import checkin from './routes/checkin'
 import attendance from './routes/attendance'
+import comps from './routes/comps'
+import coupons from './routes/coupons'
 
 const app = new Hono()
 
@@ -47,6 +49,9 @@ app.route('/', schedule)  // for /api/admin/generate-classes
 app.route('/api/classes', checkin)
 app.route('/api/studios', attendance)
 app.route('/api/my', attendance)
+app.route('/api/studios', comps)
+app.route('/api/my', comps)
+app.route('/api/studios', coupons)
 
 export default app
 export { app }
