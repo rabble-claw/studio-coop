@@ -1,136 +1,96 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { isDemoMode, demoMembers } from '@/lib/demo-data'
 import { Card, CardContent } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Button } from '@/components/ui/button'
 import { getRoleBadgeColor } from '@/lib/utils'
 
 interface Member {
   id: string
+  name: string
+  email: string
   role: string
-  status: string
-  notes: string | null
-  tags: string[]
-  joined_at: string
-  user: {
-    id: string
-    name: string
-    email: string
-    avatar_url: string | null
-  }
+  joined: string
+  avatar_url: string | null
 }
 
 export default function MembersPage() {
   const [members, setMembers] = useState<Member[]>([])
-  const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      const { data: membership } = await supabase
-        .from('memberships')
-        .select('studio_id')
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .limit(1)
-        .single()
-
-      if (!membership) return
-
-      const { data } = await supabase
-        .from('memberships')
-        .select('*, user:users!memberships_user_id_fkey(id, name, email, avatar_url)')
-        .eq('studio_id', membership.studio_id)
-        .eq('status', 'active')
-        .order('role')
-        .order('joined_at')
-
-      setMembers(data ?? [])
+    if (isDemoMode()) {
+      setMembers(demoMembers)
       setLoading(false)
+      return
     }
-    load()
-  }, [supabase])
+    // TODO: fetch from Supabase
+    setLoading(false)
+  }, [])
 
-  const filtered = members.filter((m) => {
-    if (!search) return true
-    const q = search.toLowerCase()
-    return (
-      m.user.name.toLowerCase().includes(q) ||
-      m.user.email.toLowerCase().includes(q) ||
-      m.role.includes(q) ||
-      m.tags?.some((t) => t.toLowerCase().includes(q))
-    )
-  })
+  const filtered = members.filter(
+    (m) =>
+      m.name.toLowerCase().includes(search.toLowerCase()) ||
+      m.email.toLowerCase().includes(search.toLowerCase())
+  )
 
-  const roleOrder = ['owner', 'admin', 'teacher', 'member']
+  const roleOrder = { owner: 0, admin: 1, teacher: 2, member: 3 }
+  const sorted = [...filtered].sort(
+    (a, b) => (roleOrder[a.role as keyof typeof roleOrder] ?? 9) - (roleOrder[b.role as keyof typeof roleOrder] ?? 9)
+  )
 
   if (loading) {
-    return <div className="text-muted-foreground py-20 text-center">Loading members...</div>
+    return <div className="flex items-center justify-center py-20"><div className="text-muted-foreground">Loading members...</div></div>
   }
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-8">
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Members</h1>
-          <p className="text-muted-foreground mt-1">{members.length} active members</p>
+          <h1 className="text-2xl font-bold">Members</h1>
+          <p className="text-muted-foreground">{members.length} total members</p>
         </div>
+        <Button>+ Invite Member</Button>
       </div>
 
-      <div className="mb-6">
-        <Input
-          placeholder="Search by name, email, role, or tag..."
+      <div>
+        <input
+          type="text"
+          placeholder="Search members..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="max-w-md"
+          className="w-full max-w-sm rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
         />
       </div>
 
-      <div className="space-y-2">
-        {filtered.length === 0 ? (
-          <p className="text-muted-foreground text-center py-12">No members found.</p>
-        ) : (
-          filtered
-            .sort((a, b) => roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role))
-            .map((m) => (
-              <Card key={m.id}>
-                <CardContent className="flex items-center justify-between p-4">
-                  <div className="flex items-center gap-3">
-                    <Avatar>
-                      <AvatarImage src={m.user.avatar_url ?? undefined} />
-                      <AvatarFallback>
-                        {m.user.name.split(' ').map((n) => n[0]).join('').toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <div className="font-medium">{m.user.name}</div>
-                      <div className="text-sm text-muted-foreground">{m.user.email}</div>
-                      {m.notes && (
-                        <div className="text-xs text-muted-foreground mt-0.5 italic">{m.notes}</div>
-                      )}
-                    </div>
+      <div className="grid gap-2">
+        {sorted.map((member) => (
+          <Card key={member.id} className="hover:shadow-md transition-shadow">
+            <CardContent className="py-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
+                    {member.name[0]}
                   </div>
-                  <div className="flex items-center gap-2">
-                    {m.tags?.map((tag) => (
-                      <Badge key={tag} variant="outline" className="text-xs">
-                        {tag}
-                      </Badge>
-                    ))}
-                    <Badge className={getRoleBadgeColor(m.role)}>
-                      {m.role}
-                    </Badge>
+                  <div>
+                    <div className="font-medium">{member.name}</div>
+                    <div className="text-sm text-muted-foreground">{member.email}</div>
                   </div>
-                </CardContent>
-              </Card>
-            ))
-        )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={`text-xs px-2 py-1 rounded-full capitalize ${getRoleBadgeColor(member.role)}`}>
+                    {member.role}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    Joined {new Date(member.joined).toLocaleDateString('en-NZ', { month: 'short', year: 'numeric' })}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
       </div>
     </div>
   )

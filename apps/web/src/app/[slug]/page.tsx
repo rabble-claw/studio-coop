@@ -1,19 +1,23 @@
-import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { formatTime, formatDate } from '@/lib/utils'
+import { isDemoMode, demoStudio, demoClasses, demoMembers } from '@/lib/demo-data'
 import Link from 'next/link'
 
-export default async function PublicStudioPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params
+async function getStudioData(slug: string) {
+  if (isDemoMode()) {
+    if (slug !== demoStudio.slug) return null
+    const classesByDate = demoClasses.reduce<Record<string, typeof demoClasses>>((acc, cls) => {
+      if (!acc[cls.date]) acc[cls.date] = []
+      acc[cls.date]!.push(cls)
+      return acc
+    }, {})
+    return { studio: demoStudio, classesByDate, memberCount: demoMembers.length }
+  }
+
+  const { createClient } = await import('@/lib/supabase/server')
   const supabase = await createClient()
-
-  const { data: studio } = await supabase
-    .from('studios')
-    .select('*')
-    .eq('slug', slug)
-    .single()
-
-  if (!studio) notFound()
+  const { data: studio } = await supabase.from('studios').select('*').eq('slug', slug).single()
+  if (!studio) return null
 
   const today = new Date().toISOString().split('T')[0]
   const { data: classes } = await supabase
@@ -33,11 +37,19 @@ export default async function PublicStudioPage({ params }: { params: Promise<{ s
     .eq('status', 'active')
 
   const classesByDate = (classes ?? []).reduce<Record<string, typeof classes>>((acc, cls) => {
-    const date = cls.date
-    if (!acc[date]) acc[date] = []
-    acc[date]!.push(cls)
+    if (!acc[cls.date]) acc[cls.date] = []
+    acc[cls.date]!.push(cls)
     return acc
   }, {})
+
+  return { studio, classesByDate, memberCount: memberCount ?? 0 }
+}
+
+export default async function PublicStudioPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params
+  const data = await getStudioData(slug)
+  if (!data) notFound()
+  const { studio, classesByDate, memberCount } = data
 
   return (
     <div className="min-h-screen">
@@ -92,11 +104,14 @@ export default async function PublicStudioPage({ params }: { params: Promise<{ s
                             {cls.teacher && ` with ${cls.teacher.name}`}
                           </div>
                           {cls.template?.description && (
-                            <div className="text-sm text-muted-foreground mt-1">{cls.template.description}</div>
+                            <div className="text-sm text-muted-foreground mt-1 max-w-lg">{cls.template.description}</div>
                           )}
                         </div>
-                        <div className="text-sm text-muted-foreground">
-                          {cls.max_capacity} spots
+                        <div className="text-right">
+                          <div className="text-sm font-medium">
+                            {cls.max_capacity - (cls.booked_count ?? 0)} spots left
+                          </div>
+                          <div className="text-xs text-muted-foreground">{cls.max_capacity} max</div>
                         </div>
                       </div>
                     </div>
@@ -117,6 +132,12 @@ export default async function PublicStudioPage({ params }: { params: Promise<{ s
           </Link>
         </div>
       </div>
+
+      {isDemoMode() && (
+        <div className="fixed bottom-4 right-4 bg-amber-100 text-amber-800 text-xs px-3 py-1.5 rounded-full shadow-sm border border-amber-200">
+          🎭 Demo Mode — Empire Aerial Arts
+        </div>
+      )}
     </div>
   )
 }
