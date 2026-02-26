@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>studio.coop — Pitch Deck</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0a0a0a;
+    --fg: #fafafa;
+    --accent: #7c3aed;
+    --accent-light: #a78bfa;
+    --muted: #71717a;
+    --card: #18181b;
+    --border: #27272a;
+    --green: #22c55e;
+    --red: #ef4444;
+    --orange: #f59e0b;
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    overflow: hidden;
+  }
+
+  .deck {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+  }
+
+  .slide {
+    width: 100vw;
+    height: 100vh;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 60px 80px;
+    position: absolute;
+    top: 0;
+    left: 0;
+  }
+
+  .slide.active { display: flex; }
+
+  .slide-number {
+    position: fixed;
+    bottom: 24px;
+    right: 32px;
+    font-size: 14px;
+    color: var(--muted);
+    z-index: 100;
+  }
+
+  h1 {
+    font-size: 64px;
+    font-weight: 900;
+    line-height: 1.1;
+    letter-spacing: -2px;
+    margin-bottom: 24px;
+  }
+
+  h2 {
+    font-size: 48px;
+    font-weight: 800;
+    line-height: 1.2;
+    letter-spacing: -1.5px;
+    margin-bottom: 32px;
+  }
+
+  h3 {
+    font-size: 32px;
+    font-weight: 700;
+    margin-bottom: 20px;
+  }
+
+  p, li {
+    font-size: 22px;
+    line-height: 1.6;
+    color: #d4d4d8;
+  }
+
+  .subtitle {
+    font-size: 28px;
+    color: var(--accent-light);
+    font-weight: 500;
+    margin-bottom: 16px;
+  }
+
+  .big-number {
+    font-size: 80px;
+    font-weight: 900;
+    color: var(--accent-light);
+    line-height: 1;
+  }
+
+  .big-number-label {
+    font-size: 20px;
+    color: var(--muted);
+    margin-top: 8px;
+  }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+    width: 100%;
+    max-width: 1100px;
+  }
+
+  .grid-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 32px;
+    width: 100%;
+    max-width: 1100px;
+  }
+
+  .grid-4 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 24px;
+    width: 100%;
+    max-width: 1100px;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+  }
+
+  .card h3 { font-size: 24px; margin-bottom: 12px; }
+  .card p { font-size: 18px; }
+
+  .accent { color: var(--accent-light); }
+  .green { color: var(--green); }
+  .red { color: var(--red); }
+  .orange { color: var(--orange); }
+  .muted { color: var(--muted); }
+  .strike { text-decoration: line-through; color: var(--muted); }
+
+  .text-center { text-align: center; }
+  .text-left { text-align: left; }
+  .w-full { width: 100%; max-width: 1100px; }
+
+  ul { list-style: none; padding: 0; }
+  ul li { padding: 8px 0; padding-left: 28px; position: relative; }
+  ul li::before {
+    content: "→";
+    position: absolute;
+    left: 0;
+    color: var(--accent-light);
+    font-weight: 700;
+  }
+
+  .compare-table {
+    width: 100%;
+    max-width: 1000px;
+    border-collapse: collapse;
+    font-size: 20px;
+  }
+
+  .compare-table th {
+    text-align: left;
+    padding: 16px 20px;
+    font-weight: 700;
+    font-size: 18px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .compare-table td {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    color: #d4d4d8;
+  }
+
+  .compare-table td:first-child { color: var(--fg); font-weight: 500; }
+  .compare-table tr:last-child td { border-bottom: none; }
+
+  .logo {
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+  }
+
+  .logo span { color: var(--accent-light); }
+
+  .tag {
+    display: inline-block;
+    background: var(--accent);
+    color: white;
+    padding: 4px 14px;
+    border-radius: 100px;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 16px;
+  }
+
+  .divider {
+    width: 60px;
+    height: 4px;
+    background: var(--accent);
+    border-radius: 2px;
+    margin: 24px 0;
+  }
+
+  .quote {
+    font-size: 28px;
+    font-style: italic;
+    line-height: 1.5;
+    color: #e4e4e7;
+    max-width: 800px;
+    text-align: center;
+  }
+
+  .quote-attr {
+    font-size: 18px;
+    color: var(--muted);
+    margin-top: 16px;
+    font-style: normal;
+  }
+
+  .progress-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 8px 0;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: var(--accent-light);
+    border-radius: 4px;
+    transition: width 0.5s;
+  }
+
+  nav {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 12px;
+    z-index: 100;
+  }
+
+  nav button {
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--fg);
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 14px;
+  }
+
+  nav button:hover { background: var(--border); }
+</style>
+</head>
+<body>
+
+<div class="deck" id="deck">
+
+  <!-- SLIDE 1: Title -->
+  <div class="slide active" data-slide="1">
+    <div class="tag">PLATFORM COOPERATIVE</div>
+    <h1>studio<span class="accent">.coop</span></h1>
+    <p class="subtitle">The fitness management platform owned by the studios that use it.</p>
+    <div class="divider"></div>
+    <p class="muted" style="font-size: 18px;">Your studio. Your platform. Your co-op.</p>
+  </div>
+
+  <!-- SLIDE 2: The Problem -->
+  <div class="slide" data-slide="2">
+    <h2 class="text-center">The Problem</h2>
+    <div class="grid-2" style="margin-top: 20px;">
+      <div>
+        <h3 class="red">Software that doesn't work</h3>
+        <ul>
+          <li>Mindbody is buggy, expensive, and frustrating</li>
+          <li>Pricing starts at $110/mo and goes up fast</li>
+          <li>Clients get confused booking and paying</li>
+          <li>The backend feels like it's from 2010</li>
+          <li>"Let's talk" pricing = you'll pay more than you think</li>
+        </ul>
+      </div>
+      <div>
+        <h3 class="red">Community is fragmented</h3>
+        <ul>
+          <li>Booking → Mindbody</li>
+          <li>Class chat → WhatsApp group</li>
+          <li>Share videos → Private Instagram</li>
+          <li>Updates → Email list</li>
+          <li>Discussion → Facebook group</li>
+          <li><strong>5 apps for what should be 1</strong></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 3: Reddit quotes -->
+  <div class="slide" data-slide="3">
+    <h2 class="text-center" style="margin-bottom: 48px;">Studio owners are done with Mindbody</h2>
+    <div class="quote">
+      "The system is a pain, and clients constantly get confused when booking or paying. We spend way too much time and the price is unreasonable."
+      <div class="quote-attr">— Pilates studio owner, Reddit r/pilates</div>
+    </div>
+    <div style="height: 40px;"></div>
+    <div class="quote">
+      "The pricing and fees are getting hard to justify, and honestly the backend feels pretty clunky for what we need."
+      <div class="quote-attr">— Gym owner, Reddit r/personaltraining</div>
+    </div>
+  </div>
+
+  <!-- SLIDE 4: The Insight -->
+  <div class="slide" data-slide="4">
+    <div class="tag">THE INSIGHT</div>
+    <h2 class="text-center" style="max-width: 900px;">
+      Joining a gym is <span class="accent">social</span>.<br>
+      Your software should be too.
+    </h2>
+    <p style="max-width: 700px; text-align: center; margin-top: 16px; font-size: 24px;">
+      Members stay because of <strong>community</strong>, not just exercise.
+      More connection → more retention → more revenue.
+    </p>
+    <p style="max-width: 700px; text-align: center; margin-top: 24px; color: var(--muted);">
+      Yet every fitness platform treats members as transactions, not people.
+    </p>
+  </div>
+
+  <!-- SLIDE 5: The Solution -->
+  <div class="slide" data-slide="5">
+    <h2 class="text-center">studio.coop</h2>
+    <p class="subtitle text-center">Scheduling + Payments + Community — all in one.</p>
+    <div class="grid-3" style="margin-top: 32px;">
+      <div class="card">
+        <h3>📅 Run Your Studio</h3>
+        <p>Class scheduling, memberships, payments, staff management, reporting. Everything Mindbody does, but modern and simple.</p>
+      </div>
+      <div class="card" style="border-color: var(--accent);">
+        <h3>💬 Build Community</h3>
+        <p>Social feeds, video sharing, group chats, class discussions. Replace 5 fragmented apps with one place your members actually love.</p>
+      </div>
+      <div class="card">
+        <h3>🎨 Own Your Brand</h3>
+        <p>Your subdomain (empire.studio.coop) or custom domain. AI-built site. Branded app. Your studio is the hero — not us.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 6: Community Features -->
+  <div class="slide" data-slide="6">
+    <h2 class="text-center">What "community" actually means</h2>
+    <div class="grid-2" style="margin-top: 24px;">
+      <div class="card">
+        <h3>For Members</h3>
+        <ul>
+          <li>Share videos of dances, routines, progress</li>
+          <li>Private community feed — just your studio</li>
+          <li>Chat with classmates before/after class</li>
+          <li>See class photos, celebrate milestones</li>
+          <li>One app: book, pay, AND connect</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>For Studio Owners</h3>
+        <ul>
+          <li>Members who connect socially <strong>stay longer</strong></li>
+          <li>UGC becomes your marketing (with permission)</li>
+          <li>No more managing 5 separate platforms</li>
+          <li>See who's engaged vs who's drifting</li>
+          <li>Community = switching cost (the good kind)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 7: AI Site Builder -->
+  <div class="slide" data-slide="7">
+    <div class="tag">AI-POWERED</div>
+    <h2 class="text-center">Your website, built in minutes</h2>
+    <p style="max-width: 700px; text-align: center; margin-bottom: 32px;">
+      Tell us about your studio, upload your logo, and our AI builds a beautiful site.
+      Not a template — a real site that writes itself.
+    </p>
+    <div class="grid-3">
+      <div class="card text-center">
+        <div class="big-number">1</div>
+        <p style="margin-top: 12px;"><strong>Upload & describe</strong><br>Logo, photos, what makes you special</p>
+      </div>
+      <div class="card text-center">
+        <div class="big-number">2</div>
+        <p style="margin-top: 12px;"><strong>AI builds it</strong><br>Copy, layout, schedule integration, the works</p>
+      </div>
+      <div class="card text-center">
+        <div class="big-number">3</div>
+        <p style="margin-top: 12px;"><strong>It stays current</strong><br>New class? New instructor? Site updates itself.</p>
+      </div>
+    </div>
+    <p class="muted" style="margin-top: 24px; font-size: 16px;">Vagaro charges $599 for a static site builder. Ours is smarter and included.</p>
+  </div>
+
+  <!-- SLIDE 8: Why a Co-op -->
+  <div class="slide" data-slide="8">
+    <div class="tag">OWNERSHIP</div>
+    <h2 class="text-center">Why a cooperative?</h2>
+    <div class="grid-2" style="margin-top: 24px;">
+      <div>
+        <h3 class="accent">How it works</h3>
+        <ul>
+          <li>Your monthly payment builds equity in the platform</li>
+          <li>After 12 months: founding member status</li>
+          <li>After 24 months: voting rights</li>
+          <li>One studio, one vote — not weighted by spend</li>
+          <li>Feature roadmap driven by studio owners</li>
+        </ul>
+      </div>
+      <div>
+        <h3 class="accent">Why it matters</h3>
+        <ul>
+          <li>Mindbody is PE-owned (Vista Equity Partners)</li>
+          <li>You're revenue to them. To us, you're an owner.</li>
+          <li>We can't get acquired and enshittified</li>
+          <li>No VC pressure to raise prices</li>
+          <li>The platform succeeds when studios succeed</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 9: Comparison -->
+  <div class="slide" data-slide="9">
+    <h2 class="text-center" style="margin-bottom: 32px;">How we compare</h2>
+    <table class="compare-table">
+      <tr>
+        <th></th>
+        <th><span class="strike">Mindbody</span></th>
+        <th>studio.coop</th>
+      </tr>
+      <tr>
+        <td>Ownership</td>
+        <td>Private equity (Vista)</td>
+        <td class="green">Studio-owned cooperative</td>
+      </tr>
+      <tr>
+        <td>Price</td>
+        <td>From $110 AUD/mo + add-ons</td>
+        <td class="green">$99 AUD/mo, everything included</td>
+      </tr>
+      <tr>
+        <td>Branded app</td>
+        <td>Paid add-on</td>
+        <td class="green">Included</td>
+      </tr>
+      <tr>
+        <td>Community features</td>
+        <td class="red">None</td>
+        <td class="green">Social feeds, video, chat</td>
+      </tr>
+      <tr>
+        <td>Website</td>
+        <td>Basic widgets</td>
+        <td class="green">AI-built, auto-updating</td>
+      </tr>
+      <tr>
+        <td>Your brand</td>
+        <td>Mindbody marketplace</td>
+        <td class="green">Your domain, your brand</td>
+      </tr>
+      <tr>
+        <td>Pricing transparency</td>
+        <td class="red">"Let's talk"</td>
+        <td class="green">On the website</td>
+      </tr>
+      <tr>
+        <td>Data</td>
+        <td>Locked in</td>
+        <td class="green">Export anytime, you own it</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- SLIDE 10: Pricing -->
+  <div class="slide" data-slide="10">
+    <h2 class="text-center">Simple pricing</h2>
+    <p class="text-center muted" style="margin-bottom: 32px;">No hidden fees. No "let's talk." No surprises.</p>
+    <div class="grid-3">
+      <div class="card text-center">
+        <p class="muted" style="font-size: 16px; margin-bottom: 8px;">EVERYTHING YOU NEED</p>
+        <div class="big-number">$99</div>
+        <p class="muted">/month AUD</p>
+        <div class="divider" style="margin: 20px auto;"></div>
+        <div class="text-left">
+          <ul>
+            <li>Class scheduling & booking</li>
+            <li>Memberships & payments</li>
+            <li>Community feeds & chat</li>
+            <li>Video sharing</li>
+            <li>AI-built website</li>
+            <li>Branded mobile app</li>
+            <li>Staff management</li>
+            <li>Reporting & analytics</li>
+            <li>Custom domain support</li>
+            <li>Co-op equity accumulation</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card" style="grid-column: 2 / 4;">
+        <h3>What you save vs Mindbody</h3>
+        <div style="margin-top: 20px;">
+          <p><strong>Mindbody Accelerate:</strong> ~$200/mo + branded app add-on (~$100/mo) + marketing add-on</p>
+          <p style="margin-top: 8px;"><strong>= $300-400+/mo for comparable features</strong></p>
+          <div style="height: 20px;"></div>
+          <p><strong>studio.coop:</strong> <span class="green" style="font-size: 32px; font-weight: 800;">$99/mo</span> for everything.</p>
+          <div style="height: 24px;"></div>
+          <h3 class="green">Save $2,400-3,600/year</h3>
+          <p class="muted" style="margin-top: 8px;">And build ownership in a platform that works for you.</p>
+        </div>
+        <div style="margin-top: 32px;">
+          <h3>Switching is free</h3>
+          <ul>
+            <li>White-glove migration from Mindbody/Vagaro/Glofox</li>
+            <li>AI-assisted data import — members, classes, payments</li>
+            <li>Running in 48 hours</li>
+            <li>No contract. Cancel anytime.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 11: Market -->
+  <div class="slide" data-slide="11">
+    <h2 class="text-center">The market is ready</h2>
+    <div class="grid-4" style="margin-top: 32px;">
+      <div class="card text-center">
+        <div class="big-number">40K+</div>
+        <p class="big-number-label">businesses on Mindbody alone</p>
+      </div>
+      <div class="card text-center">
+        <div class="big-number">$110+</div>
+        <p class="big-number-label">minimum monthly spend</p>
+      </div>
+      <div class="card text-center">
+        <div class="big-number">720M</div>
+        <p class="big-number-label">bookings/year on Mindbody</p>
+      </div>
+      <div class="card text-center">
+        <div class="big-number">😤</div>
+        <p class="big-number-label">studio owner sentiment</p>
+      </div>
+    </div>
+    <div style="height: 32px;"></div>
+    <div class="w-full">
+      <div class="card">
+        <h3>Active "leaving Mindbody" discussions on Reddit right now:</h3>
+        <ul>
+          <li>"Has anyone migrated away from Mindbody?" — r/pilates</li>
+          <li>"Anyone switched away from Mindbody?" — r/pilates</li>
+          <li>"What do you dislike about Mindbody?" — r/personaltraining</li>
+          <li>"Mindbody refuses to cancel" — r/personaltraining</li>
+          <li>"New Mindbody issues? Anyone else?" — r/pilates</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 12: Payment Innovation -->
+  <div class="slide" data-slide="12">
+    <h2 class="text-center">Payment flexibility worldwide</h2>
+    <p class="text-center muted" style="margin-bottom: 32px; max-width: 700px;">
+      Credit card processing fees eat 2-3% of every transaction. In many countries, there's a better way.
+    </p>
+    <div class="grid-3">
+      <div class="card">
+        <h3>🇧🇷 Brazil — PIX</h3>
+        <p>Free, instant bank transfers. 150M+ users. Studios keep 100% of membership payments.</p>
+      </div>
+      <div class="card">
+        <h3>🇮🇳 India — UPI</h3>
+        <p>Near-free, 10B+ transactions/month. The default way to pay.</p>
+      </div>
+      <div class="card">
+        <h3>🇪🇺 Europe — SEPA</h3>
+        <p>Open Banking / SEPA Instant. Pennies per transfer vs 2-3% card fees.</p>
+      </div>
+    </div>
+    <p class="text-center" style="margin-top: 24px; max-width: 700px;">
+      A studio doing $50k/mo in memberships loses <span class="red">$1,000-1,500/mo</span> to card processors.
+      Direct bank transfers or local payment rails let them keep that money.
+    </p>
+  </div>
+
+  <!-- SLIDE 13: Go-to-Market -->
+  <div class="slide" data-slide="13">
+    <h2 class="text-center">How we grow</h2>
+    <div class="grid-2" style="margin-top: 24px;">
+      <div class="card">
+        <h3>🔥 Studio-to-studio referral</h3>
+        <p>Every referral increases your ownership stake. Studios recruit studios because it benefits them as co-owners.</p>
+      </div>
+      <div class="card">
+        <h3>🏙️ City-by-city campaigns</h3>
+        <p>"Leave Mindbody Together" — 5-10 studios per city, group migration, local co-op chapters.</p>
+      </div>
+      <div class="card">
+        <h3>🤖 AI site builder as lead gen</h3>
+        <p>"Get a free studio website in 5 minutes." See the product with YOUR branding before committing.</p>
+      </div>
+      <div class="card">
+        <h3>📰 The co-op story</h3>
+        <p>Fitness media, tech press, co-op networks. "Studios build their own Mindbody alternative" is a story that writes itself.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE 14: Join -->
+  <div class="slide" data-slide="14">
+    <h1 class="text-center">Join the co-op.</h1>
+    <p class="subtitle text-center">Be a founding member of studio.coop</p>
+    <div style="height: 32px;"></div>
+    <div class="grid-3">
+      <div class="card text-center">
+        <h3>✅ Free migration</h3>
+        <p>From Mindbody, Vagaro, or any platform. We handle everything.</p>
+      </div>
+      <div class="card text-center">
+        <h3>✅ No contract</h3>
+        <p>Cancel anytime. But you won't want to — you'll own this.</p>
+      </div>
+      <div class="card text-center">
+        <h3>✅ Founding member</h3>
+        <p>Early studios shape the platform and the co-op governance.</p>
+      </div>
+    </div>
+    <div style="height: 40px;"></div>
+    <h2 class="accent text-center">studio.coop</h2>
+    <p class="muted text-center">Your studio. Your platform. Your co-op.</p>
+  </div>
+
+</div>
+
+<div class="slide-number" id="slideNum">1 / 14</div>
+
+<nav>
+  <button onclick="prev()">← Prev</button>
+  <button onclick="next()">Next →</button>
+</nav>
+
+<script>
+  let current = 1;
+  const total = document.querySelectorAll('.slide').length;
+
+  function show(n) {
+    document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+    document.querySelector(`[data-slide="${n}"]`).classList.add('active');
+    document.getElementById('slideNum').textContent = `${n} / ${total}`;
+  }
+
+  function next() { if (current < total) show(++current); }
+  function prev() { if (current > 1) show(--current); }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); next(); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); prev(); }
+  });
+</script>
+</body>
+</html>
