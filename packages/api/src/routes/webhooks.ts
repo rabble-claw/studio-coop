@@ -2,9 +2,11 @@ import { Hono } from 'hono'
 import { createServiceClient } from '../lib/supabase'
 import { constructWebhookEvent } from '../lib/stripe'
 import { badRequest } from '../lib/errors'
+import { errorHandler } from '../middleware/error-handler'
 
 // Mounted at /api/webhooks
 const webhooks = new Hono()
+webhooks.onError(errorHandler)
 
 /**
  * POST /stripe — Stripe webhook endpoint.
