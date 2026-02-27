@@ -8,7 +8,7 @@
 
 -- Membership Plans (what a studio offers for sale)
 create table public.membership_plans (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   studio_id uuid not null references public.studios(id) on delete cascade,
   name text not null,
   description text,
@@ -26,7 +26,7 @@ create table public.membership_plans (
 
 -- Subscriptions (recurring memberships)
 create table public.subscriptions (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.users(id) on delete cascade,
   studio_id uuid not null references public.studios(id) on delete cascade,
   plan_id uuid not null references public.membership_plans(id),
@@ -42,7 +42,7 @@ create table public.subscriptions (
 
 -- Class Passes (pre-purchased class packs / drop-ins)
 create table public.class_passes (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.users(id) on delete cascade,
   studio_id uuid not null references public.studios(id) on delete cascade,
   plan_id uuid references public.membership_plans(id),
@@ -55,7 +55,7 @@ create table public.class_passes (
 
 -- Payments (record of every financial transaction)
 create table public.payments (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.users(id) on delete cascade,
   studio_id uuid not null references public.studios(id) on delete cascade,
   type text not null check (type in ('subscription','class_pack','drop_in','private_booking')),
@@ -74,7 +74,7 @@ create table public.payments (
 
 -- Comp Classes (complimentary classes granted to members by staff)
 create table public.comp_classes (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.users(id) on delete cascade,
   studio_id uuid not null references public.studios(id) on delete cascade,
   granted_by uuid references public.users(id),
@@ -87,7 +87,7 @@ create table public.comp_classes (
 
 -- Coupons (discount codes)
 create table public.coupons (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   studio_id uuid not null references public.studios(id) on delete cascade,
   code text not null,
   type text not null check (type in ('percent_off','amount_off','free_classes')),
@@ -105,7 +105,7 @@ create table public.coupons (
 
 -- Coupon Redemptions (audit trail of coupon usage)
 create table public.coupon_redemptions (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   coupon_id uuid not null references public.coupons(id) on delete cascade,
   user_id uuid not null references public.users(id) on delete cascade,
   studio_id uuid not null references public.studios(id) on delete cascade,
@@ -121,7 +121,7 @@ create table public.coupon_redemptions (
 
 -- Studio Networks (groups of studios with cross-booking agreements)
 create table public.studio_networks (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   name text not null,
   description text,
   created_at timestamptz default now()
@@ -129,7 +129,7 @@ create table public.studio_networks (
 
 -- Studio Network Members (which studios belong to which network)
 create table public.studio_network_members (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   network_id uuid not null references public.studio_networks(id) on delete cascade,
   studio_id uuid not null references public.studios(id) on delete cascade,
   cross_booking_policy text not null default 'full_price' check (cross_booking_policy in ('full_price','discounted','included')),
@@ -140,7 +140,7 @@ create table public.studio_network_members (
 
 -- Private Bookings (parties, private tuition, group events)
 create table public.private_bookings (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   studio_id uuid not null references public.studios(id) on delete cascade,
   user_id uuid not null references public.users(id) on delete cascade,
   type text not null check (type in ('party','private_tuition','group')),
@@ -161,7 +161,7 @@ create table public.private_bookings (
 
 -- Migration Imports (tracking imports from other platforms)
 create table public.migration_imports (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   studio_id uuid not null references public.studios(id) on delete cascade,
   source text not null check (source in ('mindbody','vagaro','csv')),
   file_name text,

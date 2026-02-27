@@ -12,7 +12,7 @@ create extension if not exists "uuid-ossp";
 
 -- Studios
 create table public.studios (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   name text not null,
   slug text unique not null,
   discipline text not null check (discipline in ('pole','bjj','yoga','crossfit','cycling','pilates','dance','aerial','general')),
@@ -38,7 +38,7 @@ create table public.users (
 
 -- Memberships (user <-> studio relationship)
 create table public.memberships (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.users(id) on delete cascade,
   studio_id uuid not null references public.studios(id) on delete cascade,
   role text not null default 'member' check (role in ('member','teacher','admin','owner')),
@@ -51,7 +51,7 @@ create table public.memberships (
 
 -- Class Templates (recurring class definitions)
 create table public.class_templates (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   studio_id uuid not null references public.studios(id) on delete cascade,
   name text not null,
   description text,
@@ -68,7 +68,7 @@ create table public.class_templates (
 
 -- Class Instances (specific occurrences of a class)
 create table public.class_instances (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   template_id uuid references public.class_templates(id) on delete set null,
   studio_id uuid not null references public.studios(id) on delete cascade,
   teacher_id uuid references public.users(id),
@@ -84,7 +84,7 @@ create table public.class_instances (
 
 -- Bookings
 create table public.bookings (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   class_instance_id uuid not null references public.class_instances(id) on delete cascade,
   user_id uuid not null references public.users(id) on delete cascade,
   status text default 'booked' check (status in ('booked','confirmed','waitlisted','cancelled','no_show')),
@@ -97,7 +97,7 @@ create table public.bookings (
 
 -- Attendance
 create table public.attendance (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   class_instance_id uuid not null references public.class_instances(id) on delete cascade,
   user_id uuid not null references public.users(id) on delete cascade,
   checked_in boolean default false,
@@ -108,7 +108,7 @@ create table public.attendance (
 
 -- Feed Posts (class community feed)
 create table public.feed_posts (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   class_instance_id uuid not null references public.class_instances(id) on delete cascade,
   user_id uuid not null references public.users(id) on delete cascade,
   content text,
@@ -119,7 +119,7 @@ create table public.feed_posts (
 
 -- Notifications
 create table public.notifications (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.users(id) on delete cascade,
   studio_id uuid references public.studios(id) on delete cascade,
   type text not null,

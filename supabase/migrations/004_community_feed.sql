@@ -6,7 +6,7 @@
 -- ============================================================
 
 create table public.feed_reactions (
-  id uuid primary key default uuid_generate_v4(),
+  id uuid primary key default gen_random_uuid(),
   post_id uuid not null references public.feed_posts(id) on delete cascade,
   user_id uuid not null references public.users(id) on delete cascade,
   emoji text not null check (emoji in ('❤️', '🔥', '👏')),
