@@ -1,3 +1,5 @@
+import { createClient as createSupabaseClient } from './supabase/client'
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
 interface ApiOptions {
@@ -15,8 +17,9 @@ class ApiError extends Error {
 
 async function getToken(): Promise<string | null> {
   if (typeof document === 'undefined') return null
-  const match = document.cookie.match(/(?:^|;\s*)token=([^;]*)/)
-  return match ? match[1] : null
+  const supabase = createSupabaseClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  return session?.access_token ?? null
 }
 
 async function request<T>(path: string, opts: ApiOptions = {}): Promise<T> {
@@ -47,7 +50,7 @@ export const api = {
   post: <T>(path: string, body?: unknown) => request<T>(path, { method: 'POST', body }),
   put: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PUT', body }),
   patch: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PATCH', body }),
-  delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  delete: <T>(path: string, body?: unknown) => request<T>(path, { method: 'DELETE', body }),
 }
 
 // Typed API endpoints
@@ -101,6 +104,29 @@ export const reportApi = {
   revenue: (studioId: string, params?: string) => api.get(`/studios/${studioId}/reports/revenue${params ? `?${params}` : ''}`),
   retention: (studioId: string, params?: string) => api.get(`/studios/${studioId}/reports/retention${params ? `?${params}` : ''}`),
   popular: (studioId: string) => api.get(`/studios/${studioId}/reports/popular-classes`),
+}
+
+export interface FeedPost {
+  id: string
+  content: string | null
+  media_urls: string[] | null
+  post_type: string
+  created_at: string
+  class_instance_id: string
+  class_instance: { id: string; date: string; template: { name: string } | null } | null
+  author: { id: string; name: string; avatar_url: string | null }
+  reactions: Array<{ emoji: string; count: number; reacted: boolean }>
+}
+
+export const feedApi = {
+  getStudioFeed: (studioId: string) =>
+    api.get<FeedPost[]>(`/studios/${studioId}/feed`),
+  createPost: (classId: string, data: { content?: string; media_urls?: string[] }) =>
+    api.post<FeedPost>(`/classes/${classId}/feed`, data),
+  addReaction: (postId: string, emoji: string) =>
+    api.post<{ ok: boolean }>(`/feed/${postId}/react`, { emoji }),
+  removeReaction: (postId: string, emoji: string) =>
+    api.delete<{ ok: boolean }>(`/feed/${postId}/react`, { emoji }),
 }
 
 export { ApiError }

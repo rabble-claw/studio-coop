@@ -1,27 +1,18 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { feedApi, type FeedPost } from '@/lib/api-client'
 import { Card, CardContent } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 
-interface FeedPost {
+interface ClassOption {
   id: string
-  content: string | null
-  media_urls: string[] | null
-  post_type: string
-  created_at: string
-  class_instance_id: string
-  user: { id: string; name: string; avatar_url: string | null }
-  class_instance: {
-    id: string
-    date: string
-    template: { name: string } | null
-    studio: { id: string; name: string } | null
-  } | null
-  reactions: Array<{ emoji: string; count: number; reacted: boolean }>
+  date: string
+  name: string
 }
 
 const REACTION_EMOJIS = ['❤️', '🔥', '👏']
@@ -29,91 +20,112 @@ const REACTION_EMOJIS = ['❤️', '🔥', '👏']
 export default function FeedPage() {
   const [posts, setPosts] = useState<FeedPost[]>([])
   const [loading, setLoading] = useState(true)
-  const [currentUserId, setCurrentUserId] = useState('')
+  const [studioId, setStudioId] = useState('')
+  const [classes, setClasses] = useState<ClassOption[]>([])
+  const [selectedClassId, setSelectedClassId] = useState('')
+  const [newPostContent, setNewPostContent] = useState('')
+  const [posting, setPosting] = useState(false)
   const supabase = createClient()
 
-  async function loadFeed(userId: string) {
+  const loadFeed = useCallback(async (sid: string) => {
     setLoading(true)
-
-    // Fetch recent posts across all accessible classes (RLS enforces access)
-    const { data: rawPosts } = await supabase
-      .from('feed_posts')
-      .select(`
-        id, content, media_urls, post_type, created_at, class_instance_id,
-        user:users!feed_posts_user_id_fkey(id, name, avatar_url),
-        class_instance:class_instances!feed_posts_class_instance_id_fkey(
-          id, date,
-          template:class_templates!class_instances_template_id_fkey(name),
-          studio:studios!class_instances_studio_id_fkey(id, name)
-        )
-      `)
-      .order('created_at', { ascending: false })
-      .limit(50)
-
-    const postIds = (rawPosts ?? []).map((p) => p.id)
-    let reactionsByPost: Record<string, Array<{ emoji: string; count: number; reacted: boolean }>> = {}
-
-    if (postIds.length > 0) {
-      const { data: reactions } = await supabase
-        .from('feed_reactions')
-        .select('post_id, emoji, user_id')
-        .in('post_id', postIds)
-
-      const byPost: typeof reactionsByPost = {}
-      for (const r of reactions ?? []) {
-        if (!byPost[r.post_id]) byPost[r.post_id] = []
-        const existing = byPost[r.post_id].find((x) => x.emoji === r.emoji)
-        if (existing) {
-          existing.count++
-          if (r.user_id === userId) existing.reacted = true
-        } else {
-          byPost[r.post_id].push({ emoji: r.emoji, count: 1, reacted: r.user_id === userId })
-        }
-      }
-      reactionsByPost = byPost
+    try {
+      const data = await feedApi.getStudioFeed(sid)
+      setPosts(data)
+    } catch (e) {
+      console.error('Failed to load feed:', e)
+    } finally {
+      setLoading(false)
     }
-
-    setPosts(
-      (rawPosts ?? []).map((p) => ({
-        id: p.id,
-        content: p.content,
-        media_urls: p.media_urls,
-        post_type: p.post_type,
-        created_at: p.created_at,
-        class_instance_id: p.class_instance_id,
-        user: p.user as FeedPost['user'],
-        class_instance: p.class_instance as FeedPost['class_instance'],
-        reactions: reactionsByPost[p.id] ?? [],
-      })),
-    )
-    setLoading(false)
-  }
+  }, [])
 
   useEffect(() => {
     async function init() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      setCurrentUserId(user.id)
-      await loadFeed(user.id)
+
+      const { data: membership } = await supabase
+        .from('memberships')
+        .select('studio_id')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .limit(1)
+        .single()
+
+      if (!membership) return
+
+      const sid = membership.studio_id
+      setStudioId(sid)
+
+      const { data: recentClasses } = await supabase
+        .from('class_instances')
+        .select('id, date, template:class_templates!class_instances_template_id_fkey(name)')
+        .eq('studio_id', sid)
+        .order('date', { ascending: false })
+        .limit(20)
+
+      const classOptions: ClassOption[] = (recentClasses ?? []).map((c) => ({
+        id: c.id,
+        date: c.date,
+        name: (c.template as { name: string } | null)?.name ?? 'Class',
+      }))
+      setClasses(classOptions)
+      if (classOptions.length > 0) setSelectedClassId(classOptions[0].id)
+
+      await loadFeed(sid)
     }
     init()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function toggleReaction(postId: string, emoji: string) {
-    if (!currentUserId) return
     const post = posts.find((p) => p.id === postId)
     const existing = post?.reactions.find((r) => r.emoji === emoji && r.reacted)
 
-    if (existing) {
-      await supabase.from('feed_reactions').delete()
-        .eq('post_id', postId).eq('user_id', currentUserId).eq('emoji', emoji)
-    } else {
-      await supabase.from('feed_reactions').upsert(
-        { post_id: postId, user_id: currentUserId, emoji },
-        { onConflict: 'post_id,user_id,emoji' },
-      )
+    // Optimistic update
+    setPosts((prev) =>
+      prev.map((p) => {
+        if (p.id !== postId) return p
+        const hasEmoji = p.reactions.some((r) => r.emoji === emoji)
+        const reactions = hasEmoji
+          ? p.reactions
+              .map((r) =>
+                r.emoji !== emoji
+                  ? r
+                  : existing
+                  ? { ...r, count: r.count - 1, reacted: false }
+                  : { ...r, count: r.count + 1, reacted: true },
+              )
+              .filter((r) => r.count > 0)
+          : [...p.reactions, { emoji, count: 1, reacted: true }]
+        return { ...p, reactions }
+      }),
+    )
+
+    try {
+      if (existing) {
+        await feedApi.removeReaction(postId, emoji)
+      } else {
+        await feedApi.addReaction(postId, emoji)
+      }
+    } catch (e) {
+      console.error('Failed to toggle reaction:', e)
+      // Revert optimistic update on failure
+      await loadFeed(studioId)
     }
-    await loadFeed(currentUserId)
+  }
+
+  async function submitPost() {
+    if (!selectedClassId || !newPostContent.trim()) return
+    setPosting(true)
+    try {
+      const post = await feedApi.createPost(selectedClassId, { content: newPostContent.trim() })
+      setNewPostContent('')
+      setPosts((prev) => [post, ...prev])
+    } catch (e) {
+      console.error('Failed to create post:', e)
+    } finally {
+      setPosting(false)
+    }
   }
 
   return (
@@ -122,6 +134,44 @@ export default function FeedPage() {
         <h1 className="text-3xl font-bold">Community Feed</h1>
         <p className="text-muted-foreground mt-1">Recent posts from your classes</p>
       </div>
+
+      {/* Compose form */}
+      {classes.length > 0 && (
+        <Card className="mb-6">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-muted-foreground">Post to:</span>
+              <select
+                value={selectedClassId}
+                onChange={(e) => setSelectedClassId(e.target.value)}
+                className="flex h-8 rounded-lg border border-border bg-card px-2 py-1 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {classes.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name} &middot; {new Date(c.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <textarea
+              placeholder="Share something with your class..."
+              value={newPostContent}
+              onChange={(e) => setNewPostContent(e.target.value)}
+              rows={3}
+              className="flex w-full rounded-lg border border-border bg-card px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+            />
+            <div className="flex justify-end">
+              <Button
+                size="sm"
+                onClick={submitPost}
+                disabled={posting || !newPostContent.trim() || !selectedClassId}
+              >
+                {posting ? 'Posting...' : 'Post'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {loading ? (
         <div className="text-muted-foreground text-center py-20">Loading feed...</div>
@@ -143,11 +193,14 @@ export default function FeedPage() {
                       href={`/dashboard/classes/${post.class_instance_id}`}
                       className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
                     >
-                      <span>{post.class_instance.studio?.name}</span>
-                      <span>&middot;</span>
                       <span>{post.class_instance.template?.name}</span>
                       <span>&middot;</span>
-                      <span>{new Date(post.class_instance.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                      <span>
+                        {new Date(post.class_instance.date + 'T00:00:00').toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                        })}
+                      </span>
                     </Link>
                   </div>
                 )}
@@ -155,16 +208,22 @@ export default function FeedPage() {
                 {/* Author */}
                 <div className="flex items-center gap-3 mb-3">
                   <Avatar className="h-8 w-8">
-                    <AvatarImage src={post.user.avatar_url ?? undefined} />
+                    <AvatarImage src={post.author.avatar_url ?? undefined} />
                     <AvatarFallback className="text-xs">
-                      {post.user.name.split(' ').map((n) => n[0]).join('').toUpperCase()}
+                      {post.author.name
+                        .split(' ')
+                        .map((n) => n[0])
+                        .join('')
+                        .toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
                   <div>
                     <div className="text-sm font-medium flex items-center gap-2">
-                      {post.user.name}
+                      {post.author.name}
                       {post.post_type === 'milestone' && (
-                        <Badge variant="outline" className="text-xs">milestone</Badge>
+                        <Badge variant="outline" className="text-xs">
+                          milestone
+                        </Badge>
                       )}
                     </div>
                     <div className="text-xs text-muted-foreground">
@@ -177,7 +236,9 @@ export default function FeedPage() {
 
                 {/* Media */}
                 {post.media_urls && post.media_urls.length > 0 && (
-                  <div className={`grid gap-2 mb-3 ${post.media_urls.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                  <div
+                    className={`grid gap-2 mb-3 ${post.media_urls.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}
+                  >
                     {post.media_urls.map((url, i) =>
                       url.includes('.mp4') ? (
                         <video key={i} src={url} controls className="rounded-lg w-full max-h-64 object-cover" />
@@ -189,7 +250,7 @@ export default function FeedPage() {
                           className="rounded-lg w-full max-h-64 object-cover cursor-pointer"
                           onClick={() => window.open(url, '_blank')}
                         />
-                      )
+                      ),
                     )}
                   </div>
                 )}
