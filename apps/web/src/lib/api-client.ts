@@ -63,7 +63,7 @@ export const scheduleApi = {
   createTemplate: (studioId: string, data: unknown) => api.post(`/studios/${studioId}/templates`, data),
   updateTemplate: (studioId: string, templateId: string, data: unknown) => api.put(`/studios/${studioId}/templates/${templateId}`, data),
   deleteTemplate: (studioId: string, templateId: string) => api.delete(`/studios/${studioId}/templates/${templateId}`),
-  getInstances: (studioId: string, params?: string) => api.get(`/studios/${studioId}/instances${params ? `?${params}` : ''}`),
+  getInstances: (studioId: string, params?: string) => api.get(`/studios/${studioId}/schedule${params ? `?${params}` : ''}`),
   cancelInstance: (studioId: string, instanceId: string, reason?: string) => api.post(`/studios/${studioId}/instances/${instanceId}/cancel`, { reason }),
 }
 
