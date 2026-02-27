@@ -1,14 +1,22 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
+  )
+}
+
+function LoginForm() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
@@ -17,6 +25,13 @@ export default function LoginPage() {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  useEffect(() => {
+    if (searchParams.get('mode') === 'signup') {
+      setMode('signup')
+    }
+  }, [searchParams])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -47,6 +62,8 @@ export default function LoginPage() {
         setError(err.message)
       } else {
         setMessage('Account created! Check your email to confirm, then sign in.')
+        // After signup confirmation, they'll be redirected to setup
+        router.push('/dashboard/setup')
       }
       setLoading(false)
       return
@@ -167,6 +184,12 @@ export default function LoginPage() {
                   Back to password sign in
                 </button>
               )}
+            </div>
+
+            <div className="mt-6 pt-4 border-t text-center">
+              <Link href="/demo" className="text-sm text-muted-foreground hover:text-foreground">
+                Or try the demo first →
+              </Link>
             </div>
           </CardContent>
         </Card>

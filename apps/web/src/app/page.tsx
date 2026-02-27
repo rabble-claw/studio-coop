@@ -43,10 +43,10 @@ export default function LandingPage() {
           </p>
           <div className="flex flex-wrap gap-4">
             <Button asChild size="lg" className="text-base px-8 h-12">
-              <Link href="/login">Start free</Link>
+              <Link href="/login?mode=signup">Start free</Link>
             </Button>
             <Button variant="outline" size="lg" asChild className="text-base px-8 h-12">
-              <Link href="/empire-aerial-arts">See Empire Aerial Arts</Link>
+              <Link href="/demo">See the demo</Link>
             </Button>
           </div>
         </div>
@@ -174,10 +174,10 @@ export default function LandingPage() {
           </p>
           <div className="flex flex-wrap gap-4 justify-center">
             <Button asChild size="lg" className="text-base px-8 h-12">
-              <Link href="/login">Get started — it&apos;s free</Link>
+              <Link href="/login?mode=signup">Get started — it&apos;s free</Link>
             </Button>
             <Button variant="outline" size="lg" asChild className="text-base px-8 h-12">
-              <Link href="/empire-aerial-arts">See a live demo</Link>
+              <Link href="/demo">See the demo</Link>
             </Button>
           </div>
         </div>
