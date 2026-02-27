@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import AdminShell from '@/components/admin-shell'
 
 interface Studio {
   id: string
@@ -39,222 +39,104 @@ const DEMO_STUDIOS: Studio[] = [
   { id: '6', name: 'Flow Pilates Studio', slug: 'flow-pilates', discipline: 'pilates', tier: 'starter', members: 0, revenue_cents: 0, status: 'pending', created_at: '2026-02-25' },
 ]
 
-export default function AdminDashboard() {
-  const [tab, setTab] = useState<'overview' | 'studios' | 'coop' | 'system'>('overview')
+const ALERTS = [
+  { id: 1, type: 'warning' as const, message: 'Flow Pilates Studio pending onboarding - no Stripe connected', time: '2 hours ago' },
+  { id: 2, type: 'info' as const, message: 'CrossFit Cuba St approaching Growth tier member limit (124/150)', time: '5 hours ago' },
+  { id: 3, type: 'success' as const, message: 'Monthly co-op dividend distribution completed ($2,376)', time: '1 day ago' },
+]
 
-  const styles = {
-    container: { maxWidth: 1200, margin: '0 auto', padding: '24px' },
-    header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 } as const,
-    title: { fontSize: 24, fontWeight: 800, letterSpacing: -0.5 } as const,
-    nav: { display: 'flex', gap: 4, background: '#18181b', borderRadius: 12, padding: 4 } as const,
-    navBtn: (active: boolean) => ({
-      padding: '8px 16px', borderRadius: 8, fontSize: 14, fontWeight: 500,
-      background: active ? '#27272a' : 'transparent', color: active ? '#fafafa' : '#71717a',
-      border: 'none', cursor: 'pointer',
-    } as const),
-    grid: (cols: number) => ({ display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 16 } as const),
-    card: { background: '#18181b', border: '1px solid #27272a', borderRadius: 12, padding: 24 } as const,
-    cardLabel: { fontSize: 13, color: '#71717a', marginBottom: 4 } as const,
-    cardValue: { fontSize: 32, fontWeight: 800 } as const,
-    table: { width: '100%', borderCollapse: 'collapse' as const, fontSize: 14 },
-    th: { textAlign: 'left' as const, padding: '12px 16px', borderBottom: '1px solid #27272a', color: '#71717a', fontWeight: 600, fontSize: 13 },
-    td: { padding: '12px 16px', borderBottom: '1px solid #27272a' },
-    badge: (color: string) => ({
-      display: 'inline-block', padding: '2px 8px', borderRadius: 100, fontSize: 12, fontWeight: 600,
-      background: color === 'green' ? '#052e16' : color === 'yellow' ? '#422006' : '#27272a',
-      color: color === 'green' ? '#4ade80' : color === 'yellow' ? '#fbbf24' : '#71717a',
-    }),
-  }
+const STAT_CARDS = [
+  { label: 'Studios', value: DEMO_STATS.totalStudios.toString() },
+  { label: 'Active Members', value: DEMO_STATS.activeMembers.toLocaleString() },
+  { label: 'Bookings (30d)', value: DEMO_STATS.totalBookings.toLocaleString() },
+  { label: 'MRR', value: `$${(DEMO_STATS.monthlyRevenue / 100).toLocaleString()}` },
+  { label: 'Co-op Members', value: DEMO_STATS.coopMembers.toString() },
+]
 
+export default function OverviewPage() {
   return (
-    <div style={styles.container}>
-      <div style={styles.header}>
-        <div>
-          <div style={styles.title}>🏛️ Studio Co-op Admin</div>
-          <div style={{ color: '#71717a', fontSize: 14 }}>Platform management & cooperative governance</div>
-        </div>
-      </div>
-
-      <div style={{ ...styles.nav, marginBottom: 24 }}>
-        {(['overview', 'studios', 'coop', 'system'] as const).map(t => (
-          <button key={t} style={styles.navBtn(tab === t)} onClick={() => setTab(t)}>
-            {t.charAt(0).toUpperCase() + t.slice(1)}
-          </button>
+    <AdminShell>
+      {/* Stat cards */}
+      <div className="grid grid-cols-5 gap-4">
+        {STAT_CARDS.map((s) => (
+          <div
+            key={s.label}
+            className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6"
+          >
+            <p className="text-sm text-[var(--muted-foreground)]">{s.label}</p>
+            <p className="mt-1 text-3xl font-extrabold tracking-tight">{s.value}</p>
+          </div>
         ))}
       </div>
 
-      {tab === 'overview' && (
-        <>
-          <div style={styles.grid(5)}>
-            {[
-              { label: 'Studios', value: DEMO_STATS.totalStudios },
-              { label: 'Active Members', value: DEMO_STATS.activeMembers.toLocaleString() },
-              { label: 'Bookings (30d)', value: DEMO_STATS.totalBookings.toLocaleString() },
-              { label: 'MRR', value: `$${(DEMO_STATS.monthlyRevenue / 100).toLocaleString()}` },
-              { label: 'Co-op Members', value: DEMO_STATS.coopMembers },
-            ].map(s => (
-              <div key={s.label} style={styles.card}>
-                <div style={styles.cardLabel}>{s.label}</div>
-                <div style={styles.cardValue}>{s.value}</div>
-              </div>
-            ))}
-          </div>
-          <div style={{ ...styles.card, marginTop: 24 }}>
-            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>Recent Studios</h3>
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  <th style={styles.th}>Studio</th>
-                  <th style={styles.th}>Discipline</th>
-                  <th style={styles.th}>Members</th>
-                  <th style={styles.th}>Status</th>
-                  <th style={styles.th}>Joined</th>
-                </tr>
-              </thead>
-              <tbody>
-                {DEMO_STUDIOS.map(s => (
-                  <tr key={s.id}>
-                    <td style={styles.td}><strong>{s.name}</strong><br/><span style={{color:'#71717a',fontSize:12}}>{s.slug}.studio.coop</span></td>
-                    <td style={styles.td}>{s.discipline}</td>
-                    <td style={styles.td}>{s.members}</td>
-                    <td style={styles.td}><span style={styles.badge(s.status === 'active' ? 'green' : 'yellow')}>{s.status}</span></td>
-                    <td style={styles.td}>{s.created_at}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-
-      {tab === 'studios' && (
-        <div style={styles.card}>
-          <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>All Studios ({DEMO_STUDIOS.length})</h3>
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                <th style={styles.th}>Studio</th>
-                <th style={styles.th}>Tier</th>
-                <th style={styles.th}>Members</th>
-                <th style={styles.th}>Revenue</th>
-                <th style={styles.th}>Status</th>
-                <th style={styles.th}>Actions</th>
+      {/* Recent Studios table */}
+      <div className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--card)] p-6">
+        <h3 className="mb-4 text-lg font-bold">Recent Studios</h3>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-[var(--border)]">
+              <th className="pb-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">Studio</th>
+              <th className="pb-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">Discipline</th>
+              <th className="pb-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">Members</th>
+              <th className="pb-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">Status</th>
+              <th className="pb-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">Joined</th>
+            </tr>
+          </thead>
+          <tbody>
+            {DEMO_STUDIOS.map((s) => (
+              <tr key={s.id} className="border-b border-[var(--border)] last:border-0">
+                <td className="py-3">
+                  <p className="font-semibold">{s.name}</p>
+                  <p className="text-xs text-[var(--muted-foreground)]">{s.slug}.studio.coop</p>
+                </td>
+                <td className="py-3 capitalize">{s.discipline}</td>
+                <td className="py-3">{s.members}</td>
+                <td className="py-3">
+                  <span
+                    className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                      s.status === 'active'
+                        ? 'bg-emerald-950 text-emerald-400'
+                        : s.status === 'pending'
+                          ? 'bg-yellow-950 text-yellow-400'
+                          : 'bg-red-950 text-red-400'
+                    }`}
+                  >
+                    {s.status}
+                  </span>
+                </td>
+                <td className="py-3 text-[var(--muted-foreground)]">{s.created_at}</td>
               </tr>
-            </thead>
-            <tbody>
-              {DEMO_STUDIOS.map(s => (
-                <tr key={s.id}>
-                  <td style={styles.td}><strong>{s.name}</strong></td>
-                  <td style={styles.td}>{s.tier}</td>
-                  <td style={styles.td}>{s.members}</td>
-                  <td style={styles.td}>${(s.revenue_cents / 100).toLocaleString()}</td>
-                  <td style={styles.td}><span style={styles.badge(s.status === 'active' ? 'green' : 'yellow')}>{s.status}</span></td>
-                  <td style={styles.td}>
-                    <button style={{ background: '#27272a', border: 'none', color: '#fafafa', padding: '4px 12px', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>
-                      View
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {tab === 'coop' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          <div style={styles.card}>
-            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>Cooperative Governance</h3>
-            <div style={styles.grid(3)}>
-              <div>
-                <div style={styles.cardLabel}>Member Studios</div>
-                <div style={{ fontSize: 28, fontWeight: 800 }}>8</div>
-                <div style={{ color: '#71717a', fontSize: 12 }}>of 12 total studios</div>
-              </div>
-              <div>
-                <div style={styles.cardLabel}>Voting Members</div>
-                <div style={{ fontSize: 28, fontWeight: 800 }}>5</div>
-                <div style={{ color: '#71717a', fontSize: 12 }}>12+ months membership</div>
-              </div>
-              <div>
-                <div style={styles.cardLabel}>Next Election</div>
-                <div style={{ fontSize: 28, fontWeight: 800 }}>Q3</div>
-                <div style={{ color: '#71717a', fontSize: 12 }}>Board of directors</div>
-              </div>
-            </div>
-          </div>
-          <div style={styles.card}>
-            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>Equity Tracker</h3>
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  <th style={styles.th}>Studio</th>
-                  <th style={styles.th}>Months</th>
-                  <th style={styles.th}>Total Paid</th>
-                  <th style={styles.th}>Equity %</th>
-                  <th style={styles.th}>Voting</th>
-                </tr>
-              </thead>
-              <tbody>
-                {DEMO_STUDIOS.filter(s => s.status === 'active').slice(0, 5).map((s, i) => {
-                  const months = Math.floor((Date.now() - new Date(s.created_at).getTime()) / (30 * 24 * 60 * 60 * 1000)) + 1
-                  const paid = months * 99
-                  const equity = (paid / (5 * 99 * 12)) * 100 // simplified
-                  return (
-                    <tr key={s.id}>
-                      <td style={styles.td}>{s.name}</td>
-                      <td style={styles.td}>{months}</td>
-                      <td style={styles.td}>${paid}</td>
-                      <td style={styles.td}>{equity.toFixed(1)}%</td>
-                      <td style={styles.td}>{months >= 12 ? '✅' : `${12 - months} months to go`}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {tab === 'system' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-          <div style={styles.card}>
-            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>System Status</h3>
-            <div style={styles.grid(4)}>
-              {[
-                { label: 'API', status: '✅ Healthy', latency: '23ms' },
-                { label: 'Database', status: '✅ Healthy', latency: '4ms' },
-                { label: 'Stripe', status: '✅ Connected', latency: '142ms' },
-                { label: 'Email (Resend)', status: '✅ Connected', latency: '89ms' },
-              ].map(s => (
-                <div key={s.label}>
-                  <div style={{ fontSize: 13, color: '#71717a' }}>{s.label}</div>
-                  <div style={{ fontSize: 14, fontWeight: 600, marginTop: 4 }}>{s.status}</div>
-                  <div style={{ fontSize: 12, color: '#71717a' }}>{s.latency}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div style={styles.card}>
-            <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 16 }}>Feature Flags</h3>
-            {[
-              { name: 'community_feed', label: 'Community Feed', enabled: true },
-              { name: 'private_bookings', label: 'Private Bookings', enabled: true },
-              { name: 'multi_studio_network', label: 'Multi-Studio Network', enabled: false },
-              { name: 'ai_website_builder', label: 'AI Website Builder', enabled: false },
-              { name: 'local_payment_rails', label: 'Local Payment Rails (PIX/UPI)', enabled: false },
-            ].map(f => (
-              <div key={f.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #27272a' }}>
-                <div>
-                  <div style={{ fontWeight: 500 }}>{f.label}</div>
-                  <div style={{ fontSize: 12, color: '#71717a' }}>{f.name}</div>
-                </div>
-                <span style={styles.badge(f.enabled ? 'green' : 'gray')}>{f.enabled ? 'Enabled' : 'Disabled'}</span>
-              </div>
             ))}
-          </div>
+          </tbody>
+        </table>
+      </div>
+
+      {/* System Alerts */}
+      <div className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--card)] p-6">
+        <h3 className="mb-4 text-lg font-bold">System Alerts</h3>
+        <div className="flex flex-col gap-3">
+          {ALERTS.map((alert) => (
+            <div
+              key={alert.id}
+              className={`flex items-start gap-3 rounded-lg border p-4 ${
+                alert.type === 'warning'
+                  ? 'border-yellow-900/50 bg-yellow-950/30'
+                  : alert.type === 'success'
+                    ? 'border-emerald-900/50 bg-emerald-950/30'
+                    : 'border-blue-900/50 bg-blue-950/30'
+              }`}
+            >
+              <span className="mt-0.5 text-sm">
+                {alert.type === 'warning' ? '\u{26A0}\u{FE0F}' : alert.type === 'success' ? '\u{2705}' : '\u{2139}\u{FE0F}'}
+              </span>
+              <div className="flex-1">
+                <p className="text-sm">{alert.message}</p>
+                <p className="mt-1 text-xs text-[var(--muted-foreground)]">{alert.time}</p>
+              </div>
+            </div>
+          ))}
         </div>
-      )}
-    </div>
+      </div>
+    </AdminShell>
   )
 }
