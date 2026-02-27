@@ -51,18 +51,20 @@ export default function DemoPage() {
             ) : (
               <div className="space-y-3">
                 {todayClasses.map((cls) => (
-                  <div key={cls.id} className="flex items-center justify-between py-2 border-b last:border-0">
-                    <div>
-                      <div className="font-medium text-sm">{cls.template.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {formatTime(cls.start_time)} — {formatTime(cls.end_time)} · {cls.teacher.name}
+                  <Link key={cls.id} href={`/demo/classes/${cls.id}`} className="block">
+                    <div className="flex items-center justify-between py-2 border-b last:border-0 hover:bg-muted/50 transition-colors">
+                      <div>
+                        <div className="font-medium text-sm">{cls.template.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {formatTime(cls.start_time)} — {formatTime(cls.end_time)} · {cls.teacher.name}
+                        </div>
+                      </div>
+                      <div className="text-sm">
+                        <span className="font-medium">{cls.booked_count}</span>
+                        <span className="text-muted-foreground">/{cls.max_capacity}</span>
                       </div>
                     </div>
-                    <div className="text-sm">
-                      <span className="font-medium">{cls.booked_count}</span>
-                      <span className="text-muted-foreground">/{cls.max_capacity}</span>
-                    </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}
@@ -70,10 +72,15 @@ export default function DemoPage() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Community Feed</CardTitle></CardHeader>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Community Feed</CardTitle>
+              <Link href="/demo/feed" className="text-sm text-primary hover:underline">View all &rarr;</Link>
+            </div>
+          </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {demoFeedPosts.map((post) => (
+              {demoFeedPosts.slice(0, 4).map((post) => (
                 <div key={post.id} className="border-b last:border-0 pb-3 last:pb-0">
                   <div className="flex items-center gap-2 mb-1">
                     <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
@@ -85,7 +92,18 @@ export default function DemoPage() {
                     )}
                   </div>
                   <p className="text-sm text-muted-foreground ml-8">{post.content}</p>
-                  <div className="ml-8 mt-1 text-xs text-muted-foreground">❤️ {post.likes}</div>
+                  {post.media_urls.length > 0 && (
+                    <div className="ml-8 mt-2 flex gap-1.5">
+                      {post.media_urls.slice(0, 2).map((url, i) => (
+                        <img key={i} src={url} alt="" className="w-20 h-14 rounded object-cover" />
+                      ))}
+                    </div>
+                  )}
+                  <div className="ml-8 mt-1 flex gap-1.5">
+                    {post.reactions.map((r) => (
+                      <span key={r.emoji} className="text-xs text-muted-foreground">{r.emoji} {r.count}</span>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
@@ -99,8 +117,8 @@ export default function DemoPage() {
           <div className="flex flex-wrap gap-3">
             <Button variant="outline" asChild><Link href="/demo/schedule">📅 Manage Schedule</Link></Button>
             <Button variant="outline" asChild><Link href="/demo/members">👥 View Members</Link></Button>
-            <Button variant="outline">📸 Check-in Mode</Button>
-            <Button variant="outline">📊 View Reports</Button>
+            <Button variant="outline" asChild><Link href="/demo/schedule">📸 Check-in Mode</Link></Button>
+            <Button variant="outline" asChild><Link href="/demo/reports">📊 View Reports</Link></Button>
           </div>
         </CardContent>
       </Card>

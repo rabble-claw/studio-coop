@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { demoMembers } from '@/lib/demo-data'
+import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { getRoleBadgeColor } from '@/lib/utils'
@@ -42,29 +43,31 @@ export default function DemoMembersPage() {
 
       <div className="grid gap-2">
         {sorted.map((member) => (
-          <Card key={member.id} className="hover:shadow-md transition-shadow">
-            <CardContent className="py-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
-                    {member.name[0]}
+          <Link key={member.id} href={`/demo/members/${member.id}`}>
+            <Card className="hover:shadow-md transition-shadow cursor-pointer">
+              <CardContent className="py-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
+                      {member.name[0]}
+                    </div>
+                    <div>
+                      <div className="font-medium">{member.name}</div>
+                      <div className="text-sm text-muted-foreground">{member.email}</div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="font-medium">{member.name}</div>
-                    <div className="text-sm text-muted-foreground">{member.email}</div>
+                  <div className="flex items-center gap-3">
+                    <span className={`text-xs px-2 py-1 rounded-full capitalize ${getRoleBadgeColor(member.role)}`}>
+                      {member.role}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      Joined {new Date(member.joined).toLocaleDateString('en-NZ', { month: 'short', year: 'numeric' })}
+                    </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className={`text-xs px-2 py-1 rounded-full capitalize ${getRoleBadgeColor(member.role)}`}>
-                    {member.role}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    Joined {new Date(member.joined).toLocaleDateString('en-NZ', { month: 'short', year: 'numeric' })}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </Link>
         ))}
       </div>
     </div>
