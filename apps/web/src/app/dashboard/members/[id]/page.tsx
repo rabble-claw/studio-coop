@@ -11,6 +11,25 @@ import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { getRoleBadgeColor } from '@/lib/utils'
 
+// ── Badges ────────────────────────────────────────────────────────────────────
+
+interface EarnedBadge {
+  emoji: string
+  label: string
+}
+
+function computeMemberBadges(totalClasses: number, streakWeeks: number): EarnedBadge[] {
+  const badges: EarnedBadge[] = []
+  if (totalClasses >= 1) badges.push({ emoji: '⭐', label: 'First Class' })
+  if (streakWeeks >= 1) badges.push({ emoji: '🔥', label: '7-Day Streak' })
+  if (streakWeeks >= 4) badges.push({ emoji: '💪', label: '4-Week Streak' })
+  if (totalClasses >= 10) badges.push({ emoji: '🎯', label: '10 Classes' })
+  if (totalClasses >= 25) badges.push({ emoji: '🏅', label: '25 Classes' })
+  if (totalClasses >= 50) badges.push({ emoji: '🥈', label: '50 Classes' })
+  if (totalClasses >= 100) badges.push({ emoji: '💯', label: '100 Classes' })
+  return badges
+}
+
 interface MemberDetail {
   id: string
   name: string
@@ -44,6 +63,8 @@ export default function MemberDetailPage() {
   const [compGrants, setCompGrants] = useState<CompGrant[]>([])
   const [loading, setLoading]     = useState(true)
   const [isStaff, setIsStaff]     = useState(false)
+  const [earnedBadges, setEarnedBadges] = useState<EarnedBadge[]>([])
+  const [totalClasses, setTotalClasses] = useState(0)
 
   // Grant comp classes form state
   const [showGrantForm, setShowGrantForm] = useState(false)
@@ -101,6 +122,68 @@ export default function MemberDetailPage() {
         .order('created_at', { ascending: false })
 
       setCompGrants(grants ?? [])
+
+      // ── Badge data: fetch total classes + streak ────────────────────────────
+      // Get all class instance IDs for this studio
+      const { data: studioClassIds } = await supabase
+        .from('class_instances')
+        .select('id')
+        .eq('studio_id', membership.studio_id)
+
+      const instanceIds = (studioClassIds ?? []).map((c) => c.id)
+      if (instanceIds.length > 0) {
+        const { count: classCount } = await supabase
+          .from('attendance')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', memberId)
+          .eq('checked_in', true)
+          .in('class_instance_id', instanceIds)
+
+        // Compute week streak from attendance dates
+        const { data: attDates } = await supabase
+          .from('attendance')
+          .select('class_instance_id')
+          .eq('user_id', memberId)
+          .eq('checked_in', true)
+          .in('class_instance_id', instanceIds)
+
+        const attInstanceIds = (attDates ?? []).map((a) => a.class_instance_id)
+        let streakWeeks = 0
+        if (attInstanceIds.length > 0) {
+          const { data: classDates } = await supabase
+            .from('class_instances')
+            .select('date')
+            .in('id', attInstanceIds)
+
+          const weekSet = new Set((classDates ?? []).map((c) => {
+            const d = new Date(c.date + 'T00:00:00Z')
+            const dow = d.getUTCDay()
+            d.setUTCDate(d.getUTCDate() - dow)
+            const yr = d.getUTCFullYear()
+            const startOfYear = new Date(`${yr}-01-01T00:00:00Z`)
+            const diff = Math.floor((d.getTime() - startOfYear.getTime()) / 86400000)
+            return `${yr}-W${String(Math.floor(diff / 7) + 1).padStart(2, '0')}`
+          }))
+          const today = new Date()
+          for (let i = 0; i < 52; i++) {
+            const d = new Date(today)
+            d.setDate(d.getDate() - i * 7)
+            const dow = d.getUTCDay()
+            d.setUTCDate(d.getUTCDate() - dow)
+            const yr = d.getUTCFullYear()
+            const startOfYear = new Date(`${yr}-01-01T00:00:00Z`)
+            const diff = Math.floor((d.getTime() - startOfYear.getTime()) / 86400000)
+            const key = `${yr}-W${String(Math.floor(diff / 7) + 1).padStart(2, '0')}`
+            if (weekSet.has(key)) streakWeeks++
+            else if (i > 0) break
+          }
+        }
+
+        const tc = classCount ?? 0
+        setTotalClasses(tc)
+        setEarnedBadges(computeMemberBadges(tc, streakWeeks))
+      }
+
       setLoading(false)
     }
     load()
@@ -230,6 +313,42 @@ export default function MemberDetailPage() {
                 <p className="text-sm text-muted-foreground mt-2 italic">{member.notes}</p>
               )}
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Stats & Badges */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>Badges &amp; Stats</CardTitle>
+            <Link
+              href={`/dashboard/members/${memberId}/stats`}
+              className="text-sm text-primary hover:underline"
+            >
+              View full stats →
+            </Link>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-sm text-muted-foreground">{totalClasses} classes attended</span>
+            {earnedBadges.length > 0 && (
+              <div className="flex gap-2 flex-wrap">
+                {earnedBadges.map((b) => (
+                  <span
+                    key={b.label}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-50 border border-amber-200 text-xs font-medium text-amber-800"
+                    title={b.label}
+                  >
+                    {b.emoji} {b.label}
+                  </span>
+                ))}
+              </div>
+            )}
+            {earnedBadges.length === 0 && totalClasses === 0 && (
+              <span className="text-sm text-muted-foreground italic">No classes yet</span>
+            )}
           </div>
         </CardContent>
       </Card>
