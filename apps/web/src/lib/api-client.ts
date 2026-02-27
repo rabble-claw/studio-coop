@@ -50,7 +50,7 @@ export const api = {
   post: <T>(path: string, body?: unknown) => request<T>(path, { method: 'POST', body }),
   put: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PUT', body }),
   patch: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PATCH', body }),
-  delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  delete: <T>(path: string, body?: unknown) => request<T>(path, { method: 'DELETE', body }),
 }
 
 // Typed API endpoints
@@ -104,6 +104,29 @@ export const reportApi = {
   revenue: (studioId: string, params?: string) => api.get(`/studios/${studioId}/reports/revenue${params ? `?${params}` : ''}`),
   retention: (studioId: string, params?: string) => api.get(`/studios/${studioId}/reports/retention${params ? `?${params}` : ''}`),
   popular: (studioId: string) => api.get(`/studios/${studioId}/reports/popular-classes`),
+}
+
+export interface FeedPost {
+  id: string
+  content: string | null
+  media_urls: string[] | null
+  post_type: string
+  created_at: string
+  class_instance_id: string
+  class_instance: { id: string; date: string; template: { name: string } | null } | null
+  author: { id: string; name: string; avatar_url: string | null }
+  reactions: Array<{ emoji: string; count: number; reacted: boolean }>
+}
+
+export const feedApi = {
+  getStudioFeed: (studioId: string) =>
+    api.get<FeedPost[]>(`/studios/${studioId}/feed`),
+  createPost: (classId: string, data: { content?: string; media_urls?: string[] }) =>
+    api.post<FeedPost>(`/classes/${classId}/feed`, data),
+  addReaction: (postId: string, emoji: string) =>
+    api.post<{ ok: boolean }>(`/feed/${postId}/react`, { emoji }),
+  removeReaction: (postId: string, emoji: string) =>
+    api.delete<{ ok: boolean }>(`/feed/${postId}/react`, { emoji }),
 }
 
 export { ApiError }
