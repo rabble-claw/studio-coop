@@ -1,5 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { View, Text, TouchableOpacity, FlatList, RefreshControl, TextInput, Image } from 'react-native'
+import { useAuth } from '@/lib/auth-context'
+import { feedApi } from '@/lib/api'
 
 interface FeedPost {
   id: string
@@ -13,6 +15,7 @@ interface FeedPost {
 }
 
 export default function FeedScreen() {
+  const { studioId } = useAuth()
   const [posts, setPosts] = useState<FeedPost[]>([])
   const [loading, setLoading] = useState(true)
   const [newPost, setNewPost] = useState('')
@@ -20,56 +23,49 @@ export default function FeedScreen() {
 
   const loadFeed = useCallback(async () => {
     setLoading(true)
-    // TODO: Replace with real API
-    setPosts([
-      {
-        id: '1', content: 'Finally nailed my ayesha today! 🎉 Months of work paying off!',
-        post_type: 'text', media_urls: [], created_at: new Date(Date.now() - 3600000).toISOString(),
-        user: { id: 'u1', name: 'Jamie L.', avatar_url: null },
-        class_name: 'Pole Level 3',
-        reactions: [{ emoji: '❤️', count: 8, reacted: false }, { emoji: '🔥', count: 3, reacted: true }],
-      },
-      {
-        id: '2', content: null,
-        post_type: 'milestone', media_urls: [], created_at: new Date(Date.now() - 7200000).toISOString(),
-        user: { id: 'u2', name: 'Alex M.', avatar_url: null },
-        class_name: null,
-        reactions: [{ emoji: '🎉', count: 12, reacted: false }],
-      },
-      {
-        id: '3', content: 'Great aerial silks class this morning. That drop sequence though 😱',
-        post_type: 'text', media_urls: [], created_at: new Date(Date.now() - 14400000).toISOString(),
-        user: { id: 'u3', name: 'Sam W.', avatar_url: null },
-        class_name: 'Aerial Silks Beginner',
-        reactions: [{ emoji: '❤️', count: 5, reacted: true }],
-      },
-    ])
-    setLoading(false)
-  }, [])
+    try {
+      if (studioId) {
+        const data = await feedApi.getFeed(studioId) as FeedPost[]
+        setPosts(data)
+      } else {
+        setPosts([])
+      }
+    } catch (e) {
+      console.error('Failed to load feed:', e)
+      setPosts([])
+    } finally {
+      setLoading(false)
+    }
+  }, [studioId])
 
   useEffect(() => { loadFeed() }, [loadFeed])
 
-  function handlePost() {
-    if (!newPost.trim()) return
-    const post: FeedPost = {
-      id: Date.now().toString(), content: newPost, post_type: 'text',
-      media_urls: [], created_at: new Date().toISOString(),
-      user: { id: 'me', name: 'You', avatar_url: null },
-      class_name: null, reactions: [],
+  async function handlePost() {
+    if (!newPost.trim() || !studioId) return
+    try {
+      await feedApi.createPost(studioId, { content: newPost })
+      setNewPost('')
+      setComposing(false)
+      loadFeed()
+    } catch (e) {
+      console.error('Failed to create post:', e)
     }
-    setPosts([post, ...posts])
-    setNewPost('')
-    setComposing(false)
   }
 
-  function handleReact(postId: string, emoji: string) {
-    setPosts(posts.map(p => {
-      if (p.id !== postId) return p
-      const reactions = p.reactions.map(r =>
-        r.emoji === emoji ? { ...r, count: r.reacted ? r.count - 1 : r.count + 1, reacted: !r.reacted } : r
-      )
-      return { ...p, reactions }
-    }))
+  async function handleReact(postId: string, emoji: string) {
+    if (!studioId) return
+    try {
+      await feedApi.react(studioId, postId, emoji)
+      setPosts(posts.map(p => {
+        if (p.id !== postId) return p
+        const reactions = p.reactions.map(r =>
+          r.emoji === emoji ? { ...r, count: r.reacted ? r.count - 1 : r.count + 1, reacted: !r.reacted } : r
+        )
+        return { ...p, reactions }
+      }))
+    } catch (e) {
+      console.error('Failed to react:', e)
+    }
   }
 
   return (
@@ -135,9 +131,10 @@ export default function FeedScreen() {
                 <Text className="text-yellow-800 font-semibold mt-1">
                   {post.user.name} hit a milestone!
                 </Text>
+                {post.content && <Text className="text-yellow-700 text-sm mt-1">{post.content}</Text>}
               </View>
             ) : (
-              <Text className="text-foreground text-base">{post.content}</Text>
+              post.content && <Text className="text-foreground text-base">{post.content}</Text>
             )}
 
             {post.media_urls.length > 0 && (
@@ -160,6 +157,15 @@ export default function FeedScreen() {
             )}
           </View>
         )}
+        ListEmptyComponent={
+          !loading ? (
+            <View className="items-center py-20">
+              <Text className="text-4xl mb-3">📸</Text>
+              <Text className="text-foreground font-medium">No posts yet</Text>
+              <Text className="text-muted text-sm mt-1">Be the first to share something!</Text>
+            </View>
+          ) : null
+        }
       />
     </View>
   )

@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
 import { View, Text, TouchableOpacity, FlatList, RefreshControl } from 'react-native'
-import { useRouter, useLocalSearchParams } from 'expo-router'
+import { useRouter } from 'expo-router'
+import { useAuth } from '@/lib/auth-context'
+import { scheduleApi } from '@/lib/api'
 
 interface ClassInstance {
   id: string
@@ -35,16 +37,16 @@ function getWeekDates(offset: number = 0): Date[] {
 
 function formatTime(t: string) {
   const [h, m] = t.split(':')
-  const hr = parseInt(h)
+  const hr = parseInt(h!)
   return `${hr > 12 ? hr - 12 : hr}:${m}${hr >= 12 ? 'pm' : 'am'}`
 }
 
 export default function ScheduleScreen() {
   const router = useRouter()
-  const params = useLocalSearchParams<{ studioId: string }>()
+  const { studioId } = useAuth()
   const [classes, setClasses] = useState<ClassInstance[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]!)
   const [weekOffset, setWeekOffset] = useState(0)
 
   const weekDates = getWeekDates(weekOffset)
@@ -52,40 +54,19 @@ export default function ScheduleScreen() {
   const loadClasses = useCallback(async () => {
     setLoading(true)
     try {
-      // TODO: Replace with API call when studioId is available
-      // const data = await scheduleApi.instances(params.studioId, `date=${selectedDate}`)
-      setClasses([
-        {
-          id: '1', date: selectedDate, start_time: '09:00', end_time: '10:00', status: 'scheduled',
-          booked_count: 8, max_capacity: 12, is_booked: false,
-          template: { id: 't1', name: 'Morning Flow Yoga', discipline_type: 'yoga', level: null },
-          teacher: { name: 'Sarah K.' }
-        },
-        {
-          id: '2', date: selectedDate, start_time: '12:00', end_time: '13:00', status: 'scheduled',
-          booked_count: 11, max_capacity: 12, is_booked: true,
-          template: { id: 't2', name: 'Pole Level 2', discipline_type: 'pole', level: '2' },
-          teacher: { name: 'Emma' }
-        },
-        {
-          id: '3', date: selectedDate, start_time: '18:00', end_time: '19:15', status: 'scheduled',
-          booked_count: 6, max_capacity: 12, is_booked: false,
-          template: { id: 't3', name: 'Aerial Silks Beginner', discipline_type: 'aerial', level: '1' },
-          teacher: { name: 'Emma' }
-        },
-        {
-          id: '4', date: selectedDate, start_time: '19:30', end_time: '20:30', status: 'scheduled',
-          booked_count: 10, max_capacity: 15, is_booked: false,
-          template: { id: 't4', name: 'Flexibility & Conditioning', discipline_type: 'fitness', level: null },
-          teacher: { name: 'Mike R.' }
-        },
-      ])
+      if (studioId) {
+        const data = await scheduleApi.instances(studioId, `date=${selectedDate}`) as ClassInstance[]
+        setClasses(data)
+      } else {
+        setClasses([])
+      }
     } catch (e) {
-      console.error(e)
+      console.error('Failed to load schedule:', e)
+      setClasses([])
     } finally {
       setLoading(false)
     }
-  }, [selectedDate])
+  }, [selectedDate, studioId])
 
   useEffect(() => { loadClasses() }, [loadClasses])
 
@@ -95,18 +76,18 @@ export default function ScheduleScreen() {
       <View className="bg-card border-b border-border px-4 py-3">
         <View className="flex-row justify-between items-center mb-3">
           <TouchableOpacity onPress={() => setWeekOffset(w => w - 1)}>
-            <Text className="text-primary text-lg">← Prev</Text>
+            <Text className="text-primary text-lg">{'\u2190'} Prev</Text>
           </TouchableOpacity>
           <Text className="text-foreground font-semibold">
-            {weekDates[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — {weekDates[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            {weekDates[0]!.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — {weekDates[6]!.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
           </Text>
           <TouchableOpacity onPress={() => setWeekOffset(w => w + 1)}>
-            <Text className="text-primary text-lg">Next →</Text>
+            <Text className="text-primary text-lg">Next {'\u2192'}</Text>
           </TouchableOpacity>
         </View>
         <View className="flex-row justify-between">
           {weekDates.map((date) => {
-            const dateStr = date.toISOString().split('T')[0]
+            const dateStr = date.toISOString().split('T')[0]!
             const isSelected = dateStr === selectedDate
             const isToday = dateStr === new Date().toISOString().split('T')[0]
             return (
@@ -126,6 +107,14 @@ export default function ScheduleScreen() {
           })}
         </View>
       </View>
+
+      {!studioId && !loading && (
+        <View className="items-center py-20 px-6">
+          <Text className="text-4xl mb-3">🏠</Text>
+          <Text className="text-foreground font-medium text-center">No studio found</Text>
+          <Text className="text-muted text-sm text-center mt-1">Join a studio to see your class schedule.</Text>
+        </View>
+      )}
 
       {/* Class List */}
       <FlatList
@@ -157,7 +146,7 @@ export default function ScheduleScreen() {
                 </Text>
                 {cls.is_booked ? (
                   <View className="mt-1 bg-green-100 rounded-full px-3 py-1">
-                    <Text className="text-xs text-green-700 font-medium">Booked ✓</Text>
+                    <Text className="text-xs text-green-700 font-medium">Booked</Text>
                   </View>
                 ) : cls.booked_count >= cls.max_capacity ? (
                   <View className="mt-1 bg-yellow-100 rounded-full px-3 py-1">
@@ -173,7 +162,7 @@ export default function ScheduleScreen() {
           </TouchableOpacity>
         )}
         ListEmptyComponent={
-          !loading ? (
+          !loading && studioId ? (
             <View className="items-center py-20">
               <Text className="text-4xl mb-3">📅</Text>
               <Text className="text-foreground font-medium">No classes on this day</Text>
