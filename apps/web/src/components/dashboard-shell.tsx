@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
+import { getDemoUnreadCount } from '@/lib/demo-data'
 import { Button } from '@/components/ui/button'
 
 const navItems = [
@@ -12,6 +13,7 @@ const navItems = [
   { path: '/members', label: 'Members', icon: '👥' },
   { path: '/plans', label: 'Plans', icon: '💳' },
   { path: '/feed', label: 'Feed', icon: '📸' },
+  { path: '/network', label: 'Network', icon: '🤝' },
   { path: '/coupons', label: 'Coupons', icon: '🏷️' },
   { path: '/private-bookings', label: 'Bookings', icon: '🔒' },
   { path: '/reports', label: 'Reports', icon: '📊' },
@@ -76,6 +78,17 @@ export function DashboardShell({ children, mode = 'live', basePath = '/dashboard
             </nav>
           </div>
           <div className="flex items-center gap-3">
+            <Link
+              href={`${basePath}/notifications`}
+              className="relative p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+            >
+              <span className="text-lg">🔔</span>
+              {mode === 'demo' && getDemoUnreadCount() > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-primary text-primary-foreground text-[10px] font-bold rounded-full flex items-center justify-center">
+                  {getDemoUnreadCount()}
+                </span>
+              )}
+            </Link>
             {mode === 'demo' ? (
               <Button variant="ghost" size="sm" asChild>
                 <Link href="/">Exit Demo</Link>
