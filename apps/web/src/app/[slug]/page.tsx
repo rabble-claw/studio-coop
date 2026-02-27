@@ -1,6 +1,5 @@
 import { notFound } from 'next/navigation'
 import { formatTime, formatDate } from '@/lib/utils'
-import { isDemoMode, demoStudio, demoClasses, demoMembers, demoMembershipPlans } from '@/lib/demo-data'
 import Link from 'next/link'
 import Image from 'next/image'
 import { CouponInput } from '@/components/coupon-input'
@@ -33,21 +32,6 @@ function formatPlanInterval(plan: MembershipPlan): string {
 }
 
 async function getStudioData(slug: string) {
-  if (isDemoMode()) {
-    if (slug !== demoStudio.slug) return null
-    const classesByDate = demoClasses.reduce<Record<string, typeof demoClasses>>((acc, cls) => {
-      if (!acc[cls.date]) acc[cls.date] = []
-      acc[cls.date]!.push(cls)
-      return acc
-    }, {})
-    return {
-      studio: demoStudio,
-      classesByDate,
-      memberCount: demoMembers.length,
-      plans: demoMembershipPlans as MembershipPlan[],
-    }
-  }
-
   const { createClient } = await import('@/lib/supabase/server')
   const supabase = await createClient()
   const { data: studio } = await supabase.from('studios').select('*').eq('slug', slug).single()
@@ -393,7 +377,7 @@ export default async function PublicStudioPage({ params }: { params: Promise<{ s
             )}
 
             {/* Coupon code input — shown when plans are visible */}
-            {plans.length > 0 && !isDemoMode() && (
+            {plans.length > 0 && (
               <div className="mt-8 text-center">
                 <CouponInput studioId={studio.id} />
               </div>

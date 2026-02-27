@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server'
 import { eq, and, sql } from 'drizzle-orm'
 import { getDb, studios, memberships } from '@/lib/db'
-import { demoStudio, demoMembers } from '@/lib/demo-data'
 
 export async function GET(
   _req: Request,
@@ -26,14 +25,7 @@ export async function GET(
       studio: { ...studio, memberCount },
     })
   } catch (err) {
-    console.error('[/api/studio/[slug]] DB error:', err)
-    // Fallback to demo data if slug matches
-    if (slug === demoStudio.slug) {
-      return NextResponse.json({
-        studio: { ...demoStudio, memberCount: demoMembers.length },
-        demo: true,
-      })
-    }
-    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    console.error('[/api/studio/[slug]] Error:', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

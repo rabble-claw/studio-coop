@@ -1,28 +1,63 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { isDemoMode, demoClasses, type DemoClass } from '@/lib/demo-data'
+import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { formatTime, formatDate } from '@/lib/utils'
 
+interface ClassInstance {
+  id: string
+  date: string
+  start_time: string
+  end_time: string
+  max_capacity: number
+  booked_count: number
+  status: string
+  template: { name: string } | null
+  teacher: { name: string } | null
+}
+
 export default function SchedulePage() {
-  const [classesByDate, setClassesByDate] = useState<Record<string, DemoClass[]>>({})
+  const [classesByDate, setClassesByDate] = useState<Record<string, ClassInstance[]>>({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (isDemoMode()) {
-      const grouped = demoClasses.reduce<Record<string, DemoClass[]>>((acc, cls) => {
-        if (!acc[cls.date]) acc[cls.date] = []
-        acc[cls.date]!.push(cls)
+    async function load() {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setLoading(false); return }
+
+      const { data: membership } = await supabase
+        .from('memberships')
+        .select('studio_id')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .limit(1)
+        .single()
+
+      if (!membership) { setLoading(false); return }
+
+      const todayStr = new Date().toISOString().split('T')[0]
+      const { data: classes } = await supabase
+        .from('class_instances')
+        .select('id, date, start_time, end_time, max_capacity, booked_count, status, template:class_templates(name), teacher:users!class_instances_teacher_id_fkey(name)')
+        .eq('studio_id', membership.studio_id)
+        .gte('date', todayStr)
+        .order('date')
+        .order('start_time')
+        .limit(100)
+
+      const grouped = (classes ?? []).reduce<Record<string, ClassInstance[]>>((acc, cls) => {
+        const c = cls as unknown as ClassInstance
+        if (!acc[c.date]) acc[c.date] = []
+        acc[c.date]!.push(c)
         return acc
       }, {})
       setClassesByDate(grouped)
       setLoading(false)
-      return
     }
-    // TODO: fetch from Supabase
-    setLoading(false)
+    load()
   }, [])
 
   if (loading) {
@@ -54,8 +89,8 @@ export default function SchedulePage() {
               </h2>
               <div className="grid gap-2">
                 {classes.map((cls) => {
-                  const spotsLeft = cls.max_capacity - cls.booked_count
-                  const fillPercent = (cls.booked_count / cls.max_capacity) * 100
+                  const spotsLeft = cls.max_capacity - (cls.booked_count ?? 0)
+                  const fillPercent = ((cls.booked_count ?? 0) / cls.max_capacity) * 100
                   return (
                     <Card key={cls.id} className="hover:shadow-md transition-shadow cursor-pointer">
                       <CardContent className="py-4">
@@ -66,15 +101,15 @@ export default function SchedulePage() {
                                 {formatTime(cls.start_time)} — {formatTime(cls.end_time)}
                               </div>
                               <div>
-                                <div className="font-medium">{cls.template.name}</div>
-                                <div className="text-sm text-muted-foreground">with {cls.teacher.name}</div>
+                                <div className="font-medium">{cls.template?.name ?? 'Class'}</div>
+                                <div className="text-sm text-muted-foreground">with {cls.teacher?.name ?? 'TBA'}</div>
                               </div>
                             </div>
                           </div>
                           <div className="flex items-center gap-4">
                             <div className="text-right">
                               <div className="text-sm">
-                                <span className="font-medium">{cls.booked_count}</span>
+                                <span className="font-medium">{cls.booked_count ?? 0}</span>
                                 <span className="text-muted-foreground">/{cls.max_capacity}</span>
                               </div>
                               <div className="w-20 h-1.5 bg-secondary rounded-full mt-1">

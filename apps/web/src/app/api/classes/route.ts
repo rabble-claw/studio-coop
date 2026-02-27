@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { eq, and, gte, inArray, sql } from 'drizzle-orm'
 import { getDb, studios, users, memberships, classInstances, classTemplates, bookings } from '@/lib/db'
 import { getSession } from '@/lib/auth'
-import { demoClasses, demoStudio, demoMembers } from '@/lib/demo-data'
 
 export async function GET() {
   try {
@@ -14,7 +13,6 @@ export async function GET() {
     const db = getDb()
     const todayStr = new Date().toISOString().split('T')[0]
 
-    // Get user's active membership + studio
     const [membership] = await db
       .select({ studioId: memberships.studioId, role: memberships.role })
       .from(memberships)
@@ -24,7 +22,6 @@ export async function GET() {
       return NextResponse.json({ studio: null, classes: [] })
     }
 
-    // Fetch studio info + member/class counts in parallel
     const [studioRows, memberCountRows, upcomingCountRows, classRows] = await Promise.all([
       db.select().from(studios).where(eq(studios.id, membership.studioId)),
       db
@@ -56,7 +53,6 @@ export async function GET() {
     const studio = studioRows[0]
     if (!studio) return NextResponse.json({ studio: null, classes: [] })
 
-    // Get booking counts for each class
     const classIds = classRows.map((c) => c.id)
     let bookingCounts: Record<string, number> = {}
     if (classIds.length > 0) {
@@ -95,17 +91,7 @@ export async function GET() {
       classes,
     })
   } catch (err) {
-    console.error('[/api/classes] DB error, falling back to demo:', err)
-    // Fallback: return demo data
-    const todayStr = new Date().toISOString().split('T')[0]
-    return NextResponse.json({
-      studio: {
-        ...demoStudio,
-        memberCount: demoMembers.length,
-        upcomingClasses: demoClasses.filter((c) => c.date >= todayStr).length,
-      },
-      classes: demoClasses,
-      demo: true,
-    })
+    console.error('[/api/classes] Error:', err)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

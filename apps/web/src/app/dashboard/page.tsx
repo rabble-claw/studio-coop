@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { isDemoMode, demoStudio, demoClasses, demoMembers, demoFeedPosts } from '@/lib/demo-data'
+import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { formatTime, formatDate } from '@/lib/utils'
@@ -18,33 +18,39 @@ interface StudioData {
   upcomingClasses: number
 }
 
+interface ClassInstance {
+  id: string
+  date: string
+  start_time: string
+  end_time: string
+  max_capacity: number
+  booked_count: number
+  template: { name: string } | null
+  teacher: { name: string } | null
+}
+
+interface FeedPost {
+  id: string
+  content: string
+  created_at: string
+  user: { name: string } | null
+  class_template: { name: string } | null
+  reactions: { count: number }[]
+}
+
 export default function DashboardPage() {
   const [studio, setStudio] = useState<StudioData | null>(null)
+  const [todayClasses, setTodayClasses] = useState<ClassInstance[]>([])
+  const [feedPosts, setFeedPosts] = useState<FeedPost[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (isDemoMode()) {
-      const todayStr = new Date().toISOString().split('T')[0]
-      setStudio({
-        id: demoStudio.id,
-        name: demoStudio.name,
-        slug: demoStudio.slug,
-        discipline: demoStudio.discipline,
-        description: demoStudio.description,
-        tier: demoStudio.tier,
-        memberCount: demoMembers.length,
-        upcomingClasses: demoClasses.filter((c) => c.date >= todayStr).length,
-      })
-      setLoading(false)
-      return
-    }
-
     async function load() {
-      const { createClient } = await import('@/lib/supabase/client')
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { setLoading(false); return }
 
+      // Get user's studio via membership
       const { data: membership } = await supabase
         .from('memberships')
         .select('studio_id, role, studios(id, name, slug, discipline, description, tier)')
@@ -53,19 +59,40 @@ export default function DashboardPage() {
         .limit(1)
         .single()
 
-      if (membership?.studios) {
-        const s = membership.studios as Record<string, unknown>
-        const studioId = s.id as string
-        const [{ count: memberCount }, { count: classCount }] = await Promise.all([
-          supabase.from('memberships').select('*', { count: 'exact', head: true }).eq('studio_id', studioId).eq('status', 'active'),
-          supabase.from('class_instances').select('*', { count: 'exact', head: true }).eq('studio_id', studioId).eq('status', 'scheduled'),
-        ])
-        setStudio({
-          id: studioId, name: s.name as string, slug: s.slug as string,
-          discipline: s.discipline as string, description: s.description as string | null,
-          tier: s.tier as string, memberCount: memberCount ?? 0, upcomingClasses: classCount ?? 0,
-        })
-      }
+      if (!membership?.studios) { setLoading(false); return }
+
+      const s = membership.studios as Record<string, unknown>
+      const studioId = s.id as string
+      const todayStr = new Date().toISOString().split('T')[0]
+
+      const [
+        { count: memberCount },
+        { count: upcomingCount },
+        { data: classes },
+        { data: posts },
+      ] = await Promise.all([
+        supabase.from('memberships').select('*', { count: 'exact', head: true })
+          .eq('studio_id', studioId).eq('status', 'active'),
+        supabase.from('class_instances').select('*', { count: 'exact', head: true })
+          .eq('studio_id', studioId).eq('status', 'scheduled').gte('date', todayStr),
+        supabase.from('class_instances')
+          .select('id, date, start_time, end_time, max_capacity, booked_count, template:class_templates(name), teacher:users!class_instances_teacher_id_fkey(name)')
+          .eq('studio_id', studioId).eq('date', todayStr).eq('status', 'scheduled')
+          .order('start_time'),
+        supabase.from('feed_posts')
+          .select('id, content, created_at, user:users(name), class_template:class_templates(name), reactions(count)')
+          .eq('studio_id', studioId)
+          .order('created_at', { ascending: false })
+          .limit(5),
+      ])
+
+      setStudio({
+        id: studioId, name: s.name as string, slug: s.slug as string,
+        discipline: s.discipline as string, description: s.description as string | null,
+        tier: s.tier as string, memberCount: memberCount ?? 0, upcomingClasses: upcomingCount ?? 0,
+      })
+      setTodayClasses((classes ?? []) as unknown as ClassInstance[])
+      setFeedPosts((posts ?? []) as unknown as FeedPost[])
       setLoading(false)
     }
     load()
@@ -80,15 +107,10 @@ export default function DashboardPage() {
       <div className="max-w-lg mx-auto text-center py-20">
         <h2 className="text-2xl font-bold mb-2">Welcome to Studio Co-op!</h2>
         <p className="text-muted-foreground mb-6">You&apos;re not part of a studio yet. Create one to get started.</p>
-        <Button size="lg">Create a studio</Button>
+        <Button size="lg" asChild><Link href="/dashboard/setup">Create a studio</Link></Button>
       </div>
     )
   }
-
-  const todayStr = new Date().toISOString().split('T')[0]
-  const todayClasses = isDemoMode()
-    ? demoClasses.filter((c) => c.date === todayStr)
-    : []
 
   return (
     <div className="space-y-8">
@@ -97,7 +119,6 @@ export default function DashboardPage() {
         <p className="text-muted-foreground capitalize">{studio.discipline} studio · {studio.tier} plan</p>
       </div>
 
-      {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Members</CardTitle></CardHeader>
@@ -113,12 +134,11 @@ export default function DashboardPage() {
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Check-ins Today</CardTitle></CardHeader>
-          <CardContent><div className="text-3xl font-bold">{todayClasses.reduce((sum, c) => sum + c.booked_count, 0)}</div></CardContent>
+          <CardContent><div className="text-3xl font-bold">{todayClasses.reduce((sum, c) => sum + (c.booked_count ?? 0), 0)}</div></CardContent>
         </Card>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Today's Schedule */}
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -134,13 +154,13 @@ export default function DashboardPage() {
                 {todayClasses.map((cls) => (
                   <div key={cls.id} className="flex items-center justify-between py-2 border-b last:border-0">
                     <div>
-                      <div className="font-medium text-sm">{cls.template.name}</div>
+                      <div className="font-medium text-sm">{cls.template?.name ?? 'Class'}</div>
                       <div className="text-xs text-muted-foreground">
-                        {formatTime(cls.start_time)} — {formatTime(cls.end_time)} · {cls.teacher.name}
+                        {formatTime(cls.start_time)} — {formatTime(cls.end_time)} · {cls.teacher?.name ?? 'TBA'}
                       </div>
                     </div>
                     <div className="text-sm">
-                      <span className="font-medium">{cls.booked_count}</span>
+                      <span className="font-medium">{cls.booked_count ?? 0}</span>
                       <span className="text-muted-foreground">/{cls.max_capacity}</span>
                     </div>
                   </div>
@@ -150,42 +170,44 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Community Feed */}
         <Card>
-          <CardHeader>
-            <CardTitle>Community Feed</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>Community Feed</CardTitle></CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {(isDemoMode() ? demoFeedPosts : []).map((post) => (
-                <div key={post.id} className="border-b last:border-0 pb-3 last:pb-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
-                      {post.author[0]}
+            {feedPosts.length === 0 ? (
+              <p className="text-muted-foreground text-sm py-4">No posts yet. Be the first!</p>
+            ) : (
+              <div className="space-y-4">
+                {feedPosts.map((post) => (
+                  <div key={post.id} className="border-b last:border-0 pb-3 last:pb-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
+                        {(post.user?.name ?? '?')[0]}
+                      </div>
+                      <span className="font-medium text-sm">{post.user?.name ?? 'Anonymous'}</span>
+                      {post.class_template?.name && (
+                        <span className="text-xs bg-secondary px-1.5 py-0.5 rounded">{post.class_template.name}</span>
+                      )}
                     </div>
-                    <span className="font-medium text-sm">{post.author}</span>
-                    {post.class_name && (
-                      <span className="text-xs bg-secondary px-1.5 py-0.5 rounded">{post.class_name}</span>
-                    )}
+                    <p className="text-sm text-muted-foreground ml-8">{post.content}</p>
+                    <div className="ml-8 mt-1 text-xs text-muted-foreground">
+                      ❤️ {post.reactions?.[0]?.count ?? 0}
+                    </div>
                   </div>
-                  <p className="text-sm text-muted-foreground ml-8">{post.content}</p>
-                  <div className="ml-8 mt-1 text-xs text-muted-foreground">❤️ {post.likes}</div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Quick Actions */}
       <Card>
         <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-3">
             <Button variant="outline" asChild><Link href="/dashboard/schedule">📅 Manage Schedule</Link></Button>
             <Button variant="outline" asChild><Link href="/dashboard/members">👥 View Members</Link></Button>
-            <Button variant="outline">📸 Check-in Mode</Button>
-            <Button variant="outline">📊 View Reports</Button>
+            <Button variant="outline" asChild><Link href="/dashboard/reports">📊 View Reports</Link></Button>
+            <Button variant="outline" asChild><Link href="/dashboard/settings">⚙️ Settings</Link></Button>
           </div>
         </CardContent>
       </Card>

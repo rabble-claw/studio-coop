@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { isDemoMode } from '@/lib/demo-data'
+import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 
@@ -23,11 +23,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const router = useRouter()
 
   async function handleSignOut() {
-    if (!isDemoMode()) {
-      const { createClient } = await import('@/lib/supabase/client')
-      const supabase = createClient()
-      await supabase.auth.signOut()
-    }
+    const supabase = createClient()
+    await supabase.auth.signOut()
     router.push('/')
   }
 
@@ -60,14 +57,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               ))}
             </nav>
           </div>
-          <div className="flex items-center gap-3">
-            {isDemoMode() && (
-              <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full">🎭 Demo</span>
-            )}
-            <Button variant="ghost" size="sm" onClick={handleSignOut}>
-              Sign out
-            </Button>
-          </div>
+          <Button variant="ghost" size="sm" onClick={handleSignOut}>
+            Sign out
+          </Button>
         </div>
       </header>
 

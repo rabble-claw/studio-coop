@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { isDemoMode, demoMembers } from '@/lib/demo-data'
+import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { getRoleBadgeColor } from '@/lib/utils'
@@ -22,13 +22,43 @@ export default function MembersPage() {
   const [search, setSearch] = useState('')
 
   useEffect(() => {
-    if (isDemoMode()) {
-      setMembers(demoMembers)
+    async function load() {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setLoading(false); return }
+
+      const { data: membership } = await supabase
+        .from('memberships')
+        .select('studio_id')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .limit(1)
+        .single()
+
+      if (!membership) { setLoading(false); return }
+
+      const { data: studioMembers } = await supabase
+        .from('memberships')
+        .select('role, created_at, user:users(id, name, email, avatar_url)')
+        .eq('studio_id', membership.studio_id)
+        .eq('status', 'active')
+        .order('created_at')
+
+      const mapped: Member[] = (studioMembers ?? []).map((m) => {
+        const u = m.user as Record<string, unknown> | null
+        return {
+          id: (u?.id as string) ?? '',
+          name: (u?.name as string) ?? 'Unknown',
+          email: (u?.email as string) ?? '',
+          role: m.role,
+          joined: m.created_at,
+          avatar_url: (u?.avatar_url as string) ?? null,
+        }
+      })
+      setMembers(mapped)
       setLoading(false)
-      return
     }
-    // TODO: fetch from Supabase
-    setLoading(false)
+    load()
   }, [])
 
   const filtered = members.filter(
@@ -74,7 +104,9 @@ export default function MembersPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
-                      {member.name[0]}
+                      {member.avatar_url ? (
+                        <img src={member.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
+                      ) : member.name[0]}
                     </div>
                     <div>
                       <div className="font-medium">{member.name}</div>
@@ -94,6 +126,11 @@ export default function MembersPage() {
             </Card>
           </Link>
         ))}
+        {sorted.length === 0 && (
+          <p className="text-center text-muted-foreground py-8">
+            {search ? 'No members match your search.' : 'No members yet.'}
+          </p>
+        )}
       </div>
     </div>
   )
