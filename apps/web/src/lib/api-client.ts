@@ -1,3 +1,5 @@
+import { createClient } from './supabase/client'
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
 interface ApiOptions {
@@ -14,9 +16,10 @@ class ApiError extends Error {
 }
 
 async function getToken(): Promise<string | null> {
-  if (typeof document === 'undefined') return null
-  const match = document.cookie.match(/(?:^|;\s*)token=([^;]*)/)
-  return match ? match[1] : null
+  if (typeof window === 'undefined') return null
+  const supabase = createClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  return session?.access_token ?? null
 }
 
 async function request<T>(path: string, opts: ApiOptions = {}): Promise<T> {

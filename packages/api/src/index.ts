@@ -18,6 +18,7 @@ import jobs from './routes/jobs'
 import studioSettings from './routes/studio-settings'
 import feed, { postFeed } from './routes/feed'
 import { upload } from './routes/upload'
+import members from './routes/members'
 
 const app = new Hono()
 
@@ -64,6 +65,7 @@ app.route('/api/studios', studioSettings)
 app.route('/api/classes', feed)
 app.route('/api/feed', postFeed)
 app.route('/api/upload', upload)
+app.route('/api/studios', members)
 
 export default app
 export { app }
