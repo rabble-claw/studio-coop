@@ -5,8 +5,15 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "react": [
+        "./node_modules/@types/react"
       ]
-    }
+    },
+    "typeRoots": [
+      "./node_modules/@types",
+      "../../node_modules/@types"
+    ]
   },
   "include": [
     "**/*.ts",

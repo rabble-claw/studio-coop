@@ -132,14 +132,14 @@ export default function FeedPage() {
       </div>
 
       {error && (
-        <div className="text-sm px-4 py-3 rounded-md bg-red-50 text-red-700 mb-4">{error}</div>
+        <div role="alert" className="text-sm px-4 py-3 rounded-md bg-red-50 text-red-700 mb-4">{error}</div>
       )}
 
       {loading ? (
-        <div className="text-muted-foreground text-center py-20">Loading feed...</div>
+        <div className="text-muted-foreground text-center py-20" aria-busy="true" role="status">Loading feed...</div>
       ) : posts.length === 0 ? (
         <div className="text-center py-20">
-          <div className="text-5xl mb-4">📸</div>
+          <div className="text-5xl mb-4" aria-hidden="true">📸</div>
           <p className="text-lg font-semibold">No posts yet</p>
           <p className="text-muted-foreground mt-1">Posts appear here after classes are completed.</p>
         </div>
@@ -192,35 +192,44 @@ export default function FeedPage() {
                   <div className={`grid gap-2 mb-3 ${post.media_urls.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                     {post.media_urls.map((url, i) =>
                       url.includes('.mp4') ? (
-                        <video key={i} src={url} controls className="rounded-lg w-full max-h-64 object-cover" />
+                        <video key={i} src={url} controls className="rounded-lg w-full max-h-64 object-cover" aria-label={`Video from ${post.user.name}`} />
                       ) : (
-                        <img
+                        <button
                           key={i}
-                          src={url}
-                          alt="Post media"
-                          className="rounded-lg w-full max-h-64 object-cover cursor-pointer"
+                          type="button"
+                          className="rounded-lg overflow-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                           onClick={() => window.open(url, '_blank')}
-                        />
+                          aria-label={`View full-size image from ${post.user.name}`}
+                        >
+                          <img
+                            src={url}
+                            alt={`Photo shared by ${post.user.name}`}
+                            className="w-full max-h-64 object-cover"
+                          />
+                        </button>
                       )
                     )}
                   </div>
                 )}
 
                 {/* Reactions */}
-                <div className="flex gap-2 flex-wrap">
+                <div className="flex gap-2 flex-wrap" role="group" aria-label="Reactions">
                   {REACTION_EMOJIS.map((emoji) => {
                     const r = post.reactions.find((x) => x.emoji === emoji)
+                    const emojiName = emoji === '❤️' ? 'love' : emoji === '🔥' ? 'fire' : 'applause'
                     return (
                       <button
                         key={emoji}
                         onClick={() => toggleReaction(post.id, emoji)}
-                        className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-sm border transition-all ${
+                        aria-pressed={r?.reacted ?? false}
+                        aria-label={`React with ${emojiName}${r && r.count > 0 ? `, ${r.count} ${r.count === 1 ? 'reaction' : 'reactions'}` : ''}`}
+                        className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-sm border transition-all focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                           r?.reacted
                             ? 'border-primary bg-primary/10 text-primary font-medium'
                             : 'border-border hover:border-primary/50 text-muted-foreground hover:text-foreground'
                         }`}
                       >
-                        <span>{emoji}</span>
+                        <span aria-hidden="true">{emoji}</span>
                         {r && r.count > 0 && <span>{r.count}</span>}
                       </button>
                     )

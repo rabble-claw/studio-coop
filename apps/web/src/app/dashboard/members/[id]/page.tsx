@@ -267,7 +267,7 @@ export default function MemberDetailPage() {
   }
 
   if (loading) {
-    return <div className="text-muted-foreground py-20 text-center">Loading member...</div>
+    return <div className="text-muted-foreground py-20 text-center" aria-busy="true" role="status">Loading member...</div>
   }
 
   if (!member) {
@@ -333,16 +333,17 @@ export default function MemberDetailPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             {memberActionError && (
-              <p className="text-sm text-red-600">{memberActionError}</p>
+              <p role="alert" className="text-sm text-red-600">{memberActionError}</p>
             )}
             <div className="flex flex-wrap gap-2">
               {member.status === 'active' && (
                 <Button
                   variant="outline"
                   size="sm"
-                  className="text-amber-600 border-amber-300 hover:bg-amber-50"
+                  className="text-amber-600 border-amber-300 hover:bg-amber-50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   onClick={handleSuspend}
                   disabled={memberAction !== null}
+                  aria-label={`Suspend ${member.name}`}
                 >
                   {memberAction === 'suspending' ? 'Suspending...' : 'Suspend Member'}
                 </Button>
@@ -351,9 +352,10 @@ export default function MemberDetailPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="text-green-600 border-green-300 hover:bg-green-50"
+                  className="text-green-600 border-green-300 hover:bg-green-50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   onClick={handleReactivate}
                   disabled={memberAction !== null}
+                  aria-label={`Reactivate ${member.name}`}
                 >
                   {memberAction === 'reactivating' ? 'Reactivating...' : 'Reactivate Member'}
                 </Button>
@@ -362,9 +364,10 @@ export default function MemberDetailPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="text-red-600 border-red-300 hover:bg-red-50"
+                  className="text-red-600 border-red-300 hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   onClick={handleRemove}
                   disabled={memberAction !== null}
+                  aria-label={`Remove ${member.name}`}
                 >
                   {memberAction === 'removing' ? 'Removing...' : 'Remove Member'}
                 </Button>
@@ -414,9 +417,9 @@ export default function MemberDetailPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-left">
-                    <th className="pb-2 font-medium">Date</th>
-                    <th className="pb-2 font-medium">Class</th>
-                    <th className="pb-2 font-medium">Type</th>
+                    <th scope="col" className="pb-2 font-medium">Date</th>
+                    <th scope="col" className="pb-2 font-medium">Class</th>
+                    <th scope="col" className="pb-2 font-medium">Type</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -467,8 +470,9 @@ export default function MemberDetailPage() {
                 <h3 className="font-medium text-sm">Grant Comp Classes</h3>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Classes *</label>
+                    <label htmlFor="grant-classes" className="text-xs text-muted-foreground mb-1 block">Classes *</label>
                     <Input
+                      id="grant-classes"
                       type="number"
                       min={1}
                       max={50}
@@ -478,8 +482,9 @@ export default function MemberDetailPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground mb-1 block">Expires (optional)</label>
+                    <label htmlFor="grant-expiry" className="text-xs text-muted-foreground mb-1 block">Expires (optional)</label>
                     <Input
+                      id="grant-expiry"
                       type="date"
                       value={grantExpiry}
                       onChange={(e) => setGrantExpiry(e.target.value)}
@@ -487,8 +492,9 @@ export default function MemberDetailPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Reason (optional)</label>
+                  <label htmlFor="grant-reason" className="text-xs text-muted-foreground mb-1 block">Reason (optional)</label>
                   <Input
+                    id="grant-reason"
                     type="text"
                     placeholder="e.g. Missed classes due to illness"
                     value={grantReason}
@@ -496,7 +502,7 @@ export default function MemberDetailPage() {
                     maxLength={500}
                   />
                 </div>
-                {grantError && <p className="text-xs text-red-600">{grantError}</p>}
+                {grantError && <p role="alert" className="text-xs text-red-600">{grantError}</p>}
                 <Button type="submit" size="sm" disabled={granting}>
                   {granting ? 'Granting...' : `Grant ${grantClasses} Class${parseInt(grantClasses) !== 1 ? 'es' : ''}`}
                 </Button>
@@ -504,7 +510,7 @@ export default function MemberDetailPage() {
             )}
 
             {grantSuccess && (
-              <p className="text-sm text-green-600 font-medium">{grantSuccess}</p>
+              <p role="status" aria-live="polite" className="text-sm text-green-600 font-medium">{grantSuccess}</p>
             )}
 
             {/* Active grants */}
@@ -530,6 +536,7 @@ export default function MemberDetailPage() {
                   size="sm"
                   className="text-red-600 hover:text-red-700 hover:bg-red-50"
                   onClick={() => handleRevoke(grant.id)}
+                  aria-label={`Revoke comp grant of ${grant.total_classes} classes`}
                 >
                   Revoke
                 </Button>

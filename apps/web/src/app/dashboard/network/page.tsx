@@ -135,7 +135,7 @@ export default function NetworkPage() {
     setTimeout(() => setMessage(''), 3000)
   }
 
-  if (loading) return <div className="py-20 text-center text-muted-foreground">Loading network...</div>
+  if (loading) return <div className="py-20 text-center text-muted-foreground" aria-busy="true" role="status">Loading network...</div>
 
   const activeNetworks = networks.filter(n => n.status === 'active')
   const pendingInvitations = networks.filter(n => n.status === 'pending')
@@ -151,11 +151,11 @@ export default function NetworkPage() {
       </div>
 
       {error && (
-        <div className="text-sm px-4 py-3 rounded-md bg-red-50 text-red-700">{error}</div>
+        <div role="alert" className="text-sm px-4 py-3 rounded-md bg-red-50 text-red-700">{error}</div>
       )}
 
       {message && (
-        <div className={`text-sm px-4 py-2 rounded-md ${message.startsWith('Error') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
+        <div role={message.startsWith('Error') ? 'alert' : 'status'} aria-live={message.startsWith('Error') ? 'assertive' : 'polite'} className={`text-sm px-4 py-2 rounded-md ${message.startsWith('Error') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
           {message}
         </div>
       )}
@@ -166,12 +166,12 @@ export default function NetworkPage() {
           <CardHeader><CardTitle>Create a New Network</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <label className="text-sm font-medium">Network Name</label>
-              <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder="e.g. Wellington Studios" />
+              <label htmlFor="network-name" className="text-sm font-medium">Network Name</label>
+              <Input id="network-name" value={newName} onChange={e => setNewName(e.target.value)} placeholder="e.g. Wellington Studios" />
             </div>
             <div>
-              <label className="text-sm font-medium">Description</label>
-              <Input value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Optional description" />
+              <label htmlFor="network-desc" className="text-sm font-medium">Description</label>
+              <Input id="network-desc" value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Optional description" />
             </div>
             <div className="flex gap-2">
               <Button onClick={handleCreateNetwork} disabled={creating || !newName.trim()}>
@@ -196,8 +196,8 @@ export default function NetworkPage() {
                     {net.description && <p className="text-sm text-muted-foreground">{net.description}</p>}
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" onClick={() => handleAccept(net.id)}>Accept</Button>
-                    <Button size="sm" variant="outline" onClick={() => handleDecline(net.id)}>Decline</Button>
+                    <Button size="sm" onClick={() => handleAccept(net.id)} aria-label={`Accept invitation to ${net.name}`}>Accept</Button>
+                    <Button size="sm" variant="outline" onClick={() => handleDecline(net.id)} aria-label={`Decline invitation to ${net.name}`}>Decline</Button>
                   </div>
                 </div>
               ))}
@@ -242,8 +242,9 @@ export default function NetworkPage() {
           <CardHeader><CardTitle>Invite Studio to Network</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <label className="text-sm font-medium">Studio Name or ID</label>
+              <label htmlFor="invite-studio-id" className="text-sm font-medium">Studio Name or ID</label>
               <Input
+                id="invite-studio-id"
                 value={inviteStudioId}
                 onChange={e => setInviteStudioId(e.target.value)}
                 placeholder="e.g. my-studio-slug or studio UUID"

@@ -13,6 +13,9 @@ export default function LandingPage() {
           <span className="font-bold text-lg">Studio Co-op</span>
         </div>
         <div className="flex items-center gap-4">
+          <Link href="/explore" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+            Explore Studios
+          </Link>
           <Link href="/login" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
             Log in
           </Link>

@@ -19,6 +19,7 @@ WEB_URL = "https://studio.coop"
 # STRIPE_WEBHOOK_SECRET
 # STRIPE_CONNECT_CLIENT_ID
 # RESEND_API_KEY
+# SENTRY_DSN
 
 # Custom domain — auto-creates DNS record
 [[routes]]

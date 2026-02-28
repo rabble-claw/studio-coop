@@ -139,7 +139,7 @@ export default function PlansPage() {
     setPlans(plans.map(p => p.id === planId ? { ...p, [field]: value } : p))
   }
 
-  if (loading) return <div className="py-20 text-center text-muted-foreground">Loading plans...</div>
+  if (loading) return <div className="py-20 text-center text-muted-foreground" aria-busy="true" role="status">Loading plans...</div>
 
   return (
     <div className="space-y-6">
@@ -154,7 +154,7 @@ export default function PlansPage() {
       </div>
 
       {error && (
-        <div className="text-sm px-4 py-3 rounded-md bg-red-50 text-red-700">{error}</div>
+        <div role="alert" className="text-sm px-4 py-3 rounded-md bg-red-50 text-red-700">{error}</div>
       )}
 
       {showCreate && (
@@ -163,12 +163,12 @@ export default function PlansPage() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium">Plan Name</label>
-                <Input value={newPlan.name} onChange={e => setNewPlan({...newPlan, name: e.target.value})} placeholder="e.g. Unlimited Monthly" />
+                <label htmlFor="plan-name" className="text-sm font-medium">Plan Name</label>
+                <Input id="plan-name" value={newPlan.name} onChange={e => setNewPlan({...newPlan, name: e.target.value})} placeholder="e.g. Unlimited Monthly" />
               </div>
               <div>
-                <label className="text-sm font-medium">Type</label>
-                <select className="w-full border rounded-md px-3 py-2 text-sm min-h-[44px]" value={newPlan.type}
+                <label htmlFor="plan-type" className="text-sm font-medium">Type</label>
+                <select id="plan-type" className="w-full border rounded-md px-3 py-2 text-sm min-h-[44px]" value={newPlan.type}
                   onChange={e => setNewPlan({...newPlan, type: e.target.value})}>
                   {PLAN_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </select>
@@ -176,12 +176,12 @@ export default function PlansPage() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="text-sm font-medium">Price ({studioCurrency})</label>
-                <Input type="number" step="0.01" value={newPlan.price} onChange={e => setNewPlan({...newPlan, price: e.target.value})} placeholder="0.00" />
+                <label htmlFor="plan-price" className="text-sm font-medium">Price ({studioCurrency})</label>
+                <Input id="plan-price" type="number" step="0.01" value={newPlan.price} onChange={e => setNewPlan({...newPlan, price: e.target.value})} placeholder="0.00" />
               </div>
               <div>
-                <label className="text-sm font-medium">Billing</label>
-                <select className="w-full border rounded-md px-3 py-2 text-sm" value={newPlan.interval}
+                <label htmlFor="plan-interval" className="text-sm font-medium">Billing</label>
+                <select id="plan-interval" className="w-full border rounded-md px-3 py-2 text-sm" value={newPlan.interval}
                   onChange={e => setNewPlan({...newPlan, interval: e.target.value})}>
                   <option value="month">Monthly</option>
                   <option value="year">Yearly</option>
@@ -189,8 +189,8 @@ export default function PlansPage() {
                 </select>
               </div>
               <div>
-                <label className="text-sm font-medium">Class Limit</label>
-                <Input type="number" value={newPlan.class_limit} onChange={e => setNewPlan({...newPlan, class_limit: e.target.value})} placeholder="Unlimited" />
+                <label htmlFor="plan-class-limit" className="text-sm font-medium">Class Limit</label>
+                <Input id="plan-class-limit" type="number" value={newPlan.class_limit} onChange={e => setNewPlan({...newPlan, class_limit: e.target.value})} placeholder="Unlimited" />
               </div>
             </div>
             <Button onClick={handleCreate} disabled={!newPlan.name || !newPlan.price}>Create Plan</Button>
@@ -224,11 +224,11 @@ export default function PlansPage() {
                 <span className="text-sm text-muted-foreground whitespace-nowrap">
                   {plan.subscriber_count ?? 0} {(plan.subscriber_count ?? 0) === 1 ? 'subscriber' : 'subscribers'}
                 </span>
-                <Button variant="outline" size="sm" className="min-h-[44px] touch-manipulation" onClick={() => handleEdit(plan.id)}>
+                <Button variant="outline" size="sm" className="min-h-[44px] touch-manipulation" onClick={() => handleEdit(plan.id)} aria-label={editingPlan === plan.id ? `Save ${plan.name}` : `Edit ${plan.name}`}>
                   {editingPlan === plan.id ? 'Save' : 'Edit'}
                 </Button>
                 {plan.active && (
-                  <Button variant="outline" size="sm" className="min-h-[44px] touch-manipulation" onClick={() => handleDeactivate(plan.id)}>
+                  <Button variant="outline" size="sm" className="min-h-[44px] touch-manipulation" onClick={() => handleDeactivate(plan.id)} aria-label={`Deactivate ${plan.name}`}>
                     Deactivate
                   </Button>
                 )}

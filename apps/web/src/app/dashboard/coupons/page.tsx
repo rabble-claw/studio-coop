@@ -148,13 +148,13 @@ export default function CouponsPage() {
   }
 
   if (loading) {
-    return <div className="text-muted-foreground py-20 text-center">Loading coupons...</div>
+    return <div className="text-muted-foreground py-20 text-center" aria-busy="true" role="status">Loading coupons...</div>
   }
 
   return (
     <div className="space-y-6">
       {error && (
-        <div className="text-sm px-4 py-3 rounded-md bg-red-50 text-red-700">{error}</div>
+        <div role="alert" className="text-sm px-4 py-3 rounded-md bg-red-50 text-red-700">{error}</div>
       )}
 
       <div className="flex items-center justify-between">
@@ -177,8 +177,9 @@ export default function CouponsPage() {
             <form onSubmit={handleCreate} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Code * (uppercase, no spaces)</label>
+                  <label htmlFor="coupon-code" className="text-xs text-muted-foreground mb-1 block">Code * (uppercase, no spaces)</label>
                   <Input
+                    id="coupon-code"
                     type="text"
                     placeholder="SUMMER20"
                     value={newCode}
@@ -189,8 +190,9 @@ export default function CouponsPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Type *</label>
+                  <label htmlFor="coupon-type" className="text-xs text-muted-foreground mb-1 block">Type *</label>
                   <select
+                    id="coupon-type"
                     className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     value={newType}
                     onChange={(e) => setNewType(e.target.value as typeof newType)}
@@ -204,11 +206,12 @@ export default function CouponsPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">
+                  <label htmlFor="coupon-value" className="text-xs text-muted-foreground mb-1 block">
                     Value *{' '}
                     {newType === 'percent_off' ? '(1–100)' : newType === 'amount_off' ? '(cents, e.g. 1000 = $10)' : '(number of classes)'}
                   </label>
                   <Input
+                    id="coupon-value"
                     type="number"
                     min={1}
                     max={newType === 'percent_off' ? 100 : undefined}
@@ -218,8 +221,9 @@ export default function CouponsPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Applies to</label>
+                  <label htmlFor="coupon-applies-to" className="text-xs text-muted-foreground mb-1 block">Applies to</label>
                   <select
+                    id="coupon-applies-to"
                     className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     value={newAppliesTo}
                     onChange={(e) => setNewAppliesTo(e.target.value)}
@@ -234,8 +238,9 @@ export default function CouponsPage() {
 
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Max redemptions</label>
+                  <label htmlFor="coupon-max-redeem" className="text-xs text-muted-foreground mb-1 block">Max redemptions</label>
                   <Input
+                    id="coupon-max-redeem"
                     type="number"
                     min={1}
                     placeholder="Unlimited"
@@ -244,16 +249,18 @@ export default function CouponsPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Valid from</label>
+                  <label htmlFor="coupon-valid-from" className="text-xs text-muted-foreground mb-1 block">Valid from</label>
                   <Input
+                    id="coupon-valid-from"
                     type="date"
                     value={newValidFrom}
                     onChange={(e) => setNewValidFrom(e.target.value)}
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Valid until</label>
+                  <label htmlFor="coupon-valid-until" className="text-xs text-muted-foreground mb-1 block">Valid until</label>
                   <Input
+                    id="coupon-valid-until"
                     type="date"
                     value={newValidUntil}
                     onChange={(e) => setNewValidUntil(e.target.value)}
@@ -261,7 +268,7 @@ export default function CouponsPage() {
                 </div>
               </div>
 
-              {createError && <p className="text-sm text-red-600">{createError}</p>}
+              {createError && <p role="alert" className="text-sm text-red-600">{createError}</p>}
 
               <div className="flex gap-2">
                 <Button type="submit" disabled={creating}>
@@ -331,6 +338,7 @@ export default function CouponsPage() {
                         size="sm"
                         className="text-red-600 hover:text-red-700 hover:bg-red-50"
                         onClick={() => handleDeactivate(coupon.id)}
+                        aria-label={`Deactivate coupon ${coupon.code}`}
                       >
                         Deactivate
                       </Button>

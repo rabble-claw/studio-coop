@@ -43,7 +43,8 @@
           "merchantIdentifier": "merchant.coop.studio.app",
           "enableGooglePay": true
         }
-      ]
+      ],
+      "@sentry/react-native"
     ]
   }
 }

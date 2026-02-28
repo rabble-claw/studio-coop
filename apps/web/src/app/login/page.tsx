@@ -3,6 +3,7 @@
 import { Suspense, useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,6 +18,8 @@ export default function LoginPage() {
 }
 
 function LoginForm() {
+  const t = useTranslations('auth')
+  const tc = useTranslations('common')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
@@ -46,7 +49,7 @@ function LoginForm() {
       if (err) {
         setError(err.message)
       } else {
-        setMessage('Check your email for a magic link!')
+        setMessage(t('magicLinkSent'))
       }
       setLoading(false)
       return
@@ -61,7 +64,7 @@ function LoginForm() {
       if (err) {
         setError(err.message)
       } else {
-        setMessage('Account created! Check your email to confirm, then sign in.')
+        setMessage(t('accountCreated'))
         // After signup confirmation, they'll be redirected to setup
         router.push('/dashboard/setup')
       }
@@ -88,21 +91,21 @@ function LoginForm() {
               <span className="text-white font-bold">SC</span>
             </div>
           </Link>
-          <h1 className="text-2xl font-bold">Welcome to Studio Co-op</h1>
-          <p className="text-muted-foreground text-sm mt-1">Your studio community awaits</p>
+          <h1 className="text-2xl font-bold">{t('welcomeTitle')}</h1>
+          <p className="text-muted-foreground text-sm mt-1">{t('welcomeSubtitle')}</p>
         </div>
 
         <Card>
           <CardHeader className="pb-4">
             <CardTitle className="text-lg">
-              {mode === 'login' && 'Sign in'}
-              {mode === 'signup' && 'Create account'}
-              {mode === 'magic' && 'Magic link'}
+              {mode === 'login' && t('signIn')}
+              {mode === 'signup' && t('createAccount')}
+              {mode === 'magic' && t('magicLink')}
             </CardTitle>
             <CardDescription>
               {mode === 'magic'
-                ? "We'll send you a link to sign in"
-                : 'Enter your credentials to continue'}
+                ? t('magicLinkDescription')
+                : t('credentialsDescription')}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -111,7 +114,7 @@ function LoginForm() {
                 <div>
                   <Input
                     type="text"
-                    placeholder="Your name"
+                    placeholder={t('namePlaceholder')}
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     required
@@ -121,7 +124,7 @@ function LoginForm() {
               <div>
                 <Input
                   type="email"
-                  placeholder="you@example.com"
+                  placeholder={t('emailPlaceholder')}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -131,7 +134,7 @@ function LoginForm() {
                 <div>
                   <Input
                     type="password"
-                    placeholder="Password"
+                    placeholder={t('passwordPlaceholder')}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
@@ -145,12 +148,12 @@ function LoginForm() {
 
               <Button type="submit" className="w-full" disabled={loading}>
                 {loading
-                  ? 'Loading...'
+                  ? tc('loading')
                   : mode === 'magic'
-                    ? 'Send magic link'
+                    ? t('sendMagicLink')
                     : mode === 'signup'
-                      ? 'Create account'
-                      : 'Sign in'}
+                      ? t('createAccount')
+                      : t('signIn')}
               </Button>
             </form>
 
@@ -161,34 +164,34 @@ function LoginForm() {
                     onClick={() => setMode('magic')}
                     className="text-primary hover:underline block w-full"
                   >
-                    Sign in with magic link instead
+                    {t('signInWithMagicLink')}
                   </button>
                   <p className="text-muted-foreground">
-                    No account?{' '}
+                    {t('noAccount')}{' '}
                     <button onClick={() => setMode('signup')} className="text-primary hover:underline">
-                      Sign up
+                      {t('signUp')}
                     </button>
                   </p>
                 </>
               )}
               {mode === 'signup' && (
                 <p className="text-muted-foreground">
-                  Already have an account?{' '}
+                  {t('alreadyHaveAccount')}{' '}
                   <button onClick={() => setMode('login')} className="text-primary hover:underline">
-                    Sign in
+                    {t('signIn')}
                   </button>
                 </p>
               )}
               {mode === 'magic' && (
                 <button onClick={() => setMode('login')} className="text-primary hover:underline">
-                  Back to password sign in
+                  {t('backToPassword')}
                 </button>
               )}
             </div>
 
             <div className="mt-6 pt-4 border-t text-center">
               <Link href="/demo" className="text-sm text-muted-foreground hover:text-foreground">
-                Or try the demo first →
+                {t('tryDemoFirst')} →
               </Link>
             </div>
           </CardContent>

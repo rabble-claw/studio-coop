@@ -173,6 +173,13 @@ export default function SignInScreen() {
               </TouchableOpacity>
             </Link>
           </View>
+          <View className="items-center mt-3">
+            <Link href="/(public)/explore" asChild>
+              <TouchableOpacity>
+                <Text className="text-muted">Browse Studios</Text>
+              </TouchableOpacity>
+            </Link>
+          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

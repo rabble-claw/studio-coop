@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { api, scheduleApi } from '@/lib/api-client'
@@ -35,6 +36,8 @@ interface Teacher {
 
 export default function SchedulePage() {
   const router = useRouter()
+  const t = useTranslations('schedule')
+  const tc = useTranslations('common')
   const [studioId, setStudioId] = useState<string | null>(null)
   const [classesByDate, setClassesByDate] = useState<Record<string, ClassInstance[]>>({})
   const [loading, setLoading] = useState(true)
@@ -188,67 +191,67 @@ export default function SchedulePage() {
   }
 
   if (loading) {
-    return <div className="flex items-center justify-center py-20"><div className="text-muted-foreground">Loading schedule...</div></div>
+    return <div className="flex items-center justify-center py-20" aria-busy="true"><div className="text-muted-foreground" role="status">{t('loadingSchedule')}</div></div>
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Schedule</h1>
-          <p className="text-muted-foreground">Manage your studio&apos;s class schedule</p>
+          <h1 className="text-2xl font-bold">{t('title')}</h1>
+          <p className="text-muted-foreground">{t('subtitle')}</p>
         </div>
         <Button onClick={() => setShowAddClass(!showAddClass)}>
-          {showAddClass ? 'Cancel' : '+ Add Class'}
+          {showAddClass ? tc('cancel') : `+ ${t('addClassButton')}`}
         </Button>
       </div>
 
       {error && (
-        <div className="text-sm px-4 py-3 rounded-md bg-red-50 text-red-700">{error}</div>
+        <div role="alert" className="text-sm px-4 py-3 rounded-md bg-red-50 text-red-700">{error}</div>
       )}
 
       {showAddClass && (
         <Card>
-          <CardHeader><CardTitle>Add One-Off Class</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{t('addOneOffClass')}</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium">Class Template</label>
-                <select className="w-full border rounded-md px-3 py-2 text-sm" value={newClass.template_id}
+                <label htmlFor="class-template" className="text-sm font-medium">{t('classTemplate')}</label>
+                <select id="class-template" className="w-full border rounded-md px-3 py-2 text-sm" value={newClass.template_id}
                   onChange={e => handleTemplateChange(e.target.value)}>
-                  <option value="">Select a template...</option>
+                  <option value="">{t('selectTemplate')}</option>
                   {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
               </div>
               <div>
-                <label className="text-sm font-medium">Teacher</label>
-                <select className="w-full border rounded-md px-3 py-2 text-sm" value={newClass.teacher_id}
+                <label htmlFor="class-teacher" className="text-sm font-medium">{t('teacher')}</label>
+                <select id="class-teacher" className="w-full border rounded-md px-3 py-2 text-sm" value={newClass.teacher_id}
                   onChange={e => setNewClass({...newClass, teacher_id: e.target.value})}>
-                  <option value="">Select teacher...</option>
+                  <option value="">{t('selectTeacher')}</option>
                   {teachers.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </select>
               </div>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div>
-                <label className="text-sm font-medium">Date</label>
-                <Input type="date" value={newClass.date} onChange={e => setNewClass({...newClass, date: e.target.value})} />
+                <label htmlFor="class-date" className="text-sm font-medium">{t('date')}</label>
+                <Input id="class-date" type="date" value={newClass.date} onChange={e => setNewClass({...newClass, date: e.target.value})} />
               </div>
               <div>
-                <label className="text-sm font-medium">Start Time</label>
-                <Input type="time" value={newClass.start_time} onChange={e => setNewClass({...newClass, start_time: e.target.value})} />
+                <label htmlFor="class-start" className="text-sm font-medium">{t('startTime')}</label>
+                <Input id="class-start" type="time" value={newClass.start_time} onChange={e => setNewClass({...newClass, start_time: e.target.value})} />
               </div>
               <div>
-                <label className="text-sm font-medium">End Time</label>
-                <Input type="time" value={newClass.end_time} onChange={e => setNewClass({...newClass, end_time: e.target.value})} />
+                <label htmlFor="class-end" className="text-sm font-medium">{t('endTime')}</label>
+                <Input id="class-end" type="time" value={newClass.end_time} onChange={e => setNewClass({...newClass, end_time: e.target.value})} />
               </div>
               <div>
-                <label className="text-sm font-medium">Capacity</label>
-                <Input type="number" value={newClass.max_capacity} onChange={e => setNewClass({...newClass, max_capacity: e.target.value})} placeholder="12" />
+                <label htmlFor="class-capacity" className="text-sm font-medium">{t('capacity')}</label>
+                <Input id="class-capacity" type="number" value={newClass.max_capacity} onChange={e => setNewClass({...newClass, max_capacity: e.target.value})} placeholder="12" />
               </div>
             </div>
             <Button onClick={handleAddClass} disabled={creating || !newClass.date || !newClass.start_time}>
-              {creating ? 'Creating...' : 'Create Class'}
+              {creating ? tc('creating') : t('createClass')}
             </Button>
           </CardContent>
         </Card>
@@ -257,7 +260,7 @@ export default function SchedulePage() {
       {Object.keys(classesByDate).length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
-            No upcoming classes. Create your first class to get started.
+            {t('noUpcomingClasses')}
           </CardContent>
         </Card>
       ) : (
@@ -282,8 +285,8 @@ export default function SchedulePage() {
                                   {formatTime(cls.start_time)} — {formatTime(cls.end_time)}
                                 </div>
                                 <div>
-                                  <div className="font-medium">{cls.template?.name ?? 'Class'}</div>
-                                  <div className="text-sm text-muted-foreground">with {cls.teacher?.name ?? 'TBA'}</div>
+                                  <div className="font-medium">{cls.template?.name ?? t('classFallback')}</div>
+                                  <div className="text-sm text-muted-foreground">{t('withTeacher', { name: cls.teacher?.name ?? t('teacherTba') })}</div>
                                 </div>
                               </div>
                             </div>
@@ -293,7 +296,7 @@ export default function SchedulePage() {
                                   <span className="font-medium">{cls.booked_count ?? 0}</span>
                                   <span className="text-muted-foreground">/{cls.max_capacity}</span>
                                 </div>
-                                <div className="w-20 h-1.5 bg-secondary rounded-full mt-1">
+                                <div className="w-20 h-1.5 bg-secondary rounded-full mt-1" role="progressbar" aria-valuenow={cls.booked_count ?? 0} aria-valuemin={0} aria-valuemax={cls.max_capacity} aria-label={`${cls.booked_count ?? 0} of ${cls.max_capacity} spots booked`}>
                                   <div
                                     className={`h-full rounded-full ${fillPercent > 80 ? 'bg-amber-500' : 'bg-primary'}`}
                                     style={{ width: `${Math.min(fillPercent, 100)}%` }}
@@ -303,13 +306,14 @@ export default function SchedulePage() {
                               {cls.status === 'cancelled' ? (
                                 <div className="flex items-center gap-2">
                                   <span className="text-xs px-2 py-1 rounded-full whitespace-nowrap bg-red-100 text-red-700">
-                                    Cancelled
+                                    {t('cancelled')}
                                   </span>
                                   <button
                                     onClick={(e) => handleRestoreClass(e, cls.id)}
-                                    className="text-xs px-2 py-1 rounded bg-green-50 text-green-700 hover:bg-green-100 whitespace-nowrap"
+                                    className="text-xs px-2 py-1 rounded bg-green-50 text-green-700 hover:bg-green-100 whitespace-nowrap focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                    aria-label={`${t('restore')} ${cls.template?.name ?? t('classFallback')}`}
                                   >
-                                    Restore
+                                    {t('restore')}
                                   </button>
                                 </div>
                               ) : (
@@ -320,7 +324,7 @@ export default function SchedulePage() {
                                     ? 'bg-amber-100 text-amber-700'
                                     : 'bg-green-100 text-green-700'
                                 }`}>
-                                  {spotsLeft === 0 ? 'Full' : `${spotsLeft} left`}
+                                  {spotsLeft === 0 ? t('full') : t('spotsLeft', { count: spotsLeft })}
                                 </span>
                               )}
                             </div>

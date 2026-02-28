@@ -4,6 +4,9 @@ import { useEffect } from 'react'
 import { NativeModules } from 'react-native'
 import { AuthProvider, useAuth } from '@/lib/auth-context'
 import { setupNotificationListeners } from '@/lib/push'
+import { initSentry, Sentry } from '@/lib/sentry'
+
+initSentry()
 
 const STRIPE_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ''
 
@@ -29,8 +32,9 @@ function AuthGate() {
 
     const inAuthGroup = segments[0] === 'auth'
     const inOnboarding = segments[0] === 'onboarding'
+    const inPublicGroup = segments[0] === '(public)'
 
-    if (!session && !inAuthGroup) {
+    if (!session && !inAuthGroup && !inPublicGroup) {
       router.replace('/auth/sign-in')
     } else if (session && inAuthGroup) {
       // Logged in — check if they have a studio
@@ -58,7 +62,7 @@ function AuthGate() {
   return <Slot />
 }
 
-export default function RootLayout() {
+function RootLayout() {
   const content = (
     <AuthProvider>
       <AuthGate />
@@ -78,3 +82,5 @@ export default function RootLayout() {
 
   return content
 }
+
+export default Sentry.wrap(RootLayout)

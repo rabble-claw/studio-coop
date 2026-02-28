@@ -124,7 +124,7 @@ export default function MigratePage() {
       </div>
 
       {/* Progress */}
-      <div className="flex gap-2">
+      <div className="flex gap-2" aria-live="polite" aria-label="Migration progress">
         {['Upload', 'Map Columns', 'Validate', 'Confirm', 'Results'].map((label, i) => (
           <div key={label} className="flex items-center gap-2">
             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
@@ -138,7 +138,7 @@ export default function MigratePage() {
       </div>
 
       {error && (
-        <div className="text-sm px-4 py-2 rounded-md bg-red-50 text-red-700">{error}</div>
+        <div role="alert" className="text-sm px-4 py-2 rounded-md bg-red-50 text-red-700">{error}</div>
       )}
 
       {step === 'upload' && (
@@ -152,8 +152,9 @@ export default function MigratePage() {
                 { id: 'csv' as const, label: 'Other (CSV)', desc: 'Upload any CSV file' },
               ].map(p => (
                 <button key={p.id}
-                  className={`p-4 rounded-lg border text-left ${source === p.id ? 'border-primary bg-primary/5' : 'border-border'}`}
+                  className={`p-4 rounded-lg border text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${source === p.id ? 'border-primary bg-primary/5' : 'border-border'}`}
                   onClick={() => setSource(p.id)}
+                  aria-pressed={source === p.id}
                 >
                   <div className="font-medium">{p.label}</div>
                   <div className="text-xs text-muted-foreground mt-1">{p.desc}</div>
@@ -174,15 +175,16 @@ export default function MigratePage() {
             )}
 
             <div>
-              <input ref={fileRef} type="file" accept=".csv,.txt" onChange={handleFileUpload} className="hidden" />
+              <input ref={fileRef} type="file" accept=".csv,.txt" onChange={handleFileUpload} className="hidden" aria-label="Upload CSV file" />
               <Button onClick={() => fileRef.current?.click()} className="w-full" size="lg">
                 Upload CSV File
               </Button>
             </div>
 
             <div>
-              <label className="text-sm font-medium text-muted-foreground">Or paste CSV content directly</label>
+              <label htmlFor="csv-paste" className="text-sm font-medium text-muted-foreground">Or paste CSV content directly</label>
               <textarea
+                id="csv-paste"
                 className="w-full border rounded-md px-3 py-2 text-sm min-h-[100px] font-mono mt-1"
                 value={csvContent}
                 onChange={e => setCsvContent(e.target.value)}
@@ -214,6 +216,7 @@ export default function MigratePage() {
                   value={col.target}
                   onChange={e => updateColumnTarget(i, e.target.value)}
                   className="flex-1 border rounded-md px-3 py-2 text-sm"
+                  aria-label={`Map column "${col.source}" to field`}
                 >
                   {TARGET_OPTIONS.map(opt => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -254,11 +257,11 @@ export default function MigratePage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/50">
-                      <th className="px-3 py-2 text-left text-xs font-medium">Status</th>
+                      <th scope="col" className="px-3 py-2 text-left text-xs font-medium">Status</th>
                       {columns.map(col => (
-                        <th key={col.source} className="px-3 py-2 text-left text-xs font-medium">{col.source}</th>
+                        <th scope="col" key={col.source} className="px-3 py-2 text-left text-xs font-medium">{col.source}</th>
                       ))}
-                      <th className="px-3 py-2 text-left text-xs font-medium">Errors</th>
+                      <th scope="col" className="px-3 py-2 text-left text-xs font-medium">Errors</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -340,9 +343,9 @@ export default function MigratePage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/50">
-                      <th className="px-3 py-2 text-left text-xs font-medium">Row</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium">Email</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium">Error</th>
+                      <th scope="col" className="px-3 py-2 text-left text-xs font-medium">Row</th>
+                      <th scope="col" className="px-3 py-2 text-left text-xs font-medium">Email</th>
+                      <th scope="col" className="px-3 py-2 text-left text-xs font-medium">Error</th>
                     </tr>
                   </thead>
                   <tbody>

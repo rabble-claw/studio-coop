@@ -168,4 +168,11 @@ export const studioListApi = {
   myStudios: () => api.get<Array<{ id: string; studio_id: string; role: string; studio: { id: string; name: string; slug: string; discipline: string } }>>('/api/me/memberships'),
 }
 
+// Discover (public, no auth required)
+export const discoverApi = {
+  filters: () => api.get<{ cities: string[]; disciplines: string[] }>('/api/discover/filters'),
+  studios: (queryString?: string) => api.get<{ studios: Array<{ id: string; name: string; slug: string; discipline: string; description: string | null; logo_url: string | null; city: string | null; member_count: number; upcoming_class_count: number }>; total: number; page: number; limit: number }>(`/api/discover/studios${queryString ?? ''}`),
+  studioBySlug: (slug: string) => api.get<{ studio: { id: string; name: string; slug: string; discipline: string; description: string | null; logo_url: string | null; address: string | null; phone: string | null; website: string | null; email: string | null; instagram: string | null; facebook: string | null; city: string | null }; classes: Array<{ id: string; date: string; start_time: string; end_time: string; max_capacity: number; booked_count: number | null; teacher: { name: string } | null; template: { name: string; description: string | null } | null }>; plans: Array<{ id: string; name: string; description: string | null; type: string; price_cents: number; currency: string; interval: string; class_limit: number | null; validity_days: number | null }>; member_count: number }>(`/api/discover/studios/${slug}`),
+}
+
 export { ApiError }

@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { formatTime, formatDate } from '@/lib/utils'
 import Link from 'next/link'
@@ -74,7 +75,28 @@ async function getStudioData(slug: string) {
   }
 }
 
-const RESERVED_SLUGS = ['api', 'login', 'dashboard', 'demo', 'admin', 'signup', 'forgot-password']
+const RESERVED_SLUGS = ['api', 'login', 'dashboard', 'demo', 'admin', 'signup', 'forgot-password', 'explore']
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params
+  if (RESERVED_SLUGS.includes(slug)) return {}
+  const data = await getStudioData(slug)
+  if (!data) return {}
+  const { studio } = data
+  const settings = (studio.settings ?? {}) as Record<string, unknown>
+  const address = settings.address as string | undefined
+  const description = studio.description ?? `${studio.name} — ${studio.discipline} studio${address ? ` in ${address}` : ''}. View schedule and pricing on Studio Co-op.`
+  return {
+    title: `${studio.name} | Studio Co-op`,
+    description,
+    openGraph: {
+      title: studio.name,
+      description,
+      type: 'website',
+      ...(studio.logo_url ? { images: [{ url: studio.logo_url }] } : {}),
+    },
+  }
+}
 
 export default async function PublicStudioPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
@@ -88,12 +110,29 @@ export default async function PublicStudioPage({ params }: { params: Promise<{ s
   const instagram = settings.instagram as string | undefined
   const facebook = settings.facebook as string | undefined
 
+  // JSON-LD structured data for SEO
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'SportsActivityLocation',
+    name: studio.name,
+    description: studio.description ?? undefined,
+    sport: studio.discipline,
+    ...(address ? { address: { '@type': 'PostalAddress', streetAddress: address } } : {}),
+    ...(studio.logo_url ? { image: studio.logo_url } : {}),
+    ...(studioEmail ? { email: studioEmail } : {}),
+    url: `https://studio.coop/${slug}`,
+  }
+
   return (
     <div className="min-h-screen" style={{
       fontFamily: "'Inter', system-ui, sans-serif",
       color: '#706477',
       background: '#fff',
     }}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {/* Nav */}
       <nav className="flex items-center justify-between px-6 py-4 max-w-5xl mx-auto">
         <div className="flex items-center gap-3">
@@ -111,7 +150,7 @@ export default async function PublicStudioPage({ params }: { params: Promise<{ s
             </a>
           )}
           <Link
-            href="/login"
+            href={`/login?studio=${slug}`}
             className="inline-flex items-center rounded-full border-2 px-5 py-2 text-sm font-medium transition-colors hover:bg-[#7c3aed] hover:text-white hover:border-[#7c3aed]"
             style={{ borderColor: '#7c3aed', color: '#7c3aed' }}
           >
@@ -174,7 +213,7 @@ export default async function PublicStudioPage({ params }: { params: Promise<{ s
                             </div>
                           </div>
                           <Link
-                            href="/login"
+                            href={`/login?studio=${slug}`}
                             className="inline-flex items-center rounded-full border-2 px-4 py-1.5 text-xs font-medium transition-colors hover:bg-[#7c3aed] hover:text-white hover:border-[#7c3aed]"
                             style={{ borderColor: '#7c3aed', color: '#7c3aed' }}
                           >
@@ -253,7 +292,7 @@ export default async function PublicStudioPage({ params }: { params: Promise<{ s
                           </p>
                         )}
                         <Link
-                          href="/login"
+                          href={`/login?studio=${slug}`}
                           className="mt-4 inline-flex w-full items-center justify-center rounded-full border-2 px-5 py-2.5 text-sm font-medium transition-colors hover:bg-[#7c3aed] hover:text-white hover:border-[#7c3aed]"
                           style={{
                             borderColor: '#7c3aed',
@@ -271,7 +310,7 @@ export default async function PublicStudioPage({ params }: { params: Promise<{ s
             ) : (
               <div className="text-center">
                 <Link
-                  href="/login"
+                  href={`/login?studio=${slug}`}
                   className="inline-flex items-center rounded-full border-2 px-8 py-3 font-medium transition-colors hover:bg-[#7c3aed] hover:text-white hover:border-[#7c3aed]"
                   style={{ borderColor: '#7c3aed', color: '#7c3aed' }}
                 >
@@ -302,7 +341,9 @@ export default async function PublicStudioPage({ params }: { params: Promise<{ s
             )}
             {studioEmail && <span>{studioEmail}</span>}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
+            <Link href="/explore" className="hover:underline" style={{ color: '#7c3aed' }}>Browse more studios</Link>
+            <span>·</span>
             <span>Powered by</span>
             <Link href="/" className="font-medium hover:underline" style={{ color: '#7c3aed' }}>Studio Co-op</Link>
           </div>

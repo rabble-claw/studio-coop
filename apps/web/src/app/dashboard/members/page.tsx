@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase/client'
 import { inviteApi, memberApi } from '@/lib/api-client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -22,6 +23,8 @@ interface Member {
 
 export default function MembersPage() {
   const router = useRouter()
+  const t = useTranslations('members')
+  const tc = useTranslations('common')
   const [studioId, setStudioId] = useState<string | null>(null)
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
@@ -147,67 +150,70 @@ export default function MembersPage() {
   )
 
   if (loading) {
-    return <div className="flex items-center justify-center py-20"><div className="text-muted-foreground">Loading members...</div></div>
+    return <div className="flex items-center justify-center py-20" aria-busy="true"><div className="text-muted-foreground" role="status">{t('loadingMembers')}</div></div>
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Members</h1>
-          <p className="text-muted-foreground">{members.length} total members</p>
+          <h1 className="text-2xl font-bold">{t('title')}</h1>
+          <p className="text-muted-foreground">{t('totalMembers', { count: members.length })}</p>
         </div>
         <Button onClick={() => setShowInvite(!showInvite)}>
-          {showInvite ? 'Cancel' : '+ Invite Member'}
+          {showInvite ? tc('cancel') : `+ ${t('inviteMember')}`}
         </Button>
       </div>
 
       {showInvite && (
         <Card>
-          <CardHeader><CardTitle>Invite New Member</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{t('inviteNewMember')}</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="text-sm font-medium">Email *</label>
-                <Input type="email" value={invite.email}
+                <label htmlFor="invite-email" className="text-sm font-medium">{t('emailLabel')}</label>
+                <Input id="invite-email" type="email" value={invite.email}
                   onChange={e => setInvite({...invite, email: e.target.value})}
-                  placeholder="member@example.com" />
+                  placeholder={t('emailPlaceholder')} />
               </div>
               <div>
-                <label className="text-sm font-medium">Name (optional)</label>
-                <Input value={invite.name}
+                <label htmlFor="invite-name" className="text-sm font-medium">{t('nameLabel')}</label>
+                <Input id="invite-name" value={invite.name}
                   onChange={e => setInvite({...invite, name: e.target.value})}
-                  placeholder="Full name" />
+                  placeholder={t('namePlaceholder')} />
               </div>
               <div>
-                <label className="text-sm font-medium">Role</label>
-                <select className="w-full border rounded-md px-3 py-2 text-sm" value={invite.role}
+                <label htmlFor="invite-role" className="text-sm font-medium">{t('roleLabel')}</label>
+                <select id="invite-role" className="w-full border rounded-md px-3 py-2 text-sm" value={invite.role}
                   onChange={e => setInvite({...invite, role: e.target.value})}>
-                  <option value="member">Member</option>
-                  <option value="teacher">Teacher</option>
-                  <option value="admin">Admin</option>
+                  <option value="member">{t('roleMember')}</option>
+                  <option value="teacher">{t('roleTeacher')}</option>
+                  <option value="admin">{t('roleAdmin')}</option>
                 </select>
               </div>
             </div>
             {inviteMessage && (
-              <div className={`text-sm px-3 py-2 rounded-md ${inviteMessage.startsWith('Error') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
+              <div role={inviteMessage.startsWith('Error') ? 'alert' : 'status'} aria-live={inviteMessage.startsWith('Error') ? 'assertive' : 'polite'} className={`text-sm px-3 py-2 rounded-md ${inviteMessage.startsWith('Error') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
                 {inviteMessage}
               </div>
             )}
             <Button onClick={handleInvite} disabled={inviting || !invite.email}>
-              {inviting ? 'Sending...' : 'Send Invitation'}
+              {inviting ? tc('sending') : t('sendInvitation')}
             </Button>
           </CardContent>
         </Card>
       )}
 
       <div>
+        <label htmlFor="member-search" className="sr-only">Search members</label>
         <input
+          id="member-search"
           type="text"
-          placeholder="Search members..."
+          placeholder={t('searchPlaceholder')}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full max-w-sm rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          className="w-full max-w-sm rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          aria-label="Search members by name or email"
         />
       </div>
 
@@ -218,9 +224,9 @@ export default function MembersPage() {
               <CardContent className="py-4">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 shrink-0 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
+                    <div className="w-10 h-10 shrink-0 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary" aria-hidden="true">
                       {member.avatar_url ? (
-                        <img src={member.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
+                        <img src={member.avatar_url} alt={`${member.name}'s avatar`} className="w-10 h-10 rounded-full object-cover" />
                       ) : member.name[0]}
                     </div>
                     <div className="min-w-0">
@@ -234,7 +240,7 @@ export default function MembersPage() {
                     </span>
                     {member.status === 'suspended' && (
                       <span className="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-700">
-                        suspended
+                        {t('suspended')}
                       </span>
                     )}
                     <span className="text-xs text-muted-foreground hidden sm:inline whitespace-nowrap">
@@ -245,27 +251,27 @@ export default function MembersPage() {
                         {member.status === 'active' && (
                           <button
                             onClick={(e) => handleSuspend(e, member.id)}
-                            className="text-xs px-2 py-1 rounded text-amber-600 hover:bg-amber-50 hidden sm:inline"
-                            title="Suspend member"
+                            className="text-xs px-2 py-1 rounded text-amber-600 hover:bg-amber-50 hidden sm:inline focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                            aria-label={`Suspend ${member.name}`}
                           >
-                            Suspend
+                            {t('suspend')}
                           </button>
                         )}
                         {member.status === 'suspended' && (
                           <button
                             onClick={(e) => handleReactivate(e, member.id)}
-                            className="text-xs px-2 py-1 rounded text-green-600 hover:bg-green-50 hidden sm:inline"
-                            title="Reactivate member"
+                            className="text-xs px-2 py-1 rounded text-green-600 hover:bg-green-50 hidden sm:inline focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                            aria-label={`Reactivate ${member.name}`}
                           >
-                            Reactivate
+                            {t('reactivate')}
                           </button>
                         )}
                         <button
                           onClick={(e) => handleRemove(e, member.id)}
-                          className="text-xs px-2 py-1 rounded text-red-600 hover:bg-red-50 hidden sm:inline"
-                          title="Remove member"
+                          className="text-xs px-2 py-1 rounded text-red-600 hover:bg-red-50 hidden sm:inline focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                          aria-label={`Remove ${member.name}`}
                         >
-                          Remove
+                          {t('remove')}
                         </button>
                       </div>
                     )}
@@ -277,7 +283,7 @@ export default function MembersPage() {
         ))}
         {sorted.length === 0 && (
           <p className="text-center text-muted-foreground py-8">
-            {search ? 'No members match your search.' : 'No members yet.'}
+            {search ? t('noMembersMatch') : t('noMembersYet')}
           </p>
         )}
       </div>

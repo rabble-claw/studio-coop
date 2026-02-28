@@ -2,6 +2,18 @@ import type { ErrorHandler } from 'hono'
 import { AppError } from '../lib/errors'
 
 export const errorHandler: ErrorHandler = (err, c) => {
+  // Report unexpected errors to Sentry (skip expected AppErrors)
+  if (!(err instanceof AppError)) {
+    try {
+      const sentry = c.get('sentry')
+      if (sentry) {
+        sentry.captureException(err)
+      }
+    } catch {
+      // Sentry not available on context — ignore
+    }
+  }
+
   if (err instanceof AppError) {
     return c.json(err.toJSON(), err.status as any)
   }

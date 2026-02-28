@@ -102,7 +102,7 @@ export default function PrivateBookingsPage() {
     cancelled: 'bg-red-100 text-red-800',
   }
 
-  if (loading) return <div className="py-20 text-center text-muted-foreground">Loading bookings...</div>
+  if (loading) return <div className="py-20 text-center text-muted-foreground" aria-busy="true" role="status">Loading bookings...</div>
 
   return (
     <div className="space-y-6">
@@ -117,7 +117,7 @@ export default function PrivateBookingsPage() {
       </div>
 
       {error && (
-        <div className="text-sm px-4 py-3 rounded-md bg-red-50 text-red-700">{error}</div>
+        <div role="alert" className="text-sm px-4 py-3 rounded-md bg-red-50 text-red-700">{error}</div>
       )}
 
       {showCreate && (
@@ -126,18 +126,18 @@ export default function PrivateBookingsPage() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium">Client Name</label>
-                <Input value={newBooking.client_name} onChange={e => setNewBooking({...newBooking, client_name: e.target.value})} />
+                <label htmlFor="booking-client-name" className="text-sm font-medium">Client Name</label>
+                <Input id="booking-client-name" value={newBooking.client_name} onChange={e => setNewBooking({...newBooking, client_name: e.target.value})} />
               </div>
               <div>
-                <label className="text-sm font-medium">Email</label>
-                <Input type="email" value={newBooking.client_email} onChange={e => setNewBooking({...newBooking, client_email: e.target.value})} />
+                <label htmlFor="booking-client-email" className="text-sm font-medium">Email</label>
+                <Input id="booking-client-email" type="email" value={newBooking.client_email} onChange={e => setNewBooking({...newBooking, client_email: e.target.value})} />
               </div>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div>
-                <label className="text-sm font-medium">Type</label>
-                <select className="w-full border rounded-md px-3 py-2 text-sm" value={newBooking.type}
+                <label htmlFor="booking-type" className="text-sm font-medium">Type</label>
+                <select id="booking-type" className="w-full border rounded-md px-3 py-2 text-sm" value={newBooking.type}
                   onChange={e => setNewBooking({...newBooking, type: e.target.value})}>
                   <option>Private Lesson</option>
                   <option>Pole Party</option>
@@ -148,26 +148,26 @@ export default function PrivateBookingsPage() {
                 </select>
               </div>
               <div>
-                <label className="text-sm font-medium">Date</label>
-                <Input type="date" value={newBooking.date} onChange={e => setNewBooking({...newBooking, date: e.target.value})} />
+                <label htmlFor="booking-date" className="text-sm font-medium">Date</label>
+                <Input id="booking-date" type="date" value={newBooking.date} onChange={e => setNewBooking({...newBooking, date: e.target.value})} />
               </div>
               <div>
-                <label className="text-sm font-medium">Start</label>
-                <Input type="time" value={newBooking.start_time} onChange={e => setNewBooking({...newBooking, start_time: e.target.value})} />
+                <label htmlFor="booking-start" className="text-sm font-medium">Start</label>
+                <Input id="booking-start" type="time" value={newBooking.start_time} onChange={e => setNewBooking({...newBooking, start_time: e.target.value})} />
               </div>
               <div>
-                <label className="text-sm font-medium">End</label>
-                <Input type="time" value={newBooking.end_time} onChange={e => setNewBooking({...newBooking, end_time: e.target.value})} />
+                <label htmlFor="booking-end" className="text-sm font-medium">End</label>
+                <Input id="booking-end" type="time" value={newBooking.end_time} onChange={e => setNewBooking({...newBooking, end_time: e.target.value})} />
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium">Price ($NZD)</label>
-                <Input type="number" step="0.01" value={newBooking.price} onChange={e => setNewBooking({...newBooking, price: e.target.value})} />
+                <label htmlFor="booking-price" className="text-sm font-medium">Price ($NZD)</label>
+                <Input id="booking-price" type="number" step="0.01" value={newBooking.price} onChange={e => setNewBooking({...newBooking, price: e.target.value})} />
               </div>
               <div>
-                <label className="text-sm font-medium">Notes</label>
-                <Input value={newBooking.notes} onChange={e => setNewBooking({...newBooking, notes: e.target.value})} placeholder="Special requests, group size, etc." />
+                <label htmlFor="booking-notes" className="text-sm font-medium">Notes</label>
+                <Input id="booking-notes" value={newBooking.notes} onChange={e => setNewBooking({...newBooking, notes: e.target.value})} placeholder="Special requests, group size, etc." />
               </div>
             </div>
             <Button onClick={handleCreate} disabled={!newBooking.client_name || !newBooking.date}>Create Booking</Button>
@@ -204,12 +204,12 @@ export default function PrivateBookingsPage() {
                   <div className="flex gap-2">
                     {booking.status === 'pending' && (
                       <>
-                        <Button size="sm" className="min-h-[44px] touch-manipulation" onClick={() => updateStatus(booking.id, 'confirmed')}>Confirm</Button>
-                        <Button size="sm" variant="outline" className="min-h-[44px] touch-manipulation" onClick={() => updateStatus(booking.id, 'cancelled')}>Decline</Button>
+                        <Button size="sm" className="min-h-[44px] touch-manipulation" onClick={() => updateStatus(booking.id, 'confirmed')} aria-label={`Confirm booking for ${booking.client_name}`}>Confirm</Button>
+                        <Button size="sm" variant="outline" className="min-h-[44px] touch-manipulation" onClick={() => updateStatus(booking.id, 'cancelled')} aria-label={`Decline booking for ${booking.client_name}`}>Decline</Button>
                       </>
                     )}
                     {booking.status === 'confirmed' && (
-                      <Button size="sm" className="min-h-[44px] touch-manipulation" onClick={() => updateStatus(booking.id, 'completed')}>Mark Complete</Button>
+                      <Button size="sm" className="min-h-[44px] touch-manipulation" onClick={() => updateStatus(booking.id, 'completed')} aria-label={`Mark complete: ${booking.client_name}`}>Mark Complete</Button>
                     )}
                   </div>
                 </div>

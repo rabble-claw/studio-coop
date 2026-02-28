@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 import { errorHandler } from './middleware/error-handler'
+import { sentryMiddleware } from './middleware/sentry'
 import { rateLimit } from './middleware/rate-limit'
 import plans from './routes/plans'
 import webhooks from './routes/webhooks'
@@ -27,6 +28,7 @@ import migration from './routes/migration'
 import { stripeRoutes } from './routes/stripe'
 import featureFlags from './routes/feature-flags'
 import governance from './routes/governance'
+import discover from './routes/discover'
 import { getConfig } from './lib/config'
 
 // Validate environment configuration at startup — fail fast in production
@@ -43,6 +45,7 @@ try {
 const app = new Hono()
 
 // Global middleware
+app.use('*', sentryMiddleware)
 app.use('*', logger())
 app.use('*', cors({
   origin: [
@@ -59,6 +62,7 @@ app.onError(errorHandler)
 
 // Rate limiting on sensitive endpoints (L13)
 // For production, also configure Cloudflare WAF rate limiting at the zone level.
+app.use('/api/discover/*', rateLimit({ limit: 30, windowSeconds: 60 }))
 app.use('/api/studios/*/classes/*/book', rateLimit({ limit: 10, windowSeconds: 60 }))
 app.use('/api/studios/*/coupons/redeem', rateLimit({ limit: 5, windowSeconds: 60 }))
 app.use('/api/my/push-token', rateLimit({ limit: 5, windowSeconds: 60 }))
@@ -101,6 +105,7 @@ app.route('/api/studios', stripeRoutes)
 app.route('/api/admin', featureFlags)
 app.route('/api/studios', featureFlags)
 app.route('/api/governance', governance)
+app.route('/api/discover', discover)
 
 export default app
 export { app }

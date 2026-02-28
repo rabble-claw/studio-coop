@@ -82,7 +82,7 @@ export default function NotificationsPage() {
     general: '●',
   }
 
-  if (loading) return <div className="py-20 text-center text-muted-foreground">Loading notifications...</div>
+  if (loading) return <div className="py-20 text-center text-muted-foreground" aria-busy="true" role="status">Loading notifications...</div>
 
   return (
     <div className="space-y-6">
@@ -99,7 +99,7 @@ export default function NotificationsPage() {
       </div>
 
       {error && (
-        <div className="text-sm px-4 py-3 rounded-md bg-red-50 text-red-700">{error}</div>
+        <div role="alert" className="text-sm px-4 py-3 rounded-md bg-red-50 text-red-700">{error}</div>
       )}
 
       {notifications.length === 0 && !error ? (
@@ -109,24 +109,29 @@ export default function NotificationsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-2" aria-live="polite">
           {notifications.map(notif => (
             <Card
               key={notif.id}
               className={`cursor-pointer transition-colors ${!notif.read_at ? 'bg-primary/5 border-primary/20' : ''}`}
               onClick={() => !notif.read_at && handleMarkRead(notif.id)}
+              onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && !notif.read_at) { e.preventDefault(); handleMarkRead(notif.id) } }}
+              tabIndex={!notif.read_at ? 0 : undefined}
+              role={!notif.read_at ? 'button' : undefined}
+              aria-label={!notif.read_at ? `Mark as read: ${notif.title}` : undefined}
             >
               <CardContent className="py-4">
                 <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm shrink-0" aria-hidden="true">
                     {typeIcons[notif.type] ?? '●'}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-sm">{notif.title}</span>
                       {!notif.read_at && (
-                        <span className="w-2 h-2 rounded-full bg-primary shrink-0" />
+                        <span className="w-2 h-2 rounded-full bg-primary shrink-0" aria-hidden="true" />
                       )}
+                      {!notif.read_at && <span className="sr-only">(unread)</span>}
                     </div>
                     <p className="text-sm text-muted-foreground mt-0.5">{notif.body}</p>
                   </div>

@@ -12,3 +12,6 @@ android/
 pnpm-lock.yaml
 .open-next/
 .vercel/
+playwright-report/
+test-results/
+blob-report/

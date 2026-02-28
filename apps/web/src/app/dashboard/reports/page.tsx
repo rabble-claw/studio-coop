@@ -110,7 +110,7 @@ export default function ReportsPage() {
     return `Last class: ${days} days ago`
   }
 
-  if (loading) return <div className="py-20 text-center text-muted-foreground">Loading reports...</div>
+  if (loading) return <div className="py-20 text-center text-muted-foreground" aria-busy="true" role="status">Loading reports...</div>
 
   return (
     <div className="space-y-6">
@@ -120,7 +120,7 @@ export default function ReportsPage() {
       </div>
 
       {error && (
-        <div className="text-sm px-4 py-3 rounded-md bg-red-50 text-red-700">{error}</div>
+        <div role="alert" className="text-sm px-4 py-3 rounded-md bg-red-50 text-red-700">{error}</div>
       )}
 
       {/* Summary Cards */}
@@ -175,7 +175,7 @@ export default function ReportsPage() {
                     <div key={w.week} className="flex items-center gap-2 sm:gap-4">
                       <div className="w-14 sm:w-16 text-xs sm:text-sm text-muted-foreground shrink-0">{formatWeek(w.week)}</div>
                       <div className="flex-1 min-w-0">
-                        <div className="h-6 bg-muted rounded-full overflow-hidden">
+                        <div className="h-6 bg-muted rounded-full overflow-hidden" role="progressbar" aria-valuenow={Math.round(w.rate * 100)} aria-valuemin={0} aria-valuemax={100} aria-label={`${formatWeek(w.week)}: ${w.checkins} check-ins, ${(w.rate * 100).toFixed(0)}% attendance`}>
                           <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${w.rate * 100}%` }} />
                         </div>
                       </div>
@@ -206,7 +206,7 @@ export default function ReportsPage() {
                         <span className="font-medium">{formatMonth(m.month)}</span>
                         <span className="font-bold">{formatCurrency(m.revenue)}</span>
                       </div>
-                      <div className="flex h-4 rounded-full overflow-hidden bg-muted">
+                      <div className="flex h-4 rounded-full overflow-hidden bg-muted" aria-hidden="true">
                         {m.revenue > 0 && (
                           <>
                             <div className="bg-primary h-full" style={{ width: `${(m.memberships / m.revenue) * 100}%` }} title="Memberships" />
@@ -247,7 +247,7 @@ export default function ReportsPage() {
                           Avg {c.avgAttendance}/{c.capacity} · {(c.fillRate * 100).toFixed(0)}% fill rate
                         </div>
                       </div>
-                      <div className="w-24">
+                      <div className="w-24" aria-hidden="true">
                         <div className="h-2 bg-muted rounded-full overflow-hidden">
                           <div className="h-full bg-primary rounded-full" style={{ width: `${c.fillRate * 100}%` }} />
                         </div>
