@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { memberApi } from '@/lib/api-client'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { getRoleBadgeColor } from '@/lib/utils'
@@ -12,13 +13,16 @@ interface Member {
   name: string
   email: string
   role: string
-  joined: string
+  status: string
+  joined_at: string
   avatar_url: string | null
+  classes_attended: number
 }
 
 export default function MembersPage() {
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
 
   useEffect(() => {
@@ -37,26 +41,14 @@ export default function MembersPage() {
 
       if (!membership) { setLoading(false); return }
 
-      const { data: studioMembers } = await supabase
-        .from('memberships')
-        .select('role, created_at, user:users(id, name, email, avatar_url)')
-        .eq('studio_id', membership.studio_id)
-        .eq('status', 'active')
-        .order('created_at')
-
-      const mapped: Member[] = (studioMembers ?? []).map((m) => {
-        const u = m.user as Record<string, unknown> | null
-        return {
-          id: (u?.id as string) ?? '',
-          name: (u?.name as string) ?? 'Unknown',
-          email: (u?.email as string) ?? '',
-          role: m.role,
-          joined: m.created_at,
-          avatar_url: (u?.avatar_url as string) ?? null,
-        }
-      })
-      setMembers(mapped)
-      setLoading(false)
+      try {
+        const res = await memberApi.list(membership.studio_id) as { members: Member[] }
+        setMembers(res.members ?? [])
+      } catch (err: unknown) {
+        setError((err as Error).message)
+      } finally {
+        setLoading(false)
+      }
     }
     load()
   }, [])
@@ -74,6 +66,14 @@ export default function MembersPage() {
 
   if (loading) {
     return <div className="flex items-center justify-center py-20"><div className="text-muted-foreground">Loading members...</div></div>
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="text-destructive">Failed to load members: {error}</div>
+      </div>
+    )
   }
 
   return (
@@ -103,7 +103,7 @@ export default function MembersPage() {
               <CardContent className="py-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary overflow-hidden">
                       {member.avatar_url ? (
                         <img src={member.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
                       ) : member.name[0]}
@@ -114,11 +114,19 @@ export default function MembersPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
+                    <span className="text-xs text-muted-foreground hidden sm:inline">
+                      {member.classes_attended} class{member.classes_attended !== 1 ? 'es' : ''}
+                    </span>
                     <span className={`text-xs px-2 py-1 rounded-full capitalize ${getRoleBadgeColor(member.role)}`}>
                       {member.role}
                     </span>
-                    <span className="text-xs text-muted-foreground">
-                      Joined {new Date(member.joined).toLocaleDateString('en-NZ', { month: 'short', year: 'numeric' })}
+                    {member.status !== 'active' && (
+                      <span className="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-700 capitalize">
+                        {member.status}
+                      </span>
+                    )}
+                    <span className="text-xs text-muted-foreground hidden md:inline">
+                      Joined {new Date(member.joined_at).toLocaleDateString('en-NZ', { month: 'short', year: 'numeric' })}
                     </span>
                   </div>
                 </div>

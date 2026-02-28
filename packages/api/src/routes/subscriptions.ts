@@ -4,9 +4,11 @@ import { createServiceClient } from '../lib/supabase'
 import { notFound, forbidden, badRequest } from '../lib/errors'
 import { cancelStripeSubscription, pauseStripeSubscription } from '../lib/stripe'
 import { getConnectedAccountId } from '../lib/payments'
+import { errorHandler } from '../middleware/error-handler'
 
 // Mounted at /api/subscriptions — handles /:subscriptionId/*
 const subscriptions = new Hono()
+subscriptions.onError(errorHandler)
 
 /**
  * GET /:subscriptionId — fetch a subscription (must own it)
@@ -101,7 +103,7 @@ subscriptions.post('/:subscriptionId/pause', authMiddleware, async (c) => {
     .single()
 
   const allowPause = studio?.settings?.allow_subscription_pause !== false
-  if (!allowPause) throw badRequest('This studio does not allow subscription pausing')
+  if (!allowPause) throw badRequest('This studio does not allow subscription pause')
 
   // Pause on Stripe (best-effort)
   if (sub.stripe_subscription_id) {

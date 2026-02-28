@@ -11,9 +11,11 @@ import {
   createPaymentIntent,
 } from '../lib/stripe'
 import { getOrCreateStripeCustomer, getConnectedAccountId } from '../lib/payments'
+import { errorHandler } from '../middleware/error-handler'
 
 // Mounted at /api/studios — handles /:studioId/plans/* and related
 const plans = new Hono()
+plans.onError(errorHandler)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Task 1: Plan CRUD

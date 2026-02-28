@@ -1,6 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { bookingApi } from '@/lib/api-client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,51 +23,87 @@ interface PrivateBooking {
 }
 
 export default function PrivateBookingsPage() {
-  const [bookings, setBookings] = useState<PrivateBooking[]>([
-    {
-      id: '1', client_name: 'Alex Rivera', client_email: 'alex@example.com',
-      type: 'Private Aerial Silks', date: '2026-03-05', start_time: '14:00', end_time: '15:00',
-      status: 'confirmed', price_cents: 12000, deposit_paid: true, notes: 'Birthday celebration, 4 people'
-    },
-    {
-      id: '2', client_name: 'Jordan Walsh', client_email: 'jordan@example.com',
-      type: 'Pole Party', date: '2026-03-08', start_time: '18:00', end_time: '20:00',
-      status: 'pending', price_cents: 35000, deposit_paid: false, notes: 'Hen party, 12 people, needs bubbly setup'
-    },
-    {
-      id: '3', client_name: 'Sam Chen', client_email: 'sam@example.com',
-      type: '1-on-1 Trapeze', date: '2026-03-02', start_time: '10:00', end_time: '11:00',
-      status: 'completed', price_cents: 9500, deposit_paid: true, notes: ''
-    },
-  ])
+  const supabase = useRef(createClient()).current
+
+  const [bookings, setBookings] = useState<PrivateBooking[]>([])
+  const [studioId, setStudioId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const [showCreate, setShowCreate] = useState(false)
   const [newBooking, setNewBooking] = useState({
     client_name: '', client_email: '', type: 'Private Lesson',
     date: '', start_time: '', end_time: '', price: '', notes: '',
   })
+  const [creating, setCreating] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
 
-  function handleCreate() {
-    const booking: PrivateBooking = {
-      id: Date.now().toString(),
-      client_name: newBooking.client_name,
-      client_email: newBooking.client_email,
-      type: newBooking.type,
-      date: newBooking.date,
-      start_time: newBooking.start_time,
-      end_time: newBooking.end_time,
-      status: 'pending',
-      price_cents: Math.round(parseFloat(newBooking.price || '0') * 100),
-      deposit_paid: false,
-      notes: newBooking.notes,
+  const [updatingId, setUpdatingId] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function load() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setLoading(false); return }
+
+      const { data: membership } = await supabase
+        .from('memberships')
+        .select('studio_id')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .limit(1)
+        .single()
+
+      if (!membership) { setLoading(false); return }
+      setStudioId(membership.studio_id)
+
+      try {
+        const data = await bookingApi.privateList(membership.studio_id) as { bookings: PrivateBooking[] }
+        setBookings(data.bookings ?? [])
+      } catch (err: unknown) {
+        setError((err as Error).message)
+      } finally {
+        setLoading(false)
+      }
     }
-    setBookings([booking, ...bookings])
-    setShowCreate(false)
-    setNewBooking({ client_name: '', client_email: '', type: 'Private Lesson', date: '', start_time: '', end_time: '', price: '', notes: '' })
+    load()
+  }, [supabase])
+
+  async function handleCreate() {
+    if (!studioId) return
+    setCreating(true)
+    setCreateError(null)
+    try {
+      const data = await bookingApi.privateCreate(studioId, {
+        client_name: newBooking.client_name,
+        client_email: newBooking.client_email,
+        type: newBooking.type,
+        date: newBooking.date,
+        start_time: newBooking.start_time,
+        end_time: newBooking.end_time,
+        price_cents: Math.round(parseFloat(newBooking.price || '0') * 100),
+        notes: newBooking.notes,
+      }) as { booking: PrivateBooking }
+      setBookings([data.booking, ...bookings])
+      setShowCreate(false)
+      setNewBooking({ client_name: '', client_email: '', type: 'Private Lesson', date: '', start_time: '', end_time: '', price: '', notes: '' })
+    } catch (err: unknown) {
+      setCreateError((err as Error).message)
+    } finally {
+      setCreating(false)
+    }
   }
 
-  function updateStatus(id: string, status: PrivateBooking['status']) {
-    setBookings(bookings.map(b => b.id === id ? { ...b, status } : b))
+  async function updateStatus(id: string, status: PrivateBooking['status']) {
+    if (!studioId) return
+    setUpdatingId(id)
+    try {
+      const data = await bookingApi.privateUpdate(studioId, id, { status }) as { booking: PrivateBooking }
+      setBookings(bookings.map(b => b.id === id ? data.booking : b))
+    } catch (err: unknown) {
+      setError((err as Error).message)
+    } finally {
+      setUpdatingId(null)
+    }
   }
 
   const statusColors = {
@@ -73,6 +111,10 @@ export default function PrivateBookingsPage() {
     confirmed: 'bg-green-100 text-green-800',
     completed: 'bg-blue-100 text-blue-800',
     cancelled: 'bg-red-100 text-red-800',
+  }
+
+  if (loading) {
+    return <div className="text-muted-foreground py-20 text-center">Loading private bookings...</div>
   }
 
   return (
@@ -86,6 +128,8 @@ export default function PrivateBookingsPage() {
           {showCreate ? 'Cancel' : '+ New Booking'}
         </Button>
       </div>
+
+      {error && <p className="text-sm text-red-600">{error}</p>}
 
       {showCreate && (
         <Card>
@@ -137,12 +181,18 @@ export default function PrivateBookingsPage() {
                 <Input value={newBooking.notes} onChange={e => setNewBooking({...newBooking, notes: e.target.value})} placeholder="Special requests, group size, etc." />
               </div>
             </div>
-            <Button onClick={handleCreate} disabled={!newBooking.client_name || !newBooking.date}>Create Booking</Button>
+            {createError && <p className="text-sm text-red-600">{createError}</p>}
+            <Button onClick={handleCreate} disabled={creating || !newBooking.client_name || !newBooking.date}>
+              {creating ? 'Creating...' : 'Create Booking'}
+            </Button>
           </CardContent>
         </Card>
       )}
 
       <div className="space-y-4">
+        {bookings.length === 0 && (
+          <p className="text-muted-foreground text-center py-10">No private bookings yet.</p>
+        )}
         {bookings.map(booking => (
           <Card key={booking.id}>
             <CardContent className="py-4">
@@ -164,12 +214,18 @@ export default function PrivateBookingsPage() {
                   <div className="flex gap-2">
                     {booking.status === 'pending' && (
                       <>
-                        <Button size="sm" onClick={() => updateStatus(booking.id, 'confirmed')}>Confirm</Button>
-                        <Button size="sm" variant="outline" onClick={() => updateStatus(booking.id, 'cancelled')}>Decline</Button>
+                        <Button size="sm" disabled={updatingId === booking.id} onClick={() => updateStatus(booking.id, 'confirmed')}>
+                          {updatingId === booking.id ? '...' : 'Confirm'}
+                        </Button>
+                        <Button size="sm" variant="outline" disabled={updatingId === booking.id} onClick={() => updateStatus(booking.id, 'cancelled')}>
+                          Decline
+                        </Button>
                       </>
                     )}
                     {booking.status === 'confirmed' && (
-                      <Button size="sm" onClick={() => updateStatus(booking.id, 'completed')}>Mark Complete</Button>
+                      <Button size="sm" disabled={updatingId === booking.id} onClick={() => updateStatus(booking.id, 'completed')}>
+                        {updatingId === booking.id ? '...' : 'Mark Complete'}
+                      </Button>
                     )}
                   </div>
                 </div>

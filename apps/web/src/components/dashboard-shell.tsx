@@ -16,6 +16,7 @@ const navItems = [
   { path: '/network', label: 'Network', icon: '🤝' },
   { path: '/coupons', label: 'Coupons', icon: '🏷️' },
   { path: '/private-bookings', label: 'Bookings', icon: '🔒' },
+  { path: '/stats', label: 'Stats', icon: '📈' },
   { path: '/reports', label: 'Reports', icon: '📊' },
   { path: '/settings', label: 'Settings', icon: '⚙️' },
 ]

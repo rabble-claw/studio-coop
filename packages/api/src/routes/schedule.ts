@@ -311,5 +311,167 @@ schedule.get('/:studioId/schedule', authMiddleware, requireAdmin, async (c) => {
   return c.json(normalized)
 })
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Template CRUD
+// GET/POST   /api/studios/:studioId/templates
+// PUT/DELETE /api/studios/:studioId/templates/:templateId
+// ─────────────────────────────────────────────────────────────────────────────
+
+schedule.get('/:studioId/templates', authMiddleware, requireAdmin, async (c) => {
+  const studioId = c.get('studioId' as never) as string
+  const supabase = createServiceClient()
+
+  const { data, error } = await supabase
+    .from('class_templates')
+    .select('*')
+    .eq('studio_id', studioId)
+    .order('day_of_week', { ascending: true })
+    .order('start_time', { ascending: true })
+
+  if (error) throw error
+  return c.json(data ?? [])
+})
+
+schedule.post('/:studioId/templates', authMiddleware, requireAdmin, async (c) => {
+  const studioId = c.get('studioId' as never) as string
+  const supabase = createServiceClient()
+  const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
+
+  if (!body.name) throw badRequest('name is required')
+  if (body.day_of_week === undefined) throw badRequest('day_of_week is required')
+  if (!body.start_time) throw badRequest('start_time is required')
+  if (!body.duration_min) throw badRequest('duration_min is required')
+
+  const { data, error } = await supabase
+    .from('class_templates')
+    .insert({
+      studio_id: studioId,
+      name: body.name,
+      description: body.description as string | undefined,
+      day_of_week: Number(body.day_of_week),
+      start_time: body.start_time,
+      duration_min: Number(body.duration_min),
+      max_capacity: body.max_capacity !== undefined ? Number(body.max_capacity) : undefined,
+      recurrence: (body.recurrence as string) ?? 'weekly',
+      active: body.active !== false,
+      teacher_id: body.teacher_id as string | undefined,
+    })
+    .select('*')
+    .single()
+
+  if (error) throw error
+  return c.json(data, 201)
+})
+
+schedule.put('/:studioId/templates/:templateId', authMiddleware, requireAdmin, async (c) => {
+  const studioId = c.get('studioId' as never) as string
+  const templateId = c.req.param('templateId')
+  const supabase = createServiceClient()
+
+  const { data: existing } = await supabase
+    .from('class_templates')
+    .select('id')
+    .eq('id', templateId)
+    .eq('studio_id', studioId)
+    .single()
+
+  if (!existing) throw notFound('Template')
+
+  const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
+  const updates: Record<string, unknown> = {}
+
+  if (body.name !== undefined) updates.name = body.name
+  if (body.description !== undefined) updates.description = body.description
+  if (body.day_of_week !== undefined) updates.day_of_week = Number(body.day_of_week)
+  if (body.start_time !== undefined) updates.start_time = body.start_time
+  if (body.duration_min !== undefined) updates.duration_min = Number(body.duration_min)
+  if (body.max_capacity !== undefined) updates.max_capacity = body.max_capacity !== null ? Number(body.max_capacity) : null
+  if (body.recurrence !== undefined) updates.recurrence = body.recurrence
+  if (body.active !== undefined) updates.active = body.active
+  if (body.teacher_id !== undefined) updates.teacher_id = body.teacher_id
+
+  if (Object.keys(updates).length === 0) throw badRequest('No valid fields to update')
+
+  const { data, error } = await supabase
+    .from('class_templates')
+    .update(updates)
+    .eq('id', templateId)
+    .select('*')
+    .single()
+
+  if (error) throw error
+  return c.json(data)
+})
+
+schedule.delete('/:studioId/templates/:templateId', authMiddleware, requireOwner, async (c) => {
+  const studioId = c.get('studioId' as never) as string
+  const templateId = c.req.param('templateId')
+  const supabase = createServiceClient()
+
+  const { error } = await supabase
+    .from('class_templates')
+    .delete()
+    .eq('id', templateId)
+    .eq('studio_id', studioId)
+
+  if (error) throw error
+  return c.body(null, 204)
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cancel a class instance
+// POST /api/studios/:studioId/instances/:instanceId/cancel
+// ─────────────────────────────────────────────────────────────────────────────
+
+schedule.post('/:studioId/instances/:instanceId/cancel', authMiddleware, requireAdmin, async (c) => {
+  const studioId = c.get('studioId' as never) as string
+  const instanceId = c.req.param('instanceId')
+  const body = await c.req.json().catch(() => ({})) as { reason?: string }
+  const supabase = createServiceClient()
+
+  const { data: existing } = await supabase
+    .from('class_instances')
+    .select('id, status')
+    .eq('id', instanceId)
+    .eq('studio_id', studioId)
+    .single()
+
+  if (!existing) throw notFound('Class instance')
+  if (existing.status === 'cancelled') throw badRequest('Class is already cancelled')
+
+  const updates: Record<string, unknown> = { status: 'cancelled' }
+  if (body.reason) updates.notes = body.reason
+
+  const { data: updated, error } = await supabase
+    .from('class_instances')
+    .update(updates)
+    .eq('id', instanceId)
+    .select('*')
+    .single()
+
+  if (error) throw error
+
+  // Notify booked members
+  const { data: bookings } = await supabase
+    .from('bookings')
+    .select('user_id')
+    .eq('class_instance_id', instanceId)
+    .neq('status', 'cancelled')
+
+  if (bookings && bookings.length > 0) {
+    const notifications = bookings.map((b) => ({
+      user_id: b.user_id,
+      studio_id: studioId,
+      type: 'class_cancelled',
+      title: 'Class Cancelled',
+      body: body.reason ? `Class cancelled: ${body.reason}` : 'A class you booked has been cancelled.',
+      data: { classInstanceId: instanceId },
+    }))
+    await supabase.from('notifications').insert(notifications)
+  }
+
+  return c.json(updated)
+})
+
 export { schedule }
 export default schedule
