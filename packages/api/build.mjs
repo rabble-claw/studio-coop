@@ -20,6 +20,13 @@ await build({
   platform: 'neutral',
   mainFields: ['module', 'main'],
   conditions: ['worker', 'browser', 'import', 'default'],
+  // Provide a CJS require shim for bundled packages that use require() on
+  // Node built-ins (e.g. stripe → qs → object-inspect → require("util")).
+  // Workers with nodejs_compat support these modules, but esbuild's
+  // CJS-to-ESM conversion emits __require() which Workers reject.
+  banner: {
+    js: `import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);`,
+  },
   external: [
     ...nodeBuiltins,
     'expo-server-sdk', // dynamically imported, not available in Workers
