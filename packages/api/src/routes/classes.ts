@@ -5,9 +5,11 @@ import { createServiceClient } from '../lib/supabase'
 import { notFound, badRequest, conflict } from '../lib/errors'
 import { createPaymentIntent } from '../lib/stripe'
 import { getOrCreateStripeCustomer, getConnectedAccountId } from '../lib/payments'
+import { errorHandler } from '../middleware/error-handler'
 
 // Mounted at /api/studios — handles /:studioId/classes/*
 const classes = new Hono()
+classes.onError(errorHandler)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Task 4: Drop-in purchase
