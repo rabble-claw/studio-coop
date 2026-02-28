@@ -13,6 +13,16 @@ vi.mock('../lib/waitlist', () => ({
 vi.mock('../lib/calendar', () => ({
   buildBookingCalEvent: vi.fn().mockReturnValue('BEGIN:VCALENDAR...'),
 }))
+vi.mock('../lib/notifications', () => ({
+  sendNotification: vi.fn(),
+}))
+vi.mock('../lib/stripe', () => ({
+  createPaymentIntent: vi.fn(),
+}))
+vi.mock('../lib/payments', () => ({
+  getOrCreateStripeCustomer: vi.fn().mockResolvedValue({ id: 'cus_test', object: 'customer', email: 'test@example.com', metadata: {} }),
+  getConnectedAccountId: vi.fn().mockResolvedValue('acct_test'),
+}))
 vi.mock('../middleware/auth', () => ({
   authMiddleware: vi.fn(async (c: any, next: any) => {
     c.set('user', { id: 'user-123', email: 'test@example.com' })

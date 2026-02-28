@@ -1,9 +1,36 @@
+import { useEffect, useState, useCallback } from 'react'
 import { Tabs } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useStudioSwitcher, StudioSwitcherHeader } from '@/components/studio-switcher'
+import { notificationApi } from '@/lib/api'
+import { useAuth } from '@/lib/auth-context'
+
+function useUnreadCount() {
+  const { user } = useAuth()
+  const [count, setCount] = useState(0)
+
+  const refresh = useCallback(async () => {
+    if (!user) return
+    try {
+      const data = await notificationApi.unreadCount()
+      setCount(data?.count ?? 0)
+    } catch {
+      // ignore
+    }
+  }, [user])
+
+  useEffect(() => {
+    refresh()
+    const interval = setInterval(refresh, 30_000)
+    return () => clearInterval(interval)
+  }, [refresh])
+
+  return count
+}
 
 export default function TabsLayout() {
   const switcher = useStudioSwitcher()
+  const unreadCount = useUnreadCount()
 
   return (
     <Tabs
@@ -56,6 +83,7 @@ export default function TabsLayout() {
         options={{
           title: 'Alerts',
           tabBarIcon: ({ color, size }) => <Ionicons name="notifications-outline" size={size} color={color} />,
+          tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
         }}
       />
       <Tabs.Screen

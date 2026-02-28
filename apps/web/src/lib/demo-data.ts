@@ -911,6 +911,87 @@ export const demoMemberStats: DemoMemberStats[] = [
       { month: 'Feb', classes: 3 },
     ],
   },
+  // Teacher stats
+  {
+    memberId: TEACHER_EMMA_ID,
+    totalClasses: 210,
+    thisMonth: 18,
+    currentStreak: 12,
+    longestStreak: 24,
+    favoriteClass: 'Pole Technique Level 2',
+    favoriteTeacher: 'Self',
+    classBreakdown: [
+      { className: 'Pole Technique Level 2', count: 85 },
+      { className: 'Pole Technique Level 3', count: 60 },
+      { className: 'Pole Flow & Floorwork', count: 40 },
+      { className: 'Open Practice', count: 25 },
+    ],
+    monthlyHistory: [
+      { month: 'Sep', classes: 16 }, { month: 'Oct', classes: 18 },
+      { month: 'Nov', classes: 17 }, { month: 'Dec', classes: 14 },
+      { month: 'Jan', classes: 19 }, { month: 'Feb', classes: 18 },
+    ],
+  },
+  {
+    memberId: TEACHER_JADE_ID,
+    totalClasses: 180,
+    thisMonth: 15,
+    currentStreak: 10,
+    longestStreak: 20,
+    favoriteClass: 'Aerial Hoop (Lyra)',
+    favoriteTeacher: 'Self',
+    classBreakdown: [
+      { className: 'Aerial Hoop (Lyra)', count: 72 },
+      { className: 'Aerial Silks', count: 55 },
+      { className: 'Open Practice', count: 35 },
+      { className: 'Flexibility & Conditioning', count: 18 },
+    ],
+    monthlyHistory: [
+      { month: 'Sep', classes: 14 }, { month: 'Oct', classes: 15 },
+      { month: 'Nov', classes: 16 }, { month: 'Dec', classes: 12 },
+      { month: 'Jan', classes: 16 }, { month: 'Feb', classes: 15 },
+    ],
+  },
+  {
+    memberId: TEACHER_SAM_ID,
+    totalClasses: 150,
+    thisMonth: 12,
+    currentStreak: 8,
+    longestStreak: 16,
+    favoriteClass: 'Flexibility & Conditioning',
+    favoriteTeacher: 'Self',
+    classBreakdown: [
+      { className: 'Flexibility & Conditioning', count: 65 },
+      { className: 'Handbalance', count: 45 },
+      { className: 'Pole Technique Level 1', count: 25 },
+      { className: 'Open Practice', count: 15 },
+    ],
+    monthlyHistory: [
+      { month: 'Sep', classes: 11 }, { month: 'Oct', classes: 12 },
+      { month: 'Nov', classes: 13 }, { month: 'Dec', classes: 10 },
+      { month: 'Jan', classes: 14 }, { month: 'Feb', classes: 12 },
+    ],
+  },
+  {
+    memberId: TEACHER_ARIA_ID,
+    totalClasses: 120,
+    thisMonth: 10,
+    currentStreak: 6,
+    longestStreak: 14,
+    favoriteClass: 'Aerial Hoop (Lyra)',
+    favoriteTeacher: 'Self',
+    classBreakdown: [
+      { className: 'Aerial Hoop (Lyra)', count: 50 },
+      { className: 'Aerial Silks', count: 35 },
+      { className: 'Flexibility & Conditioning', count: 20 },
+      { className: 'Open Practice', count: 15 },
+    ],
+    monthlyHistory: [
+      { month: 'Sep', classes: 9 }, { month: 'Oct', classes: 10 },
+      { month: 'Nov', classes: 11 }, { month: 'Dec', classes: 8 },
+      { month: 'Jan', classes: 12 }, { month: 'Feb', classes: 10 },
+    ],
+  },
 ]
 
 export function getDemoMemberStats(memberId: string): DemoMemberStats | undefined {
@@ -986,6 +1067,34 @@ export const demoMemberBadges: DemoMemberBadge[] = [
   { memberId: 'member-4', badgeId: 'badge-2', earnedAt: '2025-12-18T10:00:00Z' },
   // Jordan (member-5) — 4 classes
   { memberId: 'member-5', badgeId: 'badge-1', earnedAt: '2025-11-05T10:00:00Z' },
+  // Teacher Alex (owner) — 210 classes
+  { memberId: TEACHER_EMMA_ID, badgeId: 'badge-1', earnedAt: '2024-01-20T10:00:00Z' },
+  { memberId: TEACHER_EMMA_ID, badgeId: 'badge-2', earnedAt: '2024-02-15T10:00:00Z' },
+  { memberId: TEACHER_EMMA_ID, badgeId: 'badge-3', earnedAt: '2024-03-20T10:00:00Z' },
+  { memberId: TEACHER_EMMA_ID, badgeId: 'badge-4', earnedAt: '2024-05-10T10:00:00Z' },
+  { memberId: TEACHER_EMMA_ID, badgeId: 'badge-5', earnedAt: '2024-08-15T10:00:00Z' },
+  { memberId: TEACHER_EMMA_ID, badgeId: 'badge-6', earnedAt: '2024-04-01T10:00:00Z' },
+  // Teacher Jade — 180 classes
+  { memberId: TEACHER_JADE_ID, badgeId: 'badge-1', earnedAt: '2024-02-05T10:00:00Z' },
+  { memberId: TEACHER_JADE_ID, badgeId: 'badge-2', earnedAt: '2024-03-10T10:00:00Z' },
+  { memberId: TEACHER_JADE_ID, badgeId: 'badge-3', earnedAt: '2024-04-15T10:00:00Z' },
+  { memberId: TEACHER_JADE_ID, badgeId: 'badge-4', earnedAt: '2024-06-20T10:00:00Z' },
+  { memberId: TEACHER_JADE_ID, badgeId: 'badge-5', earnedAt: '2024-10-01T10:00:00Z' },
+  { memberId: TEACHER_JADE_ID, badgeId: 'badge-6', earnedAt: '2024-05-01T10:00:00Z' },
+  // Teacher Sam — 150 classes
+  { memberId: TEACHER_SAM_ID, badgeId: 'badge-1', earnedAt: '2024-03-15T10:00:00Z' },
+  { memberId: TEACHER_SAM_ID, badgeId: 'badge-2', earnedAt: '2024-04-20T10:00:00Z' },
+  { memberId: TEACHER_SAM_ID, badgeId: 'badge-3', earnedAt: '2024-06-01T10:00:00Z' },
+  { memberId: TEACHER_SAM_ID, badgeId: 'badge-4', earnedAt: '2024-08-10T10:00:00Z' },
+  { memberId: TEACHER_SAM_ID, badgeId: 'badge-5', earnedAt: '2024-12-15T10:00:00Z' },
+  { memberId: TEACHER_SAM_ID, badgeId: 'badge-6', earnedAt: '2024-07-01T10:00:00Z' },
+  // Teacher Aria — 120 classes
+  { memberId: TEACHER_ARIA_ID, badgeId: 'badge-1', earnedAt: '2024-06-05T10:00:00Z' },
+  { memberId: TEACHER_ARIA_ID, badgeId: 'badge-2', earnedAt: '2024-07-15T10:00:00Z' },
+  { memberId: TEACHER_ARIA_ID, badgeId: 'badge-3', earnedAt: '2024-09-01T10:00:00Z' },
+  { memberId: TEACHER_ARIA_ID, badgeId: 'badge-4', earnedAt: '2024-11-20T10:00:00Z' },
+  { memberId: TEACHER_ARIA_ID, badgeId: 'badge-5', earnedAt: '2025-03-01T10:00:00Z' },
+  { memberId: TEACHER_ARIA_ID, badgeId: 'badge-6', earnedAt: '2024-10-01T10:00:00Z' },
 ]
 
 export function getDemoMemberBadges(memberId: string) {

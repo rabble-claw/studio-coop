@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 import { errorHandler } from './middleware/error-handler'
+import { rateLimit } from './middleware/rate-limit'
 import plans from './routes/plans'
 import webhooks from './routes/webhooks'
 import classes from './routes/classes'
@@ -26,11 +27,15 @@ import migration from './routes/migration'
 import { stripeRoutes } from './routes/stripe'
 import { getConfig } from './lib/config'
 
-// Validate environment configuration at startup
+// Validate environment configuration at startup — fail fast in production
 try {
   getConfig()
 } catch (e) {
-  console.warn('Environment config validation warning:', (e as Error).message)
+  const msg = (e as Error).message
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(`Startup aborted: ${msg}`)
+  }
+  console.warn('Environment config validation warning:', msg)
 }
 
 const app = new Hono()
@@ -49,6 +54,12 @@ app.use('*', cors({
 
 // Error handler
 app.onError(errorHandler)
+
+// Rate limiting on sensitive endpoints (L13)
+// For production, also configure Cloudflare WAF rate limiting at the zone level.
+app.use('/api/studios/*/classes/*/book', rateLimit({ limit: 10, windowSeconds: 60 }))
+app.use('/api/studios/*/coupons/redeem', rateLimit({ limit: 5, windowSeconds: 60 }))
+app.use('/api/my/push-token', rateLimit({ limit: 5, windowSeconds: 60 }))
 
 // Health check (no auth)
 app.get('/health', (c) => c.json({

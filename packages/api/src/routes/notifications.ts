@@ -106,22 +106,34 @@ notifications.get('/notifications', authMiddleware, async (c) => {
   const supabase = createServiceClient()
   const onlyUnread = c.req.query('unread') === 'true'
 
+  const limit = Math.min(Math.max(parseInt(c.req.query('limit') ?? '50', 10) || 50, 1), 100)
+  const cursor = c.req.query('cursor')  // sent_at ISO string of the last item
+
   let query = supabase
     .from('notifications')
     .select('id, type, title, body, data, sent_at, read_at, scheduled_for, studio_id')
     .eq('user_id', user.id)
     .not('sent_at', 'is', null)
     .order('sent_at', { ascending: false })
-    .limit(50)
+    .limit(limit + 1)  // fetch one extra to determine if there's a next page
 
   if (onlyUnread) {
     query = query.is('read_at', null)
   }
 
+  if (cursor) {
+    query = query.lt('sent_at', cursor)
+  }
+
   const { data, error } = await query
   if (error) throw new Error(error.message)
 
-  return c.json({ notifications: data ?? [] })
+  const items = data ?? []
+  const hasMore = items.length > limit
+  const page = hasMore ? items.slice(0, limit) : items
+  const nextCursor = hasMore ? page[page.length - 1].sent_at : null
+
+  return c.json({ notifications: page, next_cursor: nextCursor })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────

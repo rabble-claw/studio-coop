@@ -89,15 +89,19 @@ export default function ReportsPage() {
     load()
   }, [])
 
+  function formatCurrency(cents: number) {
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(cents / 100)
+  }
+
   function formatWeek(dateStr: string) {
     const d = new Date(dateStr)
-    return d.toLocaleDateString('en-NZ', { month: 'short', day: 'numeric' })
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
   }
 
   function formatMonth(monthStr: string) {
     const [year, month] = monthStr.split('-')
     const d = new Date(parseInt(year), parseInt(month) - 1)
-    return d.toLocaleDateString('en-NZ', { month: 'short' })
+    return d.toLocaleDateString(undefined, { month: 'short' })
   }
 
   function daysAgo(dateStr: string | null) {
@@ -124,7 +128,7 @@ export default function ReportsPage() {
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Monthly Revenue</CardTitle></CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">${(overview.totalRevenue / 100).toLocaleString()}</div>
+            <div className="text-3xl font-bold">{formatCurrency(overview.totalRevenue)}</div>
             <p className="text-xs text-muted-foreground mt-1">all time</p>
           </CardContent>
         </Card>
@@ -200,7 +204,7 @@ export default function ReportsPage() {
                     <div key={m.month} className="space-y-1">
                       <div className="flex justify-between text-sm">
                         <span className="font-medium">{formatMonth(m.month)}</span>
-                        <span className="font-bold">${(m.revenue / 100).toLocaleString()}</span>
+                        <span className="font-bold">{formatCurrency(m.revenue)}</span>
                       </div>
                       <div className="flex h-4 rounded-full overflow-hidden bg-muted">
                         {m.revenue > 0 && (
@@ -212,9 +216,9 @@ export default function ReportsPage() {
                         )}
                       </div>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                        <span>Memberships ${(m.memberships / 100).toLocaleString()}</span>
-                        <span>Drop-ins ${(m.dropins / 100).toLocaleString()}</span>
-                        <span>Packs ${(m.packs / 100).toLocaleString()}</span>
+                        <span>Memberships {formatCurrency(m.memberships)}</span>
+                        <span>Drop-ins {formatCurrency(m.dropins)}</span>
+                        <span>Packs {formatCurrency(m.packs)}</span>
                       </div>
                     </div>
                   ))}

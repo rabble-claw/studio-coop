@@ -247,6 +247,20 @@ Ryan,Foster,ryan.f@email.com,+64 22 555 0112,Unlimited Monthly`
               </div>
             )}
 
+            {source === 'vagaro' && (
+              <div className="bg-blue-50 p-4 rounded-lg text-sm">
+                <p className="font-medium text-blue-900 mb-2">How to export from Vagaro:</p>
+                <ol className="list-decimal ml-4 space-y-1 text-blue-800">
+                  <li>Log in to your Vagaro business account</li>
+                  <li>Go to Customers &rarr; Customer List</li>
+                  <li>Click the Export button (top-right)</li>
+                  <li>Select CSV format and choose the fields to include</li>
+                  <li>Click Export and save the file</li>
+                  <li>Upload the file below</li>
+                </ol>
+              </div>
+            )}
+
             <div>
               <input ref={fileRef} type="file" accept=".csv,.txt" onChange={handleFileUpload} className="hidden" />
               <Button onClick={() => fileRef.current?.click()} className="w-full" size="lg">

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { View, Text, SectionList, TouchableOpacity, RefreshControl } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { supabase } from '@/lib/supabase'
+import { studioApi, scheduleApi } from '@/lib/api'
 
 interface ClassInstance {
   id: string
@@ -11,6 +11,7 @@ interface ClassInstance {
   end_time: string
   status: string
   max_capacity: number
+  booking_count: number
   template: { name: string; description: string | null } | null
   teacher: { name: string } | null
 }
@@ -38,21 +39,25 @@ export default function StudioScreen() {
 
   async function loadSchedule() {
     setLoading(true)
-    const [{ data: studio }, { data: instances }] = await Promise.all([
-      supabase.from('studios').select('name').eq('id', id).single(),
-      supabase
-        .from('class_instances')
-        .select('*, template:class_templates!class_instances_template_id_fkey(name, description), teacher:users!class_instances_teacher_id_fkey(name)')
-        .eq('studio_id', id)
-        .eq('status', 'scheduled')
-        .gte('date', new Date().toISOString().split('T')[0])
-        .order('date')
-        .order('start_time')
-        .limit(30),
-    ])
-    setStudioName(studio?.name ?? '')
-    setClasses(instances ?? [])
-    setLoading(false)
+    try {
+      const today = new Date().toISOString().split('T')[0]
+      // Calculate 30 days from now
+      const endDate = new Date()
+      endDate.setDate(endDate.getDate() + 30)
+      const to = endDate.toISOString().split('T')[0]
+
+      const [studioData, classesData] = await Promise.all([
+        studioApi.get(id).catch(() => null) as Promise<{ name: string } | null>,
+        scheduleApi.list(id, `from=${today}&to=${to}`).catch(() => []) as Promise<ClassInstance[]>,
+      ])
+
+      setStudioName((studioData as any)?.name ?? '')
+      setClasses(classesData ?? [])
+    } catch (e) {
+      console.error('Failed to load studio schedule:', e)
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
@@ -110,7 +115,9 @@ export default function StudioScreen() {
             {item.template?.description && (
               <Text className="text-muted text-sm mt-1" numberOfLines={2}>{item.template.description}</Text>
             )}
-            <Text className="text-muted text-xs mt-2">{item.max_capacity} spots</Text>
+            <Text className="text-muted text-xs mt-2">
+              {item.booking_count !== undefined ? `${item.booking_count}/` : ''}{item.max_capacity} spots
+            </Text>
           </TouchableOpacity>
         )}
       />

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import {
   View,
   Text,
@@ -13,32 +13,39 @@ import {
 } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth-context'
+import { checkinApi } from '@/lib/api'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface ClassInfo {
-  id: string
-  date: string
-  start_time: string
-  status: string
-  max_capacity: number
-  studio_id: string
-  template: { name: string } | null
-  teacher: { name: string } | null
+interface RosterEntry {
+  user_id: string
+  name: string
+  avatar_url: string | null
+  booking_id: string | null
+  booking_status: string | null
+  spot: string | null
+  checked_in: boolean
+  walk_in: boolean
+  notes: string | null
 }
 
-interface RosterEntry {
-  userId: string
-  name: string
-  avatarUrl: string | null
-  bookingId: string | null
-  bookingStatus: string | null
-  spot: string | null
-  checkedIn: boolean
-  walkIn: boolean
-  notes: string | null
+interface RosterResponse {
+  class_instance: {
+    id: string
+    date: string
+    start_time: string
+    status: string
+    max_capacity: number
+    studio_id: string
+    template: { name: string } | null
+    teacher: { name: string } | null
+  }
+  roster: RosterEntry[]
+  is_staff: boolean
+}
+
+interface LocalEntry extends RosterEntry {
   dirty: boolean
 }
 
@@ -66,8 +73,8 @@ export default function CheckinScreen() {
   const { user } = useAuth()
   const router = useRouter()
 
-  const [classInfo, setClassInfo] = useState<ClassInfo | null>(null)
-  const [roster, setRoster] = useState<RosterEntry[]>([])
+  const [classInfo, setClassInfo] = useState<RosterResponse['class_instance'] | null>(null)
+  const [roster, setRoster] = useState<LocalEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [isStaff, setIsStaff] = useState(false)
@@ -84,112 +91,19 @@ export default function CheckinScreen() {
   const loadData = useCallback(async () => {
     if (!user) return
 
-    const { data: cls } = await supabase
-      .from('class_instances')
-      .select(`
-        id, date, start_time, status, max_capacity, studio_id,
-        template:class_templates!class_instances_template_id_fkey(name),
-        teacher:users!class_instances_teacher_id_fkey(name)
-      `)
-      .eq('id', id)
-      .single()
-
-    if (!cls) {
+    try {
+      const data = await checkinApi.getRoster(id) as RosterResponse
+      setClassInfo(data.class_instance)
+      setIsStaff(data.is_staff)
+      setRoster(
+        (data.roster ?? []).map((entry) => ({ ...entry, dirty: false }))
+      )
+    } catch (e) {
+      console.error('Failed to load checkin data:', e)
+    } finally {
       setLoading(false)
       setRefreshing(false)
-      return
     }
-    setClassInfo(cls as unknown as ClassInfo)
-
-    // Verify staff
-    const { data: membership } = await supabase
-      .from('memberships')
-      .select('role')
-      .eq('studio_id', cls.studio_id)
-      .eq('user_id', user.id)
-      .single()
-
-    const staffRoles = ['teacher', 'admin', 'owner']
-    if (!staffRoles.includes(membership?.role ?? '')) {
-      setIsStaff(false)
-      setLoading(false)
-      setRefreshing(false)
-      return
-    }
-    setIsStaff(true)
-
-    // Load bookings, attendance and notes in parallel
-    const [{ data: bookings }, { data: attendanceData }, { data: memberships }] = await Promise.all([
-      supabase
-        .from('bookings')
-        .select('id, status, spot, user:users!bookings_user_id_fkey(id, name, avatar_url)')
-        .eq('class_instance_id', id)
-        .in('status', ['booked', 'confirmed', 'waitlisted'])
-        .order('booked_at'),
-      supabase
-        .from('attendance')
-        .select('user_id, checked_in, walk_in')
-        .eq('class_instance_id', id),
-      supabase
-        .from('memberships')
-        .select('user_id, notes')
-        .eq('studio_id', cls.studio_id),
-    ])
-
-    const attMap = new Map((attendanceData ?? []).map((a) => [a.user_id, a]))
-    const notesMap = new Map((memberships ?? []).map((m) => [m.user_id, m.notes]))
-
-    const bookedEntries: RosterEntry[] = (bookings ?? []).map((b) => {
-      const u = b.user as any
-      const att = attMap.get(u.id)
-      return {
-        userId: u.id,
-        name: u.name,
-        avatarUrl: u.avatar_url ?? null,
-        bookingId: b.id,
-        bookingStatus: b.status,
-        spot: b.spot ?? null,
-        checkedIn: att?.checked_in ?? false,
-        walkIn: att?.walk_in ?? false,
-        notes: notesMap.get(u.id) ?? null,
-        dirty: false,
-      }
-    })
-
-    // Append walk-ins with no booking
-    const bookedIds = new Set(bookedEntries.map((e) => e.userId))
-    const walkOnlyAtt = (attendanceData ?? []).filter(
-      (a) => a.walk_in && !bookedIds.has(a.user_id),
-    )
-    if (walkOnlyAtt.length > 0) {
-      const { data: walkInUsers } = await supabase
-        .from('users')
-        .select('id, name, avatar_url')
-        .in('id', walkOnlyAtt.map((a) => a.user_id))
-
-      const userMap = new Map((walkInUsers ?? []).map((u) => [u.id, u]))
-      for (const a of walkOnlyAtt) {
-        const u = userMap.get(a.user_id)
-        if (u) {
-          bookedEntries.push({
-            userId: u.id,
-            name: u.name,
-            avatarUrl: u.avatar_url ?? null,
-            bookingId: null,
-            bookingStatus: null,
-            spot: null,
-            checkedIn: true,
-            walkIn: true,
-            notes: null,
-            dirty: false,
-          })
-        }
-      }
-    }
-
-    setRoster(bookedEntries)
-    setLoading(false)
-    setRefreshing(false)
   }, [id, user])
 
   useEffect(() => { loadData() }, [loadData])
@@ -199,7 +113,7 @@ export default function CheckinScreen() {
   function toggleCheckedIn(userId: string) {
     setRoster((prev) =>
       prev.map((e) =>
-        e.userId === userId ? { ...e, checkedIn: !e.checkedIn, dirty: true } : e,
+        e.user_id === userId ? { ...e, checked_in: !e.checked_in, dirty: true } : e,
       ),
     )
   }
@@ -210,46 +124,25 @@ export default function CheckinScreen() {
     if (!user) return
     setSaving(true)
 
-    const now = new Date().toISOString()
-    const dirtyEntries = roster.filter((e) => e.dirty)
+    try {
+      const dirtyEntries = roster.filter((e) => e.dirty)
+      const toCheckin = dirtyEntries.filter((e) => e.checked_in).map((e) => e.user_id)
 
-    for (const entry of dirtyEntries) {
-      const { data: existing } = await supabase
-        .from('attendance')
-        .select('id')
-        .eq('class_instance_id', id)
-        .eq('user_id', entry.userId)
-        .single()
-
-      const payload = {
-        checked_in: entry.checkedIn,
-        walk_in: entry.walkIn,
-        checked_in_at: entry.checkedIn ? now : null,
-        checked_in_by: entry.checkedIn ? user.id : null,
+      if (toCheckin.length > 0) {
+        await checkinApi.batchCheckin(id, toCheckin)
       }
 
-      if (existing) {
-        await supabase.from('attendance').update(payload).eq('id', existing.id)
-      } else {
-        await supabase.from('attendance').insert({
-          class_instance_id: id,
-          user_id: entry.userId,
-          ...payload,
-        })
+      setRoster((prev) => prev.map((e) => ({ ...e, dirty: false })))
+
+      // Refresh to get updated status
+      if (classInfo?.status === 'scheduled' && toCheckin.length > 0) {
+        setClassInfo((prev) => prev ? { ...prev, status: 'in_progress' } : prev)
       }
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to save check-ins.')
+    } finally {
+      setSaving(false)
     }
-
-    // Transition to in_progress if first check-in
-    if (classInfo?.status === 'scheduled' && dirtyEntries.some((e) => e.checkedIn)) {
-      await supabase
-        .from('class_instances')
-        .update({ status: 'in_progress' })
-        .eq('id', id)
-      setClassInfo((prev) => prev ? { ...prev, status: 'in_progress' } : prev)
-    }
-
-    setRoster((prev) => prev.map((e) => ({ ...e, dirty: false })))
-    setSaving(false)
   }
 
   // ─── Walk-in ──────────────────────────────────────────────────────────────
@@ -259,45 +152,17 @@ export default function CheckinScreen() {
     setWalkInBusy(true)
     setWalkInError('')
 
-    const { data: found } = await supabase
-      .from('users')
-      .select('id, name, avatar_url')
-      .eq('email', walkInEmail.trim().toLowerCase())
-      .single()
-
-    if (!found) {
-      setWalkInError('No user found with that email.')
+    try {
+      await checkinApi.addWalkin(id, walkInEmail.trim().toLowerCase())
+      setWalkInEmail('')
+      setWalkInVisible(false)
+      // Reload roster to include the walk-in
+      await loadData()
+    } catch (e: any) {
+      setWalkInError(e.message || 'Failed to add walk-in.')
+    } finally {
       setWalkInBusy(false)
-      return
     }
-
-    if (roster.some((e) => e.userId === found.id)) {
-      setRoster((prev) =>
-        prev.map((e) =>
-          e.userId === found.id ? { ...e, checkedIn: true, walkIn: true, dirty: true } : e,
-        ),
-      )
-    } else {
-      setRoster((prev) => [
-        ...prev,
-        {
-          userId: found.id,
-          name: found.name,
-          avatarUrl: found.avatar_url ?? null,
-          bookingId: null,
-          bookingStatus: null,
-          spot: null,
-          checkedIn: true,
-          walkIn: true,
-          notes: null,
-          dirty: true,
-        },
-      ])
-    }
-
-    setWalkInEmail('')
-    setWalkInBusy(false)
-    setWalkInVisible(false)
   }
 
   // ─── Complete class ───────────────────────────────────────────────────────
@@ -312,29 +177,16 @@ export default function CheckinScreen() {
           text: 'Complete',
           style: 'destructive',
           onPress: async () => {
-            await saveAll()
-
-            const checkedInIds = new Set(roster.filter((e) => e.checkedIn).map((e) => e.userId))
-            const { data: activeBookings } = await supabase
-              .from('bookings')
-              .select('id, user_id')
-              .eq('class_instance_id', id)
-              .in('status', ['booked', 'confirmed'])
-
-            const noShows = (activeBookings ?? []).filter((b) => !checkedInIds.has(b.user_id))
-            if (noShows.length > 0) {
-              await supabase
-                .from('bookings')
-                .update({ status: 'no_show' })
-                .in('id', noShows.map((b) => b.id))
+            try {
+              // Save any unsaved changes first
+              if (roster.some((e) => e.dirty)) {
+                await saveAll()
+              }
+              await checkinApi.completeClass(id)
+              router.back()
+            } catch (e: any) {
+              Alert.alert('Error', e.message || 'Failed to complete class.')
             }
-
-            await supabase
-              .from('class_instances')
-              .update({ status: 'completed', feed_enabled: true })
-              .eq('id', id)
-
-            router.back()
           },
         },
       ],
@@ -343,7 +195,7 @@ export default function CheckinScreen() {
 
   // ─── Derived ──────────────────────────────────────────────────────────────
 
-  const checkedInCount = roster.filter((e) => e.checkedIn).length
+  const checkedInCount = roster.filter((e) => e.checked_in).length
   const dirtyCount = roster.filter((e) => e.dirty).length
 
   // ─── Render ───────────────────────────────────────────────────────────────
@@ -420,7 +272,7 @@ export default function CheckinScreen() {
       <FlatList
         data={roster}
         numColumns={3}
-        keyExtractor={(item) => item.userId}
+        keyExtractor={(item) => item.user_id}
         contentContainerStyle={{ padding: 12 }}
         columnWrapperStyle={{ gap: 8 }}
         ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
@@ -431,7 +283,7 @@ export default function CheckinScreen() {
           />
         }
         renderItem={({ item }) => (
-          <MemberCard entry={item} onToggle={() => toggleCheckedIn(item.userId)} />
+          <MemberCard entry={item} onToggle={() => toggleCheckedIn(item.user_id)} />
         )}
         ListEmptyComponent={
           <View className="items-center py-12">
@@ -533,7 +385,7 @@ function MemberCard({
   entry,
   onToggle,
 }: {
-  entry: RosterEntry
+  entry: LocalEntry
   onToggle: () => void
 }) {
   const name = entry.name
@@ -544,7 +396,7 @@ function MemberCard({
     <TouchableOpacity
       className={[
         'flex-1 items-center rounded-2xl p-3 border-2',
-        entry.checkedIn ? 'bg-green-50 border-green-500' : 'bg-card border-border',
+        entry.checked_in ? 'bg-green-50 border-green-500' : 'bg-card border-border',
         entry.dirty ? 'opacity-90' : '',
       ].join(' ')}
       onPress={onToggle}
@@ -554,7 +406,7 @@ function MemberCard({
       <View
         className={[
           'w-14 h-14 rounded-full items-center justify-center mb-2',
-          entry.checkedIn ? 'bg-green-100' : 'bg-secondary',
+          entry.checked_in ? 'bg-green-100' : 'bg-secondary',
         ].join(' ')}
       >
         <Text className="text-lg font-bold text-foreground">{abbr}</Text>
@@ -569,7 +421,7 @@ function MemberCard({
       </Text>
 
       {/* Badges */}
-      {entry.walkIn && (
+      {entry.walk_in && (
         <View className="bg-blue-500 rounded-full px-1.5 mt-1">
           <Text className="text-white text-[9px] font-bold">Walk-in</Text>
         </View>
@@ -581,9 +433,9 @@ function MemberCard({
         </View>
       )}
 
-      {entry.checkedIn && (
+      {entry.checked_in && (
         <View className="bg-green-500 rounded-full px-2 mt-1">
-          <Text className="text-white text-[9px] font-bold">✓ Present</Text>
+          <Text className="text-white text-[9px] font-bold">Present</Text>
         </View>
       )}
     </TouchableOpacity>

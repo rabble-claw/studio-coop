@@ -141,20 +141,23 @@ export default function FeedScreen() {
               <Image source={{ uri: post.media_urls[0] }} className="w-full h-48 rounded-xl mt-2" resizeMode="cover" />
             )}
 
-            {post.reactions.length > 0 && (
-              <View className="flex-row gap-2 mt-3">
-                {post.reactions.map(r => (
+            <View className="flex-row gap-2 mt-3">
+              {['\u2764\uFE0F', '\uD83D\uDD25', '\uD83D\uDC4F'].map(emoji => {
+                const r = post.reactions.find(x => x.emoji === emoji)
+                return (
                   <TouchableOpacity
-                    key={r.emoji}
-                    className={`flex-row items-center rounded-full px-2 py-1 ${r.reacted ? 'bg-primary/10 border border-primary/30' : 'bg-secondary'}`}
-                    onPress={() => handleReact(post.id, r.emoji)}
+                    key={emoji}
+                    className={`flex-row items-center rounded-full px-2 py-1 ${r?.reacted ? 'bg-primary/10 border border-primary/30' : 'bg-secondary'}`}
+                    onPress={() => handleReact(post.id, emoji)}
                   >
-                    <Text className="text-sm">{r.emoji}</Text>
-                    <Text className={`text-xs ml-1 ${r.reacted ? 'text-primary font-medium' : 'text-muted'}`}>{r.count}</Text>
+                    <Text className="text-sm">{emoji}</Text>
+                    {r && r.count > 0 && (
+                      <Text className={`text-xs ml-1 ${r.reacted ? 'text-primary font-medium' : 'text-muted'}`}>{r.count}</Text>
+                    )}
                   </TouchableOpacity>
-                ))}
-              </View>
-            )}
+                )
+              })}
+            </View>
           </View>
         )}
         ListEmptyComponent={

@@ -94,7 +94,7 @@ export function StudioSwitcherHeader({ studios, currentStudio, showPicker, setSh
   }
 
   return (
-    <>
+    <View className="flex-row items-center">
       <TouchableOpacity
         className="flex-row items-center"
         onPress={() => setShowPicker(true)}
@@ -149,6 +149,6 @@ export function StudioSwitcherHeader({ studios, currentStudio, showPicker, setSh
           </View>
         </View>
       </Modal>
-    </>
+    </View>
   )
 }

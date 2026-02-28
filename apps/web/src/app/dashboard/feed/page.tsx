@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -33,7 +33,7 @@ export default function FeedPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [currentUserId, setCurrentUserId] = useState('')
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   async function loadFeed(userId: string) {
     setLoading(true)

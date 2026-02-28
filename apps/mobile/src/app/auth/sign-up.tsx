@@ -27,7 +27,7 @@ export default function SignUpScreen() {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1 bg-background">
-      <ScrollView contentContainerClassName="flex-1 justify-center px-6">
+      <ScrollView contentContainerStyle={{ flex: 1, justifyContent: 'center', paddingHorizontal: 24 }}>
         <View className="items-center mb-10">
           <View className="w-16 h-16 bg-primary rounded-2xl items-center justify-center mb-4">
             <Text className="text-white text-2xl font-bold">SC</Text>
@@ -84,8 +84,10 @@ export default function SignUpScreen() {
           </TouchableOpacity>
 
           <View className="items-center mt-4">
-            <Link href="/auth/sign-in">
-              <Text className="text-primary">Already have an account? Sign in</Text>
+            <Link href="/auth/sign-in" asChild>
+              <TouchableOpacity>
+                <Text className="text-primary">Already have an account? Sign in</Text>
+              </TouchableOpacity>
             </Link>
           </View>
         </View>

@@ -13,6 +13,9 @@ import { notFound, badRequest, forbidden } from '../lib/errors'
 import { refundCredit } from '../lib/credits'
 import { promoteFromWaitlist } from '../lib/waitlist'
 import { buildBookingCalEvent } from '../lib/calendar'
+import { sendNotification } from '../lib/notifications'
+import { createPaymentIntent } from '../lib/stripe'
+import { getOrCreateStripeCustomer, getConnectedAccountId } from '../lib/payments'
 
 const my = new Hono()
 
@@ -79,7 +82,38 @@ my.delete('/bookings/:bookingId', authMiddleware, async (c) => {
     })
     creditRefunded = true
   }
-  // Outside window — no refund (late-cancel fee logic is future work)
+  // Outside window — charge late-cancel fee if configured
+  let lateCancelFeeCharged = false
+  let lateCancelPaymentIntentId: string | null = null
+  if (!withinWindow) {
+    const lateCancelFeeCents = typeof settings.late_cancel_fee_cents === 'number'
+      ? settings.late_cancel_fee_cents
+      : 0
+
+    if (lateCancelFeeCents > 0 && classInstance?.studio_id) {
+      try {
+        const connectedAccountId = await getConnectedAccountId(classInstance.studio_id)
+        if (connectedAccountId) {
+          const customer = await getOrCreateStripeCustomer(user.id, classInstance.studio_id, '')
+          const pi = await createPaymentIntent({
+            amount: lateCancelFeeCents,
+            currency: 'usd',
+            customerId: customer.id,
+            connectedAccountId,
+            metadata: {
+              type: 'late_cancel_fee',
+              booking_id: bookingId,
+              studio_id: classInstance.studio_id,
+            },
+          })
+          lateCancelFeeCharged = true
+          lateCancelPaymentIntentId = pi.id
+        }
+      } catch {
+        // Late-cancel fee is best-effort; don't block the cancellation
+      }
+    }
+  }
 
   // ── 5. Trigger waitlist promotion ─────────────────────────────────────────
   if (classInstance?.id) {
@@ -112,6 +146,8 @@ my.delete('/bookings/:bookingId', authMiddleware, async (c) => {
     status: 'cancelled',
     creditRefunded,
     withinCancellationWindow: withinWindow,
+    lateCancelFeeCharged,
+    lateCancelPaymentIntentId,
     ical: cancelIcs,
   })
 })
@@ -207,14 +243,59 @@ my.post('/my/bookings/reminders', async (c) => {
       .lte('class_instances.date', toISO(window2hEnd).split('T')[0]),
   ])
 
-  // TODO: send push notifications via Plan 10 notifications system
-  // For each booking in res24h → send "Still coming tomorrow?" reminder
-  // For each booking in res2h  → send "Class starts in 2 hours!" reminder
+  // Send notifications for each booking in the reminder windows
+  let sent24h = 0
+  let sent2h = 0
+
+  for (const booking of res24h.data ?? []) {
+    const ci = Array.isArray(booking.class_instance) ? booking.class_instance[0] : booking.class_instance
+    const studio = ci ? (Array.isArray(ci.studio) ? ci.studio[0] : ci.studio) : null
+    const template = ci ? (Array.isArray(ci.template) ? ci.template[0] : ci.template) : null
+    if (!ci || !studio) continue
+
+    try {
+      await sendNotification({
+        userId: booking.user_id,
+        studioId: ci.id,
+        type: 'class_reminder_24h',
+        title: 'Still coming tomorrow?',
+        body: `${template?.name ?? 'Your class'} at ${studio.name} is tomorrow at ${ci.start_time}`,
+        data: { classInstanceId: ci.id, screen: 'ClassDetail' },
+        channels: ['push', 'in_app'],
+      })
+      sent24h++
+    } catch {
+      // Continue sending other reminders even if one fails
+    }
+  }
+
+  for (const booking of res2h.data ?? []) {
+    const ci = Array.isArray(booking.class_instance) ? booking.class_instance[0] : booking.class_instance
+    const studio = ci ? (Array.isArray(ci.studio) ? ci.studio[0] : ci.studio) : null
+    const template = ci ? (Array.isArray(ci.template) ? ci.template[0] : ci.template) : null
+    if (!ci || !studio) continue
+
+    try {
+      await sendNotification({
+        userId: booking.user_id,
+        studioId: ci.id,
+        type: 'class_reminder_2h',
+        title: 'Class starts in 2 hours!',
+        body: `${template?.name ?? 'Your class'} at ${studio.name} starts at ${ci.start_time}`,
+        data: { classInstanceId: ci.id, screen: 'ClassDetail' },
+        channels: ['push', 'in_app'],
+      })
+      sent2h++
+    } catch {
+      // Continue sending other reminders even if one fails
+    }
+  }
 
   return c.json({
     reminders24h: (res24h.data ?? []).length,
     reminders2h:  (res2h.data ?? []).length,
-    // bookings listed here would be passed to the notification system
+    sent24h,
+    sent2h,
   })
 })
 

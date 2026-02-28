@@ -193,7 +193,7 @@ export default function MembersPage() {
                       {member.role}
                     </span>
                     <span className="text-xs text-muted-foreground hidden sm:inline whitespace-nowrap">
-                      Joined {new Date(member.joined).toLocaleDateString('en-NZ', { month: 'short', year: 'numeric' })}
+                      Joined {new Date(member.joined).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
                     </span>
                   </div>
                 </div>

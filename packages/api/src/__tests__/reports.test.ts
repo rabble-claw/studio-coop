@@ -207,22 +207,23 @@ describe('GET /api/studios/:studioId/reports/at-risk', () => {
       { user_id: 'u1', user: { id: 'u1', name: 'Alice', email: 'alice@e.com' } },
       { user_id: 'u2', user: { id: 'u2', name: 'Bob', email: 'bob@e.com' } },
     ]
-    const recentAttendance = [{ user_id: 'u1', checked_in_at: '2026-02-27T10:00:00Z' }]
+    const recentAttendance = [{ user_id: 'u1', checked_in_at: '2026-02-27T10:00:00Z', class_instance: { studio_id: STUDIO_ID } }]
+    const allAttendance = [{ user_id: 'u2', checked_in_at: '2026-02-01T10:00:00Z', class_instance: { studio_id: STUDIO_ID } }]
 
-    let fromCallCount = 0
+    let attendanceCallCount = 0
     const mock = {
       from: vi.fn((table: string) => {
         if (table === 'memberships') {
           return makeAsyncChain({ data: members, error: null })
         }
         if (table === 'attendance') {
-          fromCallCount++
-          if (fromCallCount <= 1) {
-            // Recent attendance query
+          attendanceCallCount++
+          if (attendanceCallCount <= 1) {
+            // Recent attendance query (joined through class_instances)
             return makeAsyncChain({ data: recentAttendance, error: null })
           }
-          // Individual last attendance query for at-risk members
-          return makeAsyncChain({ data: { checked_in_at: '2026-02-01T10:00:00Z' }, error: null })
+          // Batch last attendance query for all at-risk members
+          return makeAsyncChain({ data: allAttendance, error: null })
         }
         return makeAsyncChain({ data: null, error: null })
       }),
@@ -238,5 +239,6 @@ describe('GET /api/studios/:studioId/reports/at-risk', () => {
     // u1 has recent attendance, so only u2 (Bob) should be at-risk
     expect(body.members).toHaveLength(1)
     expect(body.members[0].name).toBe('Bob')
+    expect(body.members[0].lastClass).toBe('2026-02-01T10:00:00Z')
   })
 })

@@ -89,7 +89,7 @@ export function DashboardShell({ children, mode = 'live', basePath = '/dashboard
                     href={href}
                     className={cn(
                       'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors whitespace-nowrap min-h-[44px] min-w-[44px] justify-center',
-                      pathname === href
+                      (href === basePath ? pathname === href : pathname.startsWith(href))
                         ? 'bg-secondary text-foreground font-medium'
                         : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
                     )}

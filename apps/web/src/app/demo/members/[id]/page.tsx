@@ -21,10 +21,25 @@ export default function DemoMemberDetailPage({ params }: { params: Promise<{ id:
   const { id } = use(params)
   const member = getDemoMemberById(id)
 
-  const [compClasses, setCompClasses] = useState<CompClass[]>([
-    { id: 'comp-1', count: 1, reason: 'Holiday gift', grantedLabel: 'Granted Dec 2025', status: 'used' },
-    { id: 'comp-2', count: 1, reason: 'Welcome bonus', grantedLabel: 'Granted on signup', status: 'available' },
-  ])
+  const compVariants: CompClass[][] = [
+    [
+      { id: 'comp-1', count: 1, reason: 'Holiday gift', grantedLabel: 'Granted Dec 2025', status: 'used' },
+      { id: 'comp-2', count: 1, reason: 'Welcome bonus', grantedLabel: 'Granted on signup', status: 'available' },
+    ],
+    [
+      { id: 'comp-1', count: 2, reason: 'Referral reward', grantedLabel: 'Granted Jan 2026', status: 'available' },
+    ],
+    [
+      { id: 'comp-1', count: 1, reason: 'Class cancellation makeup', grantedLabel: 'Granted Nov 2025', status: 'used' },
+      { id: 'comp-2', count: 3, reason: 'Loyalty bonus', grantedLabel: 'Granted Feb 2026', status: 'available' },
+    ],
+    [
+      { id: 'comp-1', count: 1, reason: 'Birthday class', grantedLabel: 'Granted Oct 2025', status: 'used' },
+    ],
+    [],
+  ]
+  const memberIndex = parseInt(id.replace(/\D/g, '') || '0', 10) % compVariants.length
+  const [compClasses, setCompClasses] = useState<CompClass[]>(compVariants[memberIndex]!)
   const [showCompForm, setShowCompForm] = useState(false)
   const [compCount, setCompCount] = useState(1)
   const [compReason, setCompReason] = useState('')

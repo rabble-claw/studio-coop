@@ -70,8 +70,7 @@ export default function HomeScreen() {
 
       // Only show upcoming (future) bookings, sorted by date, limit 5
       setBookings((bookingsData ?? []).slice(0, 5))
-      // Filter to classes with spots available
-      setTodayClasses((classesData ?? []).filter(c => c.booking_count < c.max_capacity).slice(0, 5))
+      setTodayClasses((classesData ?? []).slice(0, 5))
       setRecentPosts((feedData ?? []).slice(0, 5))
     } catch (e) {
       console.error('Failed to load home data:', e)
@@ -128,6 +127,7 @@ export default function HomeScreen() {
     if (section.type === 'available') {
       const cls = item as AvailableClass
       const spotsLeft = cls.max_capacity - cls.booking_count
+      const isFull = spotsLeft <= 0
       return (
         <TouchableOpacity
           className="bg-card rounded-2xl border border-border p-4 mb-3"
@@ -145,9 +145,13 @@ export default function HomeScreen() {
               </Text>
             </View>
             <View className="items-end">
-              <Text className="text-muted text-xs">{spotsLeft} spots</Text>
-              <View className="mt-1 bg-primary/10 rounded-full px-3 py-1">
-                <Text className="text-xs text-primary font-medium">View</Text>
+              <Text className={`text-xs ${isFull ? 'text-red-500' : 'text-muted'}`}>
+                {isFull ? 'Full' : `${spotsLeft} spots`}
+              </Text>
+              <View className={`mt-1 rounded-full px-3 py-1 ${isFull ? 'bg-yellow-50' : 'bg-primary/10'}`}>
+                <Text className={`text-xs font-medium ${isFull ? 'text-yellow-700' : 'text-primary'}`}>
+                  {isFull ? 'Waitlist' : 'View'}
+                </Text>
               </View>
             </View>
           </View>

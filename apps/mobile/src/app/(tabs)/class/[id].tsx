@@ -6,8 +6,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useAuth } from '@/lib/auth-context'
-import { scheduleApi, bookingApi, feedApi } from '@/lib/api'
-import { supabase } from '@/lib/supabase'
+import { api, scheduleApi, bookingApi, feedApi } from '@/lib/api'
 
 interface ClassDetail {
   id: string
@@ -54,24 +53,6 @@ function formatTime(time: string) {
   return `${h % 12 || 12}:${m.toString().padStart(2, '0')} ${period}`
 }
 
-function groupReactions(
-  reactions: Array<{ post_id: string; emoji: string; user_id: string }>,
-  viewerId: string,
-): Record<string, Reaction[]> {
-  const byPost: Record<string, Reaction[]> = {}
-  for (const r of reactions) {
-    if (!byPost[r.post_id]) byPost[r.post_id] = []
-    const existing = byPost[r.post_id].find((x) => x.emoji === r.emoji)
-    if (existing) {
-      existing.count++
-      if (r.user_id === viewerId) existing.reacted = true
-    } else {
-      byPost[r.post_id].push({ emoji: r.emoji, count: 1, reacted: r.user_id === viewerId })
-    }
-  }
-  return byPost
-}
-
 export default function ClassDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
   const { user, studioId } = useAuth()
@@ -89,66 +70,32 @@ export default function ClassDetailScreen() {
   const [postText, setPostText] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  const loadFeed = useCallback(async (userId: string) => {
-    const { data: posts } = await supabase
-      .from('feed_posts')
-      .select('id, content, media_urls, post_type, created_at, user:users!feed_posts_user_id_fkey(id, name, avatar_url)')
-      .eq('class_instance_id', id)
-      .order('created_at', { ascending: false })
-
-    const postIds = (posts ?? []).map((p) => p.id)
-    let reactionsByPost: Record<string, Reaction[]> = {}
-
-    if (postIds.length > 0) {
-      const { data: reactions } = await supabase
-        .from('feed_reactions')
-        .select('post_id, emoji, user_id')
-        .in('post_id', postIds)
-      reactionsByPost = groupReactions(reactions ?? [], userId)
+  const loadFeed = useCallback(async (_userId?: string) => {
+    if (!studioId) return
+    try {
+      const data = await feedApi.getFeed(studioId, id) as FeedPost[]
+      setFeed(data ?? [])
+    } catch (e) {
+      console.error('Failed to load class feed:', e)
     }
-
-    setFeed(
-      (posts ?? []).map((p) => ({
-        id: p.id,
-        content: p.content,
-        media_urls: p.media_urls,
-        post_type: p.post_type,
-        created_at: p.created_at,
-        user: p.user as unknown as FeedPost['user'],
-        reactions: reactionsByPost[p.id] ?? [],
-      })),
-    )
-  }, [id])
+  }, [id, studioId])
 
   const loadData = useCallback(async () => {
     if (!user || !studioId) return
     setLoading(true)
 
     try {
-      // Load class detail
-      const cls = await scheduleApi.instanceDetail(studioId, id) as ClassDetail | null
+      // Load class detail from API
+      const cls = await scheduleApi.instanceDetail(studioId, id) as any
       if (!cls) { setLoading(false); return }
-      setClassData(cls)
+      setClassData(cls as ClassDetail)
 
-      // Load bookings from supabase (RLS protected)
-      const [{ data: bks }, { data: membership }] = await Promise.all([
-        supabase
-          .from('bookings')
-          .select('*, user:users!bookings_user_id_fkey(id, name, avatar_url)')
-          .eq('class_instance_id', id)
-          .in('status', ['booked', 'confirmed']),
-        supabase
-          .from('memberships')
-          .select('role')
-          .eq('studio_id', cls.studio_id)
-          .eq('user_id', user.id)
-          .single(),
-      ])
-
-      setBookings(bks ?? [])
-      setMyBooking((bks ?? []).find((b: Booking) => b.user.id === user.id) ?? null)
-      setIsStaff(['teacher', 'admin', 'owner'].includes(membership?.role ?? ''))
-      await loadFeed(user.id)
+      // Use bookings from API response if available, otherwise empty
+      const bks: Booking[] = cls.bookings ?? []
+      setBookings(bks)
+      setMyBooking(bks.find((b: Booking) => b.user?.id === user.id) ?? null)
+      setIsStaff(cls.is_staff ?? false)
+      await loadFeed()
     } catch (e) {
       console.error('Failed to load class detail:', e)
     } finally {
@@ -204,25 +151,23 @@ export default function ClassDetailScreen() {
   }
 
   async function toggleReaction(postId: string, emoji: string) {
-    if (!user) return
-    const post = feed.find((p) => p.id === postId)
-    const existing = post?.reactions.find((r) => r.emoji === emoji && r.reacted)
-
-    if (existing) {
-      await supabase.from('feed_reactions').delete()
-        .eq('post_id', postId).eq('user_id', user.id).eq('emoji', emoji)
-    } else {
-      await supabase.from('feed_reactions').upsert(
-        { post_id: postId, user_id: user.id, emoji },
-        { onConflict: 'post_id,user_id,emoji' },
-      )
+    if (!user || !studioId) return
+    try {
+      await feedApi.react(studioId, postId, emoji)
+      await loadFeed()
+    } catch (e) {
+      console.error('Failed to toggle reaction:', e)
     }
-    await loadFeed(user.id)
   }
 
   async function deletePost(postId: string) {
-    await supabase.from('feed_posts').delete().eq('id', postId)
-    if (user) await loadFeed(user.id)
+    if (!studioId) return
+    try {
+      await api.delete(`/api/studios/${studioId}/feed/${postId}`)
+      await loadFeed()
+    } catch (e) {
+      console.error('Failed to delete post:', e)
+    }
   }
 
   if (!classData) {

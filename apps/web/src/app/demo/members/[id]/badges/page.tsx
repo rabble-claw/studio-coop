@@ -3,7 +3,6 @@
 import { use, useState } from 'react'
 import Link from 'next/link'
 import { getDemoMemberById, getDemoMemberBadges, demoBadges } from '@/lib/demo-data'
-import type { DemoBadge } from '@/lib/demo-data'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 type CategoryFilter = 'all' | 'classes' | 'streaks' | 'community'

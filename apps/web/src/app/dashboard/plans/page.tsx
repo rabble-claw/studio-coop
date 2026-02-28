@@ -38,6 +38,7 @@ export default function PlansPage() {
   const [error, setError] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [editingPlan, setEditingPlan] = useState<string | null>(null)
+  const [studioCurrency, setStudioCurrency] = useState('USD')
   const [newPlan, setNewPlan] = useState({
     name: '', type: 'unlimited', price: '', interval: 'month',
     class_limit: '', validity_days: '',
@@ -60,6 +61,15 @@ export default function PlansPage() {
       if (!membership) { setLoading(false); return }
       setStudioId(membership.studio_id)
 
+      // Fetch studio currency from settings or existing plans
+      const { data: studioData } = await supabase
+        .from('studios')
+        .select('settings')
+        .eq('id', membership.studio_id)
+        .single()
+      const currency = (studioData?.settings as Record<string, unknown>)?.currency as string | undefined
+      if (currency) setStudioCurrency(currency)
+
       try {
         const result = await planApi.list(membership.studio_id) as { plans: Plan[] }
         setPlans(result.plans ?? [])
@@ -72,7 +82,7 @@ export default function PlansPage() {
   }, [])
 
   function formatPrice(cents: number, currency: string) {
-    return new Intl.NumberFormat('en-NZ', { style: 'currency', currency }).format(cents / 100)
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(cents / 100)
   }
 
   async function handleCreate() {
@@ -82,7 +92,7 @@ export default function PlansPage() {
         name: newPlan.name,
         type: newPlan.type,
         price_cents: Math.round(parseFloat(newPlan.price || '0') * 100),
-        currency: 'NZD',
+        currency: studioCurrency,
         interval: newPlan.interval,
         class_limit: newPlan.class_limit ? parseInt(newPlan.class_limit) : null,
         validity_days: newPlan.validity_days ? parseInt(newPlan.validity_days) : null,
@@ -166,7 +176,7 @@ export default function PlansPage() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="text-sm font-medium">Price (NZD)</label>
+                <label className="text-sm font-medium">Price ({studioCurrency})</label>
                 <Input type="number" step="0.01" value={newPlan.price} onChange={e => setNewPlan({...newPlan, price: e.target.value})} placeholder="0.00" />
               </div>
               <div>

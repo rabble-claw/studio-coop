@@ -242,8 +242,15 @@ export default function NetworkPage() {
           <CardHeader><CardTitle>Invite Studio to Network</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <label className="text-sm font-medium">Studio ID</label>
-              <Input value={inviteStudioId} onChange={e => setInviteStudioId(e.target.value)} placeholder="Enter studio ID to invite" />
+              <label className="text-sm font-medium">Studio Name or ID</label>
+              <Input
+                value={inviteStudioId}
+                onChange={e => setInviteStudioId(e.target.value)}
+                placeholder="e.g. my-studio-slug or studio UUID"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Enter the studio&apos;s slug (from their URL) or their studio ID. Ask the studio owner for their slug if you&apos;re unsure.
+              </p>
             </div>
             <div className="flex gap-2">
               <Button onClick={handleInvite} disabled={inviting || !inviteStudioId.trim()}>

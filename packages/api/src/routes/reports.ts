@@ -232,40 +232,50 @@ reports.get('/:studioId/reports/at-risk', authMiddleware, requireStaff, async (c
     .eq('studio_id', studioId)
     .eq('status', 'active')
 
-  // Get recent attendance (last 14 days)
+  // Get recent attendance (last 14 days) — join through class_instances for studio_id
   const { data: recentAttendance } = await supabase
     .from('attendance')
-    .select('user_id, checked_in_at')
-    .eq('studio_id', studioId)
+    .select('user_id, checked_in_at, class_instance:class_instances!inner(studio_id)')
+    .eq('class_instance.studio_id', studioId)
     .gte('checked_in_at', fourteenDaysAgo)
 
   const recentUserIds = new Set((recentAttendance ?? []).map(a => a.user_id))
 
-  // Find last attendance for at-risk members
-  const atRisk: Array<{ name: string; email: string; lastClass: string | null }> = []
-
-  for (const m of members ?? []) {
-    if (recentUserIds.has(m.user_id)) continue
-
+  // Filter to at-risk members (no recent attendance)
+  const atRiskMembers = (members ?? []).filter(m => {
+    if (recentUserIds.has(m.user_id)) return false
     const user = m.user as unknown as { id: string; name: string; email: string } | null
-    if (!user) continue
+    return !!user
+  })
 
-    // Get their last attendance
-    const { data: lastAtt } = await supabase
+  // Batch fetch last attendance for all at-risk members in one query
+  const atRiskUserIds = atRiskMembers.map(m => m.user_id)
+  let lastAttendanceMap: Record<string, string> = {}
+
+  if (atRiskUserIds.length > 0) {
+    const { data: allAttendance } = await supabase
       .from('attendance')
-      .select('checked_in_at')
-      .eq('user_id', m.user_id)
-      .eq('studio_id', studioId)
+      .select('user_id, checked_in_at, class_instance:class_instances!inner(studio_id)')
+      .eq('class_instance.studio_id', studioId)
+      .in('user_id', atRiskUserIds)
       .order('checked_in_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
 
-    atRisk.push({
+    // Build a map of user_id -> most recent checked_in_at
+    for (const a of allAttendance ?? []) {
+      if (!lastAttendanceMap[a.user_id]) {
+        lastAttendanceMap[a.user_id] = a.checked_in_at
+      }
+    }
+  }
+
+  const atRisk = atRiskMembers.map(m => {
+    const user = m.user as unknown as { id: string; name: string; email: string }
+    return {
       name: user.name ?? user.email,
       email: user.email,
-      lastClass: lastAtt?.checked_in_at ?? null,
-    })
-  }
+      lastClass: lastAttendanceMap[m.user_id] ?? null,
+    }
+  })
 
   // Sort by most recent first (null last)
   atRisk.sort((a, b) => {
