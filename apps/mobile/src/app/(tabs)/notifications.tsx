@@ -62,8 +62,26 @@ export default function NotificationsScreen() {
     }
   }
 
+  async function handleMarkAllRead() {
+    try {
+      await notificationApi.markAllRead()
+      setNotifications(notifications.map(n => ({ ...n, read_at: n.read_at ?? new Date().toISOString() })))
+    } catch (e) {
+      console.error('Failed to mark all read:', e)
+    }
+  }
+
+  const hasUnread = notifications.some(n => n.read_at === null)
+
   return (
     <View className="flex-1 bg-background">
+      {hasUnread && (
+        <View className="px-4 pt-3 pb-1 flex-row justify-end">
+          <TouchableOpacity onPress={handleMarkAllRead}>
+            <Text className="text-primary text-sm font-medium">Mark all read</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       <FlatList
         data={notifications}
         keyExtractor={n => n.id}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { api } from '@/lib/api-client'
@@ -33,9 +34,11 @@ interface Teacher {
 }
 
 export default function SchedulePage() {
+  const router = useRouter()
   const [studioId, setStudioId] = useState<string | null>(null)
   const [classesByDate, setClassesByDate] = useState<Record<string, ClassInstance[]>>({})
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [showAddClass, setShowAddClass] = useState(false)
 
   // Add class form
@@ -50,7 +53,7 @@ export default function SchedulePage() {
     async function load() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
+      if (!user) { router.push('/login'); return }
 
       const { data: membership } = await supabase
         .from('memberships')
@@ -63,47 +66,50 @@ export default function SchedulePage() {
       if (!membership) { setLoading(false); return }
       setStudioId(membership.studio_id)
 
-      const todayStr = new Date().toISOString().split('T')[0]
-      const { data: classes } = await supabase
-        .from('class_instances')
-        .select('id, date, start_time, end_time, max_capacity, booked_count, status, template:class_templates(name), teacher:users!class_instances_teacher_id_fkey(name)')
-        .eq('studio_id', membership.studio_id)
-        .gte('date', todayStr)
-        .order('date')
-        .order('start_time')
-        .limit(100)
+      try {
+        const todayStr = new Date().toISOString().split('T')[0]
+        const { data: classes } = await supabase
+          .from('class_instances')
+          .select('id, date, start_time, end_time, max_capacity, booked_count, status, template:class_templates(name), teacher:users!class_instances_teacher_id_fkey(name)')
+          .eq('studio_id', membership.studio_id)
+          .gte('date', todayStr)
+          .order('date')
+          .order('start_time')
+          .limit(100)
 
-      const grouped = (classes ?? []).reduce<Record<string, ClassInstance[]>>((acc, cls) => {
-        const c = cls as unknown as ClassInstance
-        if (!acc[c.date]) acc[c.date] = []
-        acc[c.date]!.push(c)
-        return acc
-      }, {})
-      setClassesByDate(grouped)
+        const grouped = (classes ?? []).reduce<Record<string, ClassInstance[]>>((acc, cls) => {
+          const c = cls as unknown as ClassInstance
+          if (!acc[c.date]) acc[c.date] = []
+          acc[c.date]!.push(c)
+          return acc
+        }, {})
+        setClassesByDate(grouped)
 
-      // Load templates and teachers for the add class form
-      const { data: tpls } = await supabase
-        .from('class_templates')
-        .select('id, name, default_capacity')
-        .eq('studio_id', membership.studio_id)
-        .order('name')
+        // Load templates and teachers for the add class form
+        const { data: tpls } = await supabase
+          .from('class_templates')
+          .select('id, name, default_capacity')
+          .eq('studio_id', membership.studio_id)
+          .order('name')
 
-      setTemplates((tpls ?? []) as ClassTemplate[])
+        setTemplates((tpls ?? []) as ClassTemplate[])
 
-      // Teachers are members with role 'teacher', 'admin', or 'owner'
-      const { data: staffMembers } = await supabase
-        .from('memberships')
-        .select('user:users(id, name)')
-        .eq('studio_id', membership.studio_id)
-        .in('role', ['teacher', 'admin', 'owner'])
-        .eq('status', 'active')
+        // Teachers are members with role 'teacher', 'admin', or 'owner'
+        const { data: staffMembers } = await supabase
+          .from('memberships')
+          .select('user:users(id, name)')
+          .eq('studio_id', membership.studio_id)
+          .in('role', ['teacher', 'admin', 'owner'])
+          .eq('status', 'active')
 
-      const teacherList: Teacher[] = (staffMembers ?? []).map(m => {
-        const u = m.user as unknown as { id: string; name: string } | null
-        return { id: u?.id ?? '', name: u?.name ?? 'Unknown' }
-      }).filter(t => t.id)
-      setTeachers(teacherList)
-
+        const teacherList: Teacher[] = (staffMembers ?? []).map(m => {
+          const u = m.user as unknown as { id: string; name: string } | null
+          return { id: u?.id ?? '', name: u?.name ?? 'Unknown' }
+        }).filter(t => t.id)
+        setTeachers(teacherList)
+      } catch {
+        setError('Failed to load schedule. Please try again.')
+      }
       setLoading(false)
     }
     load()
@@ -174,6 +180,10 @@ export default function SchedulePage() {
           {showAddClass ? 'Cancel' : '+ Add Class'}
         </Button>
       </div>
+
+      {error && (
+        <div className="text-sm px-4 py-3 rounded-md bg-red-50 text-red-700">{error}</div>
+      )}
 
       {showAddClass && (
         <Card>

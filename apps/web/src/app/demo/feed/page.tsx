@@ -70,7 +70,7 @@ export default function DemoFeedPage() {
     <div>
       <div className="mb-6">
         <h1 className="text-3xl font-bold">Community Feed</h1>
-        <p className="text-muted-foreground mt-1">Recent posts from Empire Aerial Arts</p>
+        <p className="text-muted-foreground mt-1">Recent posts from {demoStudio.name}</p>
       </div>
 
       {/* New Post Composer */}
@@ -115,12 +115,16 @@ export default function DemoFeedPage() {
 
               {/* Author */}
               <div className="flex items-center gap-3 mb-3">
-                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
-                  {post.author[0]}
-                </div>
+                <Link href={`/demo/members/${post.author_id}`} className="shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
+                    {post.author[0]}
+                  </div>
+                </Link>
                 <div>
                   <div className="text-sm font-medium flex items-center gap-2">
-                    {post.author}
+                    <Link href={`/demo/members/${post.author_id}`} className="hover:underline">
+                      {post.author}
+                    </Link>
                     {post.post_type === 'milestone' && (
                       <Badge variant="outline" className="text-xs">milestone</Badge>
                     )}

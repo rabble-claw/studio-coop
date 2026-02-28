@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { migrateApi } from '@/lib/api-client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -29,6 +30,7 @@ const TARGET_OPTIONS = [
 ]
 
 export default function MigratePage() {
+  const router = useRouter()
   const [studioId, setStudioId] = useState<string | null>(null)
   const [step, setStep] = useState<MigrationStep>('upload')
   const [source, setSource] = useState<'mindbody' | 'vagaro' | 'csv'>('mindbody')
@@ -44,7 +46,7 @@ export default function MigratePage() {
     async function load() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      if (!user) { router.push('/login'); return }
       const { data: membership } = await supabase
         .from('memberships')
         .select('studio_id')

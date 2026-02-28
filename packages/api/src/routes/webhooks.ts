@@ -66,12 +66,10 @@ webhooks.post('/stripe', async (c) => {
         await supabase.from('payments').insert({
           user_id: userId,
           studio_id: studioId,
-          plan_id: planId,
           amount_cents: session.amount_total ?? 0,
           currency: (session.currency ?? 'usd').toUpperCase(),
           stripe_payment_intent_id: session.payment_intent,
           type: 'subscription',
-          status: 'succeeded',
         })
 
         // Record coupon redemption if one was used
@@ -119,12 +117,10 @@ webhooks.post('/stripe', async (c) => {
           await supabase.from('payments').insert({
             user_id: userId,
             studio_id: studioId,
-            plan_id: planId,
             amount_cents: pi.amount,
             currency: pi.currency.toUpperCase(),
             stripe_payment_intent_id: pi.id,
             type: 'class_pack',
-            status: 'succeeded',
           })
         }
       } else if (type === 'drop_in') {
@@ -136,8 +132,47 @@ webhooks.post('/stripe', async (c) => {
           currency: pi.currency.toUpperCase(),
           stripe_payment_intent_id: pi.id,
           type: 'drop_in',
-          status: 'succeeded',
         })
+      } else if (type === 'private_booking_deposit') {
+        const privateBookingId = pi.metadata.bookingId ?? pi.metadata.private_booking_id
+        if (privateBookingId) {
+          // Mark deposit as paid
+          await supabase
+            .from('private_bookings')
+            .update({ deposit_paid: true })
+            .eq('id', privateBookingId)
+
+          // Record the payment
+          await supabase.from('payments').insert({
+            user_id: userId,
+            studio_id: studioId,
+            amount_cents: pi.amount,
+            currency: pi.currency.toUpperCase(),
+            stripe_payment_intent_id: pi.id,
+            type: 'private_booking',
+            metadata: { sub_type: 'deposit', private_booking_id: privateBookingId },
+          })
+        }
+      } else if (type === 'private_booking_balance') {
+        const privateBookingId = pi.metadata.bookingId ?? pi.metadata.private_booking_id
+        if (privateBookingId) {
+          // Mark booking as confirmed (fully paid)
+          await supabase
+            .from('private_bookings')
+            .update({ status: 'confirmed' })
+            .eq('id', privateBookingId)
+
+          // Record the payment
+          await supabase.from('payments').insert({
+            user_id: userId,
+            studio_id: studioId,
+            amount_cents: pi.amount,
+            currency: pi.currency.toUpperCase(),
+            stripe_payment_intent_id: pi.id,
+            type: 'private_booking',
+            metadata: { sub_type: 'balance', private_booking_id: privateBookingId },
+          })
+        }
       }
       break
     }
@@ -183,11 +218,9 @@ webhooks.post('/stripe', async (c) => {
       await supabase.from('payments').insert({
         user_id: sub.user_id,
         studio_id: sub.studio_id,
-        plan_id: sub.plan_id,
         amount_cents: invoice.amount_paid,
         currency: invoice.currency.toUpperCase(),
         type: 'subscription',
-        status: 'succeeded',
       })
       break
     }

@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -27,8 +28,10 @@ interface FeedPost {
 const REACTION_EMOJIS = ['❤️', '🔥', '👏']
 
 export default function FeedPage() {
+  const router = useRouter()
   const [posts, setPosts] = useState<FeedPost[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [currentUserId, setCurrentUserId] = useState('')
   const supabase = createClient()
 
@@ -92,9 +95,14 @@ export default function FeedPage() {
   useEffect(() => {
     async function init() {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      if (!user) { router.push('/login'); return }
       setCurrentUserId(user.id)
-      await loadFeed(user.id)
+      try {
+        await loadFeed(user.id)
+      } catch {
+        setError('Failed to load feed. Please try again.')
+        setLoading(false)
+      }
     }
     init()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -122,6 +130,10 @@ export default function FeedPage() {
         <h1 className="text-3xl font-bold">Community Feed</h1>
         <p className="text-muted-foreground mt-1">Recent posts from your classes</p>
       </div>
+
+      {error && (
+        <div className="text-sm px-4 py-3 rounded-md bg-red-50 text-red-700 mb-4">{error}</div>
+      )}
 
       {loading ? (
         <div className="text-muted-foreground text-center py-20">Loading feed...</div>

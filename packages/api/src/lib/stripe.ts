@@ -1,9 +1,8 @@
-// Stripe client and helpers — stubs for Plan 3 (Stripe Connect)
-// Real implementation lives on the stripe-connect branch.
-// These interfaces match the Stripe SDK types we'll rely on once merged.
+// Stripe client, type definitions, and platform-level helpers for Stripe Connect.
+// Provides checkout sessions, payment intents, subscription management, and webhook verification.
+// Connected-account operations (customer management per studio) live in ./payments.ts.
 
 import Stripe from 'stripe'
-import { createServiceClient } from './supabase'
 
 /** Platform fee percentage (configurable via env). */
 export const platformFeePercent = Number(process.env.STRIPE_PLATFORM_FEE_PERCENT ?? 2.5)
@@ -23,31 +22,6 @@ export function createStripeClient(): Stripe {
 /** Calculate platform application fee in cents. */
 export function calculateApplicationFee(amountCents: number): number {
   return Math.round(amountCents * platformFeePercent / 100)
-}
-
-/** Get or create a Stripe Customer for a user. */
-export async function getOrCreateStripeCustomer(
-  userId: string,
-  email: string,
-): Promise<string> {
-  const supabase = createServiceClient()
-  const { data } = await supabase
-    .from('users')
-    .select('stripe_customer_id')
-    .eq('id', userId)
-    .single()
-
-  if (data?.stripe_customer_id) return data.stripe_customer_id
-
-  const stripe = createStripeClient()
-  const customer = await stripe.customers.create({ email, metadata: { userId } })
-
-  await supabase
-    .from('users')
-    .update({ stripe_customer_id: customer.id })
-    .eq('id', userId)
-
-  return customer.id
 }
 
 export interface StripePrice {

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { networkApi } from '@/lib/api-client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -23,8 +24,10 @@ interface PartnerStudio {
 }
 
 export default function NetworkPage() {
+  const router = useRouter()
   const [studioId, setStudioId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [networks, setNetworks] = useState<Network[]>([])
   const [partners, setPartners] = useState<PartnerStudio[]>([])
 
@@ -45,7 +48,7 @@ export default function NetworkPage() {
     async function load() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
+      if (!user) { router.push('/login'); return }
 
       const { data: membership } = await supabase
         .from('memberships')
@@ -66,7 +69,7 @@ export default function NetworkPage() {
         setNetworks(networksRes.networks)
         setPartners(partnersRes.studios)
       } catch {
-        // API not available
+        setError('Failed to load network data. Please try again.')
       }
       setLoading(false)
     }
@@ -146,6 +149,10 @@ export default function NetworkPage() {
         </div>
         <Button onClick={() => setShowCreate(true)}>Create Network</Button>
       </div>
+
+      {error && (
+        <div className="text-sm px-4 py-3 rounded-md bg-red-50 text-red-700">{error}</div>
+      )}
 
       {message && (
         <div className={`text-sm px-4 py-2 rounded-md ${message.startsWith('Error') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>

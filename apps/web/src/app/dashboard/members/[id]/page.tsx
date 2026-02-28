@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { memberApi } from '@/lib/api-client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -80,13 +81,25 @@ export default function MemberDetailPage() {
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/'); return }
+      if (!user) { router.push('/login'); return }
 
-      // Fetch member's membership record
+      // Get the current user's studio
+      const { data: myMem } = await supabase
+        .from('memberships')
+        .select('studio_id')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .limit(1)
+        .single()
+
+      if (!myMem) { setLoading(false); return }
+
+      // Fetch member's membership record (filtered by studio_id)
       const { data: membership } = await supabase
         .from('memberships')
         .select('role, status, joined_at, notes, studio_id, user:users!memberships_user_id_fkey(id, name, email, avatar_url)')
         .eq('user_id', memberId)
+        .eq('studio_id', myMem.studio_id)
         .single()
 
       if (!membership) { setLoading(false); return }
@@ -105,7 +118,7 @@ export default function MemberDetailPage() {
       })
 
       // Check if the viewing user is staff
-      const { data: myMembership } = await supabase
+      const { data: myRole } = await supabase
         .from('memberships')
         .select('role')
         .eq('user_id', user.id)
@@ -113,7 +126,7 @@ export default function MemberDetailPage() {
         .single()
 
       const staffRoles = ['teacher', 'admin', 'owner']
-      setIsStaff(staffRoles.includes(myMembership?.role ?? ''))
+      setIsStaff(staffRoles.includes(myRole?.role ?? ''))
 
       // Fetch comp grants for this member
       const { data: grants } = await supabase
@@ -147,7 +160,7 @@ export default function MemberDetailPage() {
         .from('subscriptions')
         .select(`
           id, status, current_period_end, created_at,
-          plan:plans!subscriptions_plan_id_fkey(name, price_cents, interval)
+          plan:membership_plans!subscriptions_plan_id_fkey(name, price_cents, interval)
         `)
         .eq('user_id', memberId)
         .eq('studio_id', membership.studio_id)
@@ -170,34 +183,13 @@ export default function MemberDetailPage() {
     setGrantSuccess(null)
 
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token
-      if (!token) throw new Error('Not authenticated')
-
       const payload: Record<string, unknown> = {
         classes: parseInt(grantClasses, 10),
       }
       if (grantReason.trim()) payload.reason = grantReason.trim()
       if (grantExpiry) payload.expiresAt = new Date(grantExpiry).toISOString()
 
-      const res = await fetch(
-        `/api/studios/${member.studio_id}/members/${memberId}/comp`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(payload),
-        },
-      )
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({})) as { error?: string }
-        throw new Error(err.error ?? `HTTP ${res.status}`)
-      }
-
-      const data = await res.json() as { comp: CompGrant & { granted_by_user: null } }
+      const data = await memberApi.grantComp(member.studio_id, memberId, payload) as { comp: CompGrant & { granted_by_user: null } }
       setCompGrants((prev) => [{ ...data.comp, granted_by_user: null }, ...prev])
       setGrantSuccess(`Granted ${grantClasses} comp class${parseInt(grantClasses) !== 1 ? 'es' : ''} successfully.`)
       setGrantClasses('1')
@@ -215,19 +207,14 @@ export default function MemberDetailPage() {
     if (!member) return
     if (!confirm('Revoke this comp grant? The member will lose any remaining classes.')) return
 
-    const { data: { session } } = await supabase.auth.getSession()
-    const token = session?.access_token
-    if (!token) return
-
-    const res = await fetch(
-      `/api/studios/${member.studio_id}/comps/${compId}`,
-      { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } },
-    )
-
-    if (res.ok) {
+    try {
+      const { api } = await import('@/lib/api-client')
+      await api.delete(`/studios/${member.studio_id}/comps/${compId}`)
       setCompGrants((prev) =>
         prev.map((c) => c.id === compId ? { ...c, remaining_classes: 0 } : c),
       )
+    } catch {
+      // Revoke failed
     }
   }
 

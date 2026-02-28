@@ -297,9 +297,27 @@ export default function ClassDetailScreen() {
                   </Text>
                 </TouchableOpacity>
               ) : (
-                <View className="bg-secondary rounded-xl py-3 items-center">
-                  <Text className="text-muted font-semibold">Class Full</Text>
-                </View>
+                <TouchableOpacity
+                  className="bg-yellow-50 border border-yellow-200 rounded-xl py-3 items-center"
+                  onPress={async () => {
+                    if (!studioId) return
+                    setBookingLoading(true)
+                    try {
+                      await bookingApi.joinWaitlist(studioId, id)
+                      Alert.alert('Waitlisted!', 'You have been added to the waitlist.')
+                      loadData()
+                    } catch (e: any) {
+                      Alert.alert('Error', e.message || 'Failed to join waitlist.')
+                    } finally {
+                      setBookingLoading(false)
+                    }
+                  }}
+                  disabled={bookingLoading}
+                >
+                  <Text className="text-yellow-700 font-semibold">
+                    {bookingLoading ? 'Joining...' : 'Class Full \u2014 Join Waitlist'}
+                  </Text>
+                </TouchableOpacity>
               )}
             </View>
           )}

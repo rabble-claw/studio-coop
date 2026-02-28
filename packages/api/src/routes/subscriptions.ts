@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { authMiddleware } from '../middleware/auth'
 import { createServiceClient } from '../lib/supabase'
 import { notFound, forbidden, badRequest } from '../lib/errors'
-import { cancelStripeSubscription, pauseStripeSubscription } from '../lib/stripe'
+import { cancelStripeSubscription, pauseStripeSubscription, resumeStripeSubscription } from '../lib/stripe'
 import { getConnectedAccountId } from '../lib/payments'
 
 // Mounted at /api/subscriptions — handles /:subscriptionId/*
@@ -116,6 +116,47 @@ subscriptions.post('/:subscriptionId/pause', authMiddleware, async (c) => {
   const { data: updated, error } = await supabase
     .from('subscriptions')
     .update({ status: 'paused', paused_at: new Date().toISOString() })
+    .eq('id', subscriptionId)
+    .select()
+    .single()
+
+  if (error) throw error
+  return c.json({ subscription: updated })
+})
+
+/**
+ * POST /:subscriptionId/resume -- resume a paused subscription
+ *
+ * Resumes collection on Stripe and updates the local status to 'active'.
+ */
+subscriptions.post('/:subscriptionId/resume', authMiddleware, async (c) => {
+  const subscriptionId = c.req.param('subscriptionId')
+  const user = c.get('user' as never) as { id: string; email: string }
+  const supabase = createServiceClient()
+
+  const { data: sub } = await supabase
+    .from('subscriptions')
+    .select('id, user_id, studio_id, stripe_subscription_id, status')
+    .eq('id', subscriptionId)
+    .single()
+
+  if (!sub) throw notFound('Subscription')
+  if (sub.user_id !== user.id) throw forbidden()
+  if (sub.status !== 'paused') throw badRequest('Only paused subscriptions can be resumed')
+
+  // Resume on Stripe (best-effort)
+  if (sub.stripe_subscription_id) {
+    try {
+      const connectedAccountId = await getConnectedAccountId(sub.studio_id)
+      await resumeStripeSubscription(sub.stripe_subscription_id, connectedAccountId)
+    } catch {
+      // Stripe not configured -- fall through and update locally
+    }
+  }
+
+  const { data: updated, error } = await supabase
+    .from('subscriptions')
+    .update({ status: 'active' })
     .eq('id', subscriptionId)
     .select()
     .single()

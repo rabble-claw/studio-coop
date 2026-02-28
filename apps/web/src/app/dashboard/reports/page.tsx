@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { reportApi } from '@/lib/api-client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -35,8 +36,10 @@ interface AtRiskMember {
 }
 
 export default function ReportsPage() {
+  const router = useRouter()
   const [studioId, setStudioId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   // Overview
   const [overview, setOverview] = useState({ activeMembers: 0, totalRevenue: 0, avgAttendanceRate: 0, retentionRate: 0 })
@@ -51,7 +54,7 @@ export default function ReportsPage() {
     async function load() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
+      if (!user) { router.push('/login'); return }
 
       const { data: membership } = await supabase
         .from('memberships')
@@ -79,7 +82,7 @@ export default function ReportsPage() {
         setPopular(popularData.classes)
         setAtRisk(atRiskData.members)
       } catch {
-        // API not available — stay with defaults
+        setError('Failed to load reports. Please try again.')
       }
       setLoading(false)
     }
@@ -111,6 +114,10 @@ export default function ReportsPage() {
         <h1 className="text-2xl font-bold">Reports & Analytics</h1>
         <p className="text-muted-foreground">Track your studio&apos;s performance</p>
       </div>
+
+      {error && (
+        <div className="text-sm px-4 py-3 rounded-md bg-red-50 text-red-700">{error}</div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

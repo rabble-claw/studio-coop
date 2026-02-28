@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { authMiddleware } from '../middleware/auth'
-import { badRequest } from '../lib/errors'
+import { badRequest, forbidden } from '../lib/errors'
 import { createServiceClient } from '../lib/supabase'
 
 const upload = new Hono()
@@ -35,6 +35,19 @@ upload.post('/', authMiddleware, async (c) => {
   if (!studioId) throw badRequest('studioId is required')
   if (!classId) throw badRequest('classId is required')
 
+  const supabase = createServiceClient()
+
+  // Verify the user is a member of the specified studio
+  const { data: membership } = await supabase
+    .from('memberships')
+    .select('id')
+    .eq('user_id', user.id)
+    .eq('studio_id', studioId)
+    .eq('status', 'active')
+    .maybeSingle()
+
+  if (!membership) throw forbidden('You must be a member of this studio to upload files')
+
   if (!ALLOWED_TYPES.includes(file.type)) {
     throw badRequest(`File type not allowed. Allowed: ${ALLOWED_TYPES.join(', ')}`)
   }
@@ -46,8 +59,6 @@ upload.post('/', authMiddleware, async (c) => {
   const ext = EXT_MAP[file.type]
   const uniqueId = crypto.randomUUID()
   const path = `feed/${studioId}/${classId}/${user.id}/${uniqueId}.${ext}`
-
-  const supabase = createServiceClient()
   const buffer = await file.arrayBuffer()
 
   const { error } = await supabase.storage

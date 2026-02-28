@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { demoMembershipPlans } from '@/lib/demo-data'
+import { demoMembershipPlans, demoStudio } from '@/lib/demo-data'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -29,6 +29,8 @@ function formatPrice(cents: number, currency: string) {
 export default function DemoPlansPage() {
   const [plans, setPlans] = useState<Plan[]>([...demoMembershipPlans])
   const [showForm, setShowForm] = useState(false)
+  const [editingPlan, setEditingPlan] = useState<Plan | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
 
   // Form state
   const [name, setName] = useState('')
@@ -48,10 +50,44 @@ export default function DemoPlansPage() {
     setValidityDays('')
     setDescription('')
     setShowForm(false)
+    setEditingPlan(null)
+  }
+
+  function openEdit(plan: Plan) {
+    setEditingPlan(plan)
+    setName(plan.name)
+    setType(plan.type)
+    setPrice(String(plan.price_cents / 100))
+    setInterval(plan.interval)
+    setClassLimit(plan.class_limit ? String(plan.class_limit) : '')
+    setValidityDays(plan.validity_days ? String(plan.validity_days) : '')
+    setDescription(plan.description ?? '')
+    setShowForm(true)
   }
 
   function handleCreate() {
     if (!name.trim() || !price) return
+
+    if (editingPlan) {
+      setPlans((prev) =>
+        prev.map((p) =>
+          p.id === editingPlan.id
+            ? {
+                ...p,
+                name: name.trim(),
+                description: description.trim() || null,
+                type,
+                price_cents: Math.round(Number(price) * 100),
+                interval,
+                class_limit: classLimit ? Number(classLimit) : null,
+                validity_days: validityDays ? Number(validityDays) : null,
+              }
+            : p
+        )
+      )
+      resetForm()
+      return
+    }
 
     const newPlan: Plan = {
       id: `plan-${Date.now()}`,
@@ -72,12 +108,17 @@ export default function DemoPlansPage() {
     resetForm()
   }
 
+  function handleDelete(planId: string) {
+    setPlans((prev) => prev.filter((p) => p.id !== planId))
+    setConfirmDelete(null)
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Membership Plans</h1>
-          <p className="text-muted-foreground">Empire Aerial Arts pricing</p>
+          <p className="text-muted-foreground">{demoStudio.name} pricing</p>
         </div>
         <Button onClick={() => setShowForm(true)}>+ Create Plan</Button>
       </div>
@@ -85,8 +126,8 @@ export default function DemoPlansPage() {
       {/* Create Plan Modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => resetForm()}>
-          <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-lg font-semibold">Create Plan</h2>
+          <div className="bg-card rounded-lg shadow-lg border w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold">{editingPlan ? 'Edit Plan' : 'Create Plan'}</h2>
 
             <div className="space-y-3">
               <div>
@@ -181,7 +222,7 @@ export default function DemoPlansPage() {
                 onClick={handleCreate}
                 disabled={!name.trim() || !price}
               >
-                Create
+                {editingPlan ? 'Save' : 'Create'}
               </Button>
             </div>
           </div>
@@ -204,7 +245,18 @@ export default function DemoPlansPage() {
                   <div className="text-sm text-muted-foreground mt-1">{plan.description}</div>
                 )}
               </div>
-              <Badge variant="default">Active</Badge>
+              <div className="flex items-center gap-2">
+                <Badge variant="default">Active</Badge>
+                <Button variant="outline" size="sm" onClick={() => openEdit(plan)}>Edit</Button>
+                {confirmDelete === plan.id ? (
+                  <div className="flex items-center gap-1">
+                    <Button variant="destructive" size="sm" onClick={() => handleDelete(plan.id)}>Confirm</Button>
+                    <Button variant="outline" size="sm" onClick={() => setConfirmDelete(null)}>Cancel</Button>
+                  </div>
+                ) : (
+                  <Button variant="outline" size="sm" onClick={() => setConfirmDelete(plan.id)}>Delete</Button>
+                )}
+              </div>
             </CardContent>
           </Card>
         ))}

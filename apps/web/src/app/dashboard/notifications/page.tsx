@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import { notificationApi } from '@/lib/api-client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -15,16 +17,22 @@ interface Notification {
 }
 
 export default function NotificationsPage() {
+  const router = useRouter()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { router.push('/login'); return }
+
       try {
         const result = await notificationApi.list()
         setNotifications(result.notifications)
       } catch {
-        // API not available
+        setError('Failed to load notifications. Please try again.')
       }
       setLoading(false)
     }
@@ -90,7 +98,11 @@ export default function NotificationsPage() {
         )}
       </div>
 
-      {notifications.length === 0 ? (
+      {error && (
+        <div className="text-sm px-4 py-3 rounded-md bg-red-50 text-red-700">{error}</div>
+      )}
+
+      {notifications.length === 0 && !error ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
             No notifications yet.

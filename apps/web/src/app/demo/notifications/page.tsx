@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { demoNotifications, notificationTypeIcons, DemoNotification } from '@/lib/demo-data'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -18,6 +19,7 @@ function timeAgo(dateStr: string) {
 }
 
 export default function DemoNotificationsPage() {
+  const router = useRouter()
   const [filter, setFilter] = useState<FilterMode>('all')
   const [notifications, setNotifications] = useState<DemoNotification[]>(demoNotifications)
 
@@ -34,14 +36,25 @@ export default function DemoNotificationsPage() {
     )
   }
 
-  function handleMarkRead(id: string) {
-    setNotifications((prev) =>
-      prev.map((n) =>
-        n.id === id && n.read_at === null
-          ? { ...n, read_at: new Date().toISOString() }
-          : n
+  function handleNotificationClick(notif: DemoNotification) {
+    // Mark as read
+    if (notif.read_at === null) {
+      setNotifications((prev) =>
+        prev.map((n) =>
+          n.id === notif.id && n.read_at === null
+            ? { ...n, read_at: new Date().toISOString() }
+            : n
+        )
       )
-    )
+    }
+    // Navigate to referenced content
+    if (notif.data?.class_id) {
+      router.push(`/demo/classes/${notif.data.class_id}`)
+    } else if (notif.data?.post_id) {
+      router.push('/demo/feed')
+    } else if (notif.data?.badge_id) {
+      router.push('/demo/members/demo-user-rabble')
+    }
   }
 
   return (
@@ -95,8 +108,8 @@ export default function DemoNotificationsPage() {
           filtered.map((notif) => (
             <Card
               key={notif.id}
-              className={`${notif.read_at === null ? 'border-primary/30 bg-primary/5 cursor-pointer hover:bg-primary/10 transition-colors' : ''}`}
-              onClick={() => notif.read_at === null && handleMarkRead(notif.id)}
+              className={`${notif.read_at === null || notif.data ? 'cursor-pointer hover:bg-primary/10 transition-colors' : ''} ${notif.read_at === null ? 'border-primary/30 bg-primary/5' : ''}`}
+              onClick={() => handleNotificationClick(notif)}
             >
               <CardContent className="py-4">
                 <div className="flex items-start gap-3">

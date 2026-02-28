@@ -72,9 +72,7 @@ bookings.post(
       throw conflict('You already have a booking for this class')
     }
 
-    // ── 4. Count current active bookings vs capacity ───────────────────────────
-    // Note: booked_count is a computed column; we also do a live count to guard
-    // against race conditions (a true FOR UPDATE lock would require an RPC).
+    // ── 4. Pre-check capacity (non-authoritative, avoids unnecessary credit ops)
     const { count: activeCount } = await supabase
       .from('bookings')
       .select('*', { count: 'exact', head: true })
@@ -97,7 +95,6 @@ bookings.post(
     // ── 6. Check credits ───────────────────────────────────────────────────────
     const creditCheck = await checkBookingCredits(user.id, studioId)
 
-    // ── 8. No credits → prompt purchase ───────────────────────────────────────
     if (!creditCheck.hasCredits) {
       throw badRequest('No credits available — please purchase a plan or drop-in pass', {
         code: 'NO_CREDITS',
@@ -122,12 +119,38 @@ bookings.post(
       .single()
 
     if (insertError || !booking) {
-      // Roll back the credit deduction on unexpected failure
-      // (best-effort — a failed insert usually means duplicate booking caught by unique index)
       if (insertError?.code === '23505') {
         throw conflict('You already have a booking for this class')
       }
       throw new Error(`Booking insert failed: ${insertError?.message}`)
+    }
+
+    // ── 7b. Post-insert capacity check to guard against race conditions ──────
+    // Re-count after insert: if concurrent requests overbooked, roll back this one.
+    const { count: postInsertCount } = await supabase
+      .from('bookings')
+      .select('*', { count: 'exact', head: true })
+      .eq('class_instance_id', classId)
+      .in('status', ['booked', 'confirmed'])
+
+    if ((postInsertCount ?? 0) > cls.max_capacity) {
+      // Over capacity — remove this booking and put the user on the waitlist instead
+      await supabase
+        .from('bookings')
+        .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
+        .eq('id', booking.id)
+
+      // Best-effort credit refund
+      const { refundCredit } = await import('../lib/credits')
+      await refundCredit(creditCheck).catch(() => {})
+
+      const { waitlist_position, bookingId: wlBookingId } = await addToWaitlist(classId, user.id)
+      return c.json({
+        status: 'waitlisted',
+        waitlist_position,
+        bookingId: wlBookingId,
+        message: `Class is full. You are #${waitlist_position} on the waitlist.`,
+      }, 202)
     }
 
     // ── 9. Generate iCal invite ────────────────────────────────────────────────

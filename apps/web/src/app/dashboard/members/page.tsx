@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { inviteApi } from '@/lib/api-client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -19,6 +20,7 @@ interface Member {
 }
 
 export default function MembersPage() {
+  const router = useRouter()
   const [studioId, setStudioId] = useState<string | null>(null)
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
@@ -34,7 +36,7 @@ export default function MembersPage() {
     async function load() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
+      if (!user) { router.push('/login'); return }
 
       const { data: membership } = await supabase
         .from('memberships')
@@ -49,10 +51,10 @@ export default function MembersPage() {
 
       const { data: studioMembers } = await supabase
         .from('memberships')
-        .select('role, created_at, user:users(id, name, email, avatar_url)')
+        .select('role, joined_at, user:users(id, name, email, avatar_url)')
         .eq('studio_id', membership.studio_id)
         .eq('status', 'active')
-        .order('created_at')
+        .order('joined_at')
 
       const mapped: Member[] = (studioMembers ?? []).map((m) => {
         const u = m.user as unknown as Record<string, unknown> | null
@@ -61,7 +63,7 @@ export default function MembersPage() {
           name: (u?.name as string) ?? 'Unknown',
           email: (u?.email as string) ?? '',
           role: m.role,
-          joined: m.created_at,
+          joined: m.joined_at,
           avatar_url: (u?.avatar_url as string) ?? null,
         }
       })

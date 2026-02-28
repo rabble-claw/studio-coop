@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { authMiddleware } from '../middleware/auth'
-import { requireAdmin, requireOwner } from '../middleware/studio-access'
+import { requireAdmin, requireMember, requireOwner } from '../middleware/studio-access'
 import { generateClassInstances } from '../lib/class-generator'
 import { badRequest, forbidden, notFound } from '../lib/errors'
 import { createServiceClient } from '../lib/supabase'
@@ -230,7 +230,7 @@ schedule.post('/:studioId/classes', authMiddleware, requireAdmin, async (c) => {
  *   template    UUID — filter by template
  *   day         Comma-separated weekday numbers (0-6) — filter by day of week
  */
-schedule.get('/:studioId/schedule', authMiddleware, requireAdmin, async (c) => {
+schedule.get('/:studioId/schedule', authMiddleware, requireMember, async (c) => {
   const studioId = c.get('studioId' as never) as string
   const supabase = createServiceClient()
 

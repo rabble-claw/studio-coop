@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -39,6 +40,7 @@ interface FeedPost {
 }
 
 export default function DashboardPage() {
+  const router = useRouter()
   const [studio, setStudio] = useState<StudioData | null>(null)
   const [todayClasses, setTodayClasses] = useState<ClassInstance[]>([])
   const [feedPosts, setFeedPosts] = useState<FeedPost[]>([])
@@ -48,7 +50,7 @@ export default function DashboardPage() {
     async function load() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
+      if (!user) { router.push('/login'); return }
 
       // Get user's studio via membership
       const { data: membership } = await supabase
@@ -120,22 +122,30 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Members</CardTitle></CardHeader>
-          <CardContent><div className="text-3xl font-bold">{studio.memberCount}</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Upcoming Classes</CardTitle></CardHeader>
-          <CardContent><div className="text-3xl font-bold">{studio.upcomingClasses}</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Today&apos;s Classes</CardTitle></CardHeader>
-          <CardContent><div className="text-3xl font-bold">{todayClasses.length}</div></CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Check-ins Today</CardTitle></CardHeader>
-          <CardContent><div className="text-3xl font-bold">{todayClasses.reduce((sum, c) => sum + (c.booked_count ?? 0), 0)}</div></CardContent>
-        </Card>
+        <Link href="/dashboard/members">
+          <Card className="hover:border-primary/50 transition-colors cursor-pointer">
+            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Members</CardTitle></CardHeader>
+            <CardContent><div className="text-3xl font-bold">{studio.memberCount}</div></CardContent>
+          </Card>
+        </Link>
+        <Link href="/dashboard/schedule">
+          <Card className="hover:border-primary/50 transition-colors cursor-pointer">
+            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Upcoming Classes</CardTitle></CardHeader>
+            <CardContent><div className="text-3xl font-bold">{studio.upcomingClasses}</div></CardContent>
+          </Card>
+        </Link>
+        <Link href="/dashboard/schedule">
+          <Card className="hover:border-primary/50 transition-colors cursor-pointer">
+            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Today&apos;s Classes</CardTitle></CardHeader>
+            <CardContent><div className="text-3xl font-bold">{todayClasses.length}</div></CardContent>
+          </Card>
+        </Link>
+        <Link href="/dashboard/schedule">
+          <Card className="hover:border-primary/50 transition-colors cursor-pointer">
+            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Check-ins Today</CardTitle></CardHeader>
+            <CardContent><div className="text-3xl font-bold">{todayClasses.reduce((sum, c) => sum + (c.booked_count ?? 0), 0)}</div></CardContent>
+          </Card>
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -152,18 +162,20 @@ export default function DashboardPage() {
             ) : (
               <div className="space-y-3">
                 {todayClasses.map((cls) => (
-                  <div key={cls.id} className="flex items-center justify-between py-2 border-b last:border-0">
-                    <div>
-                      <div className="font-medium text-sm">{cls.template?.name ?? 'Class'}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {formatTime(cls.start_time)} — {formatTime(cls.end_time)} · {cls.teacher?.name ?? 'TBA'}
+                  <Link key={cls.id} href={`/dashboard/classes/${cls.id}`} className="block">
+                    <div className="flex items-center justify-between py-2 border-b last:border-0 hover:bg-muted/50 transition-colors">
+                      <div>
+                        <div className="font-medium text-sm">{cls.template?.name ?? 'Class'}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {formatTime(cls.start_time)} — {formatTime(cls.end_time)} · {cls.teacher?.name ?? 'TBA'}
+                        </div>
+                      </div>
+                      <div className="text-sm">
+                        <span className="font-medium">{cls.booked_count ?? 0}</span>
+                        <span className="text-muted-foreground">/{cls.max_capacity}</span>
                       </div>
                     </div>
-                    <div className="text-sm">
-                      <span className="font-medium">{cls.booked_count ?? 0}</span>
-                      <span className="text-muted-foreground">/{cls.max_capacity}</span>
-                    </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}
@@ -171,7 +183,12 @@ export default function DashboardPage() {
         </Card>
 
         <Card>
-          <CardHeader><CardTitle>Community Feed</CardTitle></CardHeader>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Community Feed</CardTitle>
+              <Link href="/dashboard/feed" className="text-sm text-primary hover:underline">View all &rarr;</Link>
+            </div>
+          </CardHeader>
           <CardContent>
             {feedPosts.length === 0 ? (
               <p className="text-muted-foreground text-sm py-4">No posts yet. Be the first!</p>

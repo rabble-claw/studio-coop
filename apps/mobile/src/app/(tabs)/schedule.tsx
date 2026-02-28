@@ -162,9 +162,28 @@ export default function ScheduleScreen() {
                       <Text className="text-xs text-green-700 font-medium">Booked</Text>
                     </View>
                   ) : isFull ? (
-                    <View className="bg-yellow-100 rounded-full px-3 py-1.5">
-                      <Text className="text-xs text-yellow-700 font-medium">Waitlist</Text>
-                    </View>
+                    <TouchableOpacity
+                      className="bg-yellow-100 rounded-full px-3 py-1.5"
+                      onPress={(e) => {
+                        e.stopPropagation?.()
+                        if (!studioId) return
+                        setBookingInProgress(cls.id)
+                        bookingApi.joinWaitlist(studioId, cls.id)
+                          .then(() => {
+                            Alert.alert('Waitlisted!', `You're on the waitlist for ${cls.template?.name ?? 'class'}.`)
+                            loadClasses()
+                          })
+                          .catch((err: any) => {
+                            Alert.alert('Waitlist Failed', err.message || 'Could not join waitlist.')
+                          })
+                          .finally(() => setBookingInProgress(null))
+                      }}
+                      disabled={bookingInProgress === cls.id}
+                    >
+                      <Text className="text-xs text-yellow-700 font-medium">
+                        {bookingInProgress === cls.id ? 'Joining...' : 'Waitlist'}
+                      </Text>
+                    </TouchableOpacity>
                   ) : (
                     <TouchableOpacity
                       className="bg-primary rounded-full px-4 py-1.5"

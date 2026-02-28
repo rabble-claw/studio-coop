@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { planApi } from '@/lib/api-client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -30,9 +31,11 @@ const PLAN_TYPES = [
 ]
 
 export default function PlansPage() {
+  const router = useRouter()
   const [studioId, setStudioId] = useState<string | null>(null)
   const [plans, setPlans] = useState<Plan[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [editingPlan, setEditingPlan] = useState<string | null>(null)
   const [newPlan, setNewPlan] = useState({
@@ -44,7 +47,7 @@ export default function PlansPage() {
     async function load() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
+      if (!user) { router.push('/login'); return }
 
       const { data: membership } = await supabase
         .from('memberships')
@@ -61,7 +64,7 @@ export default function PlansPage() {
         const result = await planApi.list(membership.studio_id) as { plans: Plan[] }
         setPlans(result.plans ?? [])
       } catch {
-        // API not available
+        setError('Failed to load plans. Please try again.')
       }
       setLoading(false)
     }
@@ -139,6 +142,10 @@ export default function PlansPage() {
           {showCreate ? 'Cancel' : '+ New Plan'}
         </Button>
       </div>
+
+      {error && (
+        <div className="text-sm px-4 py-3 rounded-md bg-red-50 text-red-700">{error}</div>
+      )}
 
       {showCreate && (
         <Card>

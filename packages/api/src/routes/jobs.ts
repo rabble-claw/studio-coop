@@ -229,13 +229,19 @@ jobs.post('/generate-classes', async (c) => {
   const weeksAhead = Number(body.weeksAhead) || 4
 
   // Find all studios that have active class templates
-  const { data: studios } = await supabase
-    .from('studios')
-    .select('id')
-    .in(
-      'id',
-      supabase.from('class_templates').select('studio_id').eq('active', true) as unknown as string[],
-    )
+  const { data: activeTemplates } = await supabase
+    .from('class_templates')
+    .select('studio_id')
+    .eq('active', true)
+
+  const studioIds = [...new Set((activeTemplates ?? []).map((t) => t.studio_id))]
+
+  const { data: studios } = studioIds.length > 0
+    ? await supabase
+        .from('studios')
+        .select('id')
+        .in('id', studioIds)
+    : { data: [] }
 
   let totalGenerated = 0
   const results: Array<{ studioId: string; generated: number }> = []

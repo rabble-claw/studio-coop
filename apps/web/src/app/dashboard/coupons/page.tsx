@@ -1,7 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { couponApi } from '@/lib/api-client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -40,11 +42,13 @@ function statusBadge(coupon: Coupon) {
 }
 
 export default function CouponsPage() {
+  const router = useRouter()
   const supabase = useRef(createClient()).current
 
   const [couponList, setCouponList]   = useState<Coupon[]>([])
   const [studioId, setStudioId]       = useState<string | null>(null)
   const [loading, setLoading]         = useState(true)
+  const [error, setError]             = useState<string | null>(null)
   const [showCreateForm, setShowCreateForm] = useState(false)
 
   // Create form state
@@ -61,7 +65,7 @@ export default function CouponsPage() {
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      if (!user) { router.push('/login'); return }
 
       // Get the user's studio (first admin/owner membership)
       const { data: membership } = await supabase
@@ -69,7 +73,7 @@ export default function CouponsPage() {
         .select('studio_id, role')
         .eq('user_id', user.id)
         .eq('status', 'active')
-        .in('role', ['admin', 'owner', 'teacher'])
+        .in('role', ['admin', 'owner'])
         .order('joined_at', { ascending: true })
         .limit(1)
         .single()
@@ -78,13 +82,17 @@ export default function CouponsPage() {
 
       setStudioId(membership.studio_id)
 
-      const { data } = await supabase
-        .from('coupons')
-        .select('*')
-        .eq('studio_id', membership.studio_id)
-        .order('created_at', { ascending: false })
+      try {
+        const { data } = await supabase
+          .from('coupons')
+          .select('*')
+          .eq('studio_id', membership.studio_id)
+          .order('created_at', { ascending: false })
 
-      setCouponList(data ?? [])
+        setCouponList(data ?? [])
+      } catch {
+        setError('Failed to load coupons. Please try again.')
+      }
       setLoading(false)
     }
     load()
@@ -97,10 +105,6 @@ export default function CouponsPage() {
     setCreateError(null)
 
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const token = session?.access_token
-      if (!token) throw new Error('Not authenticated')
-
       const payload: Record<string, unknown> = {
         code:      newCode.toUpperCase().trim(),
         type:      newType,
@@ -112,21 +116,7 @@ export default function CouponsPage() {
       if (newValidFrom) payload.validFrom = new Date(newValidFrom).toISOString()
       if (newValidUntil) payload.validUntil = new Date(newValidUntil).toISOString()
 
-      const res = await fetch(`/api/studios/${studioId}/coupons`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(payload),
-      })
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({})) as { error?: string; message?: string }
-        throw new Error(err.error ?? err.message ?? `HTTP ${res.status}`)
-      }
-
-      const data = await res.json() as { coupon: Coupon }
+      const data = await couponApi.create(studioId, payload) as { coupon: Coupon }
       setCouponList((prev) => [data.coupon, ...prev])
       setShowCreateForm(false)
       setNewCode('')
@@ -147,19 +137,13 @@ export default function CouponsPage() {
     if (!studioId) return
     if (!confirm('Deactivate this coupon? Members will no longer be able to use it.')) return
 
-    const { data: { session } } = await supabase.auth.getSession()
-    const token = session?.access_token
-    if (!token) return
-
-    const res = await fetch(`/api/studios/${studioId}/coupons/${couponId}`, {
-      method: 'DELETE',
-      headers: { Authorization: `Bearer ${token}` },
-    })
-
-    if (res.ok) {
+    try {
+      await couponApi.delete(studioId, couponId)
       setCouponList((prev) =>
         prev.map((c) => c.id === couponId ? { ...c, active: false } : c),
       )
+    } catch {
+      // Deactivation failed silently
     }
   }
 
@@ -169,6 +153,10 @@ export default function CouponsPage() {
 
   return (
     <div className="space-y-6">
+      {error && (
+        <div className="text-sm px-4 py-3 rounded-md bg-red-50 text-red-700">{error}</div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Coupons</h1>

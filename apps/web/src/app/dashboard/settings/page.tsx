@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { studioApi, stripeApi } from '@/lib/api-client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -9,8 +10,10 @@ import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 export default function SettingsPage() {
+  const router = useRouter()
   const [studioId, setStudioId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const [studio, setStudio] = useState({
     name: '', slug: '', description: '',
@@ -40,7 +43,7 @@ export default function SettingsPage() {
     async function load() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
+      if (!user) { router.push('/login'); return }
 
       const { data: membership } = await supabase
         .from('memberships')
@@ -74,7 +77,7 @@ export default function SettingsPage() {
           // Stripe not configured
         }
       } catch {
-        // Fall through to defaults if API not reachable
+        setError('Failed to load settings. Please try again.')
       }
       setLoading(false)
     }
@@ -131,6 +134,10 @@ export default function SettingsPage() {
         <h1 className="text-2xl font-bold">Studio Settings</h1>
         <p className="text-muted-foreground">Manage your studio configuration</p>
       </div>
+
+      {error && (
+        <div className="text-sm px-4 py-3 rounded-md bg-red-50 text-red-700">{error}</div>
+      )}
 
       {saveMessage && (
         <div className={`text-sm px-4 py-2 rounded-md ${saveMessage.startsWith('Error') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>

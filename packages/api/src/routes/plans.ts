@@ -262,20 +262,25 @@ plans.post('/:studioId/plans/:planId/subscribe', authMiddleware, requireMember, 
       throw badRequest('Coupon has reached its maximum redemptions')
     }
 
-    // Handle free_classes coupon: grant comp credits instead of Stripe discount
-    if (coupon.type === 'free_classes' && coupon.free_classes) {
-      await supabase.from('comp_credits').insert({
+    // Handle free_classes coupon: grant comp classes instead of Stripe discount
+    if (coupon.type === 'free_classes' && coupon.value) {
+      await supabase.from('comp_classes').insert({
         user_id: user.id,
         studio_id: studioId,
-        remaining_classes: coupon.free_classes,
+        total_classes: coupon.value,
+        remaining_classes: coupon.value,
         reason: `Coupon ${couponCode!.toUpperCase()}`,
       })
 
       // Increment redemption counter
-      await supabase.rpc('increment_coupon_redemptions', { coupon_code: couponCode!.toUpperCase(), studio: studioId })
+      await supabase
+        .from('coupons')
+        .update({ current_redemptions: coupon.current_redemptions + 1 })
+        .eq('id', coupon.id)
     } else {
-      // stripe_coupon_id would be stored on coupons table after Stripe sync
-      stripeCouponId = coupon.stripe_coupon_id ?? undefined
+      // For percent_off / amount_off coupons, pass metadata for Stripe discount
+      // (no stripe_coupon_id column exists; discount handled via Stripe API separately)
+      stripeCouponId = undefined
     }
   }
 

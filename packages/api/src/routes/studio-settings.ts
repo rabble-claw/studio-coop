@@ -170,7 +170,7 @@ studioSettings.put('/:studioId/settings/cancellation', authMiddleware, requireOw
 // GET /:studioId/settings/notifications
 // ─────────────────────────────────────────────────────────────────────────────
 
-studioSettings.get('/:studioId/settings/notifications', authMiddleware, async (c) => {
+studioSettings.get('/:studioId/settings/notifications', authMiddleware, requireMember, async (c) => {
   const studioId = c.req.param('studioId')
   const supabase = createServiceClient()
 

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { bookingApi } from '@/lib/api-client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -23,9 +24,11 @@ interface PrivateBooking {
 }
 
 export default function PrivateBookingsPage() {
+  const router = useRouter()
   const [studioId, setStudioId] = useState<string | null>(null)
   const [bookings, setBookings] = useState<PrivateBooking[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const [showCreate, setShowCreate] = useState(false)
   const [newBooking, setNewBooking] = useState({
@@ -37,7 +40,7 @@ export default function PrivateBookingsPage() {
     async function load() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { setLoading(false); return }
+      if (!user) { router.push('/login'); return }
 
       const { data: membership } = await supabase
         .from('memberships')
@@ -54,7 +57,7 @@ export default function PrivateBookingsPage() {
         const result = await bookingApi.privateList(membership.studio_id) as { bookings: PrivateBooking[] }
         setBookings(result.bookings ?? [])
       } catch {
-        // API not available
+        setError('Failed to load bookings. Please try again.')
       }
       setLoading(false)
     }
@@ -112,6 +115,10 @@ export default function PrivateBookingsPage() {
           {showCreate ? 'Cancel' : '+ New Booking'}
         </Button>
       </div>
+
+      {error && (
+        <div className="text-sm px-4 py-3 rounded-md bg-red-50 text-red-700">{error}</div>
+      )}
 
       {showCreate && (
         <Card>

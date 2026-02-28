@@ -147,7 +147,7 @@ export default function HomeScreen() {
             <View className="items-end">
               <Text className="text-muted text-xs">{spotsLeft} spots</Text>
               <View className="mt-1 bg-primary/10 rounded-full px-3 py-1">
-                <Text className="text-xs text-primary font-medium">Book</Text>
+                <Text className="text-xs text-primary font-medium">View</Text>
               </View>
             </View>
           </View>

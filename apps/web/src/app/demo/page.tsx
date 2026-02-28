@@ -1,13 +1,13 @@
 'use client'
 
 import Link from 'next/link'
-import { demoStudio, demoClasses, demoMembers, demoFeedPosts, demoTeachers } from '@/lib/demo-data'
+import { demoStudio, demoClasses, demoMembers, demoFeedPosts, demoTeachers, getLocalDateStr } from '@/lib/demo-data'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { formatTime } from '@/lib/utils'
 
 export default function DemoPage() {
-  const todayStr = new Date().toISOString().split('T')[0]
+  const todayStr = getLocalDateStr(demoStudio.timezone)
   const todayClasses = demoClasses.filter((c) => c.date === todayStr)
   const upcomingClasses = demoClasses.filter((c) => c.date >= todayStr!)
 
@@ -132,7 +132,7 @@ export default function DemoPage() {
           <div className="flex flex-wrap gap-3">
             <Button variant="outline" asChild><Link href="/demo/schedule">📅 Manage Schedule</Link></Button>
             <Button variant="outline" asChild><Link href="/demo/members">👥 View Members</Link></Button>
-            <Button variant="outline" asChild><Link href="/demo/schedule">📸 Check-in Mode</Link></Button>
+            <Button variant="outline" asChild><Link href="/demo/schedule">📸 View Schedule</Link></Button>
             <Button variant="outline" asChild><Link href="/demo/reports">📊 View Reports</Link></Button>
           </div>
         </CardContent>

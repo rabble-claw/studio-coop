@@ -34,6 +34,7 @@ type ClassFeedPost = {
   id: string
   class_id: string
   author: string
+  author_id?: string
   content: string
   created_at: string
   media_urls: string[]
@@ -350,12 +351,26 @@ function ClassDetailContent({ cls, classId }: { cls: DemoClass; classId: string 
                   <div className="space-y-4">
                     {feedPosts.map((post) => (
                       <div key={post.id} className="flex gap-3">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0">
-                          {post.author[0]}
-                        </div>
+                        {post.author_id ? (
+                          <Link href={`/demo/members/${post.author_id}`} className="shrink-0">
+                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
+                              {post.author[0]}
+                            </div>
+                          </Link>
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary shrink-0">
+                            {post.author[0]}
+                          </div>
+                        )}
                         <div className="space-y-1 flex-1">
                           <div className="text-sm">
-                            <span className="font-medium">{post.author}</span>
+                            {post.author_id ? (
+                              <Link href={`/demo/members/${post.author_id}`} className="font-medium hover:underline">
+                                {post.author}
+                              </Link>
+                            ) : (
+                              <span className="font-medium">{post.author}</span>
+                            )}
                           </div>
                           <p className="text-sm">{post.content}</p>
                           {post.media_urls && post.media_urls.length > 0 && (

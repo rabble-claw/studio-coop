@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { demoClasses, demoTemplates, demoTeachers, type DemoClass } from '@/lib/demo-data'
+import { demoClasses, demoTemplates, demoTeachers, demoStudio, type DemoClass } from '@/lib/demo-data'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -65,7 +65,7 @@ export default function DemoSchedulePage() {
       booked_count: 0,
       status: 'scheduled',
       template: { name: template.name, description: template.description },
-      teacher: { name: teacher.name },
+      teacher: { id: teacher.id, name: teacher.name },
     }
 
     setClasses((prev) => [...prev, newClass].sort((a, b) => {
@@ -86,7 +86,7 @@ export default function DemoSchedulePage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Schedule</h1>
-          <p className="text-muted-foreground">Empire Aerial Arts class schedule</p>
+          <p className="text-muted-foreground">{demoStudio.name} class schedule</p>
         </div>
         <Button onClick={() => setShowAddModal(true)}>+ Add Class</Button>
       </div>

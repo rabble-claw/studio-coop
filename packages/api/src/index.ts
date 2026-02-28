@@ -23,6 +23,15 @@ import feed, { postFeed } from './routes/feed'
 import { upload } from './routes/upload'
 import networks from './routes/networks'
 import migration from './routes/migration'
+import { stripeRoutes } from './routes/stripe'
+import { getConfig } from './lib/config'
+
+// Validate environment configuration at startup
+try {
+  getConfig()
+} catch (e) {
+  console.warn('Environment config validation warning:', (e as Error).message)
+}
 
 const app = new Hono()
 
@@ -75,6 +84,7 @@ app.route('/api/upload', upload)
 app.route('/api/studios', networks)
 app.route('/api/networks', networks)
 app.route('/api/studios', migration)
+app.route('/api/studios', stripeRoutes)
 
 export default app
 export { app }

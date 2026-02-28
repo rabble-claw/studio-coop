@@ -137,15 +137,15 @@ invitations.post('/:studioId/members/invite', authMiddleware, requireAdmin, asyn
     }, 201)
   } catch (e) {
     // If Supabase admin invite fails (e.g., email not configured),
-    // still return success with a note
+    // return a 500 error so the caller knows it failed
+    const message = e instanceof Error ? e.message : 'Failed to send invitation'
     return c.json({
-      invited: true,
-      userExists: false,
+      invited: false,
+      error: message,
       email,
       role,
-      message: `Invitation created for ${name ?? email}. Please share the studio link with them to sign up.`,
-      note: 'Email delivery may not be configured.',
-    }, 201)
+      message: `Failed to invite ${name ?? email}. ${message}`,
+    }, 500)
   }
 })
 

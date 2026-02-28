@@ -25,7 +25,7 @@ await build({
   // Workers with nodejs_compat support these modules, but esbuild's
   // CJS-to-ESM conversion emits __require() which Workers reject.
   banner: {
-    js: `import { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);`,
+    js: `import { createRequire as __createRequire } from 'node:module'; const require = __createRequire('file:///');`,
   },
   external: [
     ...nodeBuiltins,

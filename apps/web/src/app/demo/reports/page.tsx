@@ -1,6 +1,7 @@
 'use client'
 
-import { demoReportsData } from '@/lib/demo-data'
+import Link from 'next/link'
+import { demoReportsData, demoMembers } from '@/lib/demo-data'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 
@@ -192,15 +193,24 @@ export default function DemoReportsPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {retention.atRiskMembers.map((member) => (
-                    <div key={member.name} className="flex items-center justify-between py-2 border-b last:border-0">
-                      <div>
-                        <div className="font-medium">{member.name}</div>
-                        <div className="text-sm text-amber-600">Last class: {member.lastClass}</div>
+                  {retention.atRiskMembers.map((member) => {
+                    const matchedMember = demoMembers.find((m) => m.name === member.name)
+                    return (
+                      <div key={member.name} className="flex items-center justify-between py-2 border-b last:border-0">
+                        <div>
+                          {matchedMember ? (
+                            <Link href={`/demo/members/${matchedMember.id}`} className="font-medium hover:underline">
+                              {member.name}
+                            </Link>
+                          ) : (
+                            <div className="font-medium">{member.name}</div>
+                          )}
+                          <div className="text-sm text-amber-600">Last class: {member.lastClass}</div>
+                        </div>
+                        <div className="text-sm text-muted-foreground">{member.totalClasses} classes total</div>
                       </div>
-                      <div className="text-sm text-muted-foreground">{member.totalClasses} classes total</div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </CardContent>
             </Card>

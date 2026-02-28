@@ -1,9 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-
-// Must mock before importing the module under test
-vi.mock('../lib/supabase', () => ({
-  createServiceClient: vi.fn(),
-}))
+import { describe, it, expect, vi } from 'vitest'
 
 vi.mock('stripe', () => {
   const mockStripe = vi.fn().mockImplementation(() => ({
@@ -14,8 +9,7 @@ vi.mock('stripe', () => {
   return { default: mockStripe }
 })
 
-import { createStripeClient, platformFeePercent, getOrCreateStripeCustomer } from '../lib/stripe'
-import { createServiceClient } from '../lib/supabase'
+import { createStripeClient, platformFeePercent } from '../lib/stripe'
 
 describe('createStripeClient', () => {
   it('exports a factory function', () => {
@@ -42,52 +36,5 @@ describe('platformFeePercent', () => {
     // (or whatever the env was; test the type at minimum)
     expect(typeof platformFeePercent).toBe('number')
     expect(platformFeePercent).toBeGreaterThanOrEqual(0)
-  })
-})
-
-describe('getOrCreateStripeCustomer', () => {
-  beforeEach(() => {
-    process.env.STRIPE_SECRET_KEY = 'sk_test_abc123'
-    vi.clearAllMocks()
-  })
-
-  it('returns existing customer ID if already in DB', async () => {
-    const mockSupabase = {
-      from: vi.fn().mockReturnThis(),
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({
-        data: { stripe_customer_id: 'cus_existing' },
-        error: null,
-      }),
-    }
-    vi.mocked(createServiceClient).mockReturnValue(mockSupabase as any)
-
-    const result = await getOrCreateStripeCustomer('user-123', 'test@example.com')
-    expect(result).toBe('cus_existing')
-  })
-
-  it('creates a new Stripe customer and saves to DB if none exists', async () => {
-    const mockUpdate = vi.fn().mockReturnThis()
-    const mockEq2 = vi.fn().mockResolvedValue({ error: null })
-    const mockSupabase = {
-      from: vi.fn().mockReturnThis(),
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn()
-        .mockReturnValueOnce({
-          single: vi.fn().mockResolvedValue({ data: null, error: null }),
-        })
-        .mockReturnValueOnce(mockEq2),
-      update: mockUpdate,
-      single: vi.fn().mockResolvedValue({ data: null }),
-    }
-    // Make from() chain work differently for select vs update
-    mockSupabase.from.mockImplementation(() => mockSupabase)
-    mockSupabase.update.mockReturnValue({ eq: mockEq2 })
-
-    vi.mocked(createServiceClient).mockReturnValue(mockSupabase as any)
-
-    const result = await getOrCreateStripeCustomer('user-123', 'test@example.com')
-    expect(result).toBe('cus_test123')
   })
 })

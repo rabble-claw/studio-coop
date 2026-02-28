@@ -1,8 +1,11 @@
 'use client'
 
+import { useState } from 'react'
 import { demoNetworks, demoNetworkMembers, demoNetworkStats } from '@/lib/demo-data'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 
 function getPolicyBadge(policy: string) {
   switch (policy) {
@@ -19,13 +22,112 @@ function getPolicyBadge(policy: string) {
 
 export default function DemoNetworkPage() {
   const network = demoNetworks[0]!
+  const [toast, setToast] = useState<string | null>(null)
+  const [showInviteModal, setShowInviteModal] = useState(false)
+  const [showConfigModal, setShowConfigModal] = useState(false)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [configPolicy, setConfigPolicy] = useState('discounted')
+  const [configDiscount, setConfigDiscount] = useState('15')
+
+  function showToast(msg: string) {
+    setToast(msg)
+    setTimeout(() => setToast(null), 3000)
+  }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">{network.name}</h1>
-        <p className="text-muted-foreground">{network.description}</p>
+      {/* Toast */}
+      {toast && (
+        <div className="fixed top-4 right-4 z-50 bg-card border rounded-lg shadow-lg px-4 py-3 text-sm animate-in fade-in slide-in-from-top-2">
+          {toast}
+        </div>
+      )}
+
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">{network.name}</h1>
+          <p className="text-muted-foreground">{network.description}</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowConfigModal(true)}>Configure</Button>
+          <Button variant="outline" onClick={() => setShowInviteModal(true)}>Invite Studio</Button>
+          <Button onClick={() => showToast('You are already a member of this network.')}>Join Network</Button>
+        </div>
       </div>
+
+      {/* Invite Studio Modal */}
+      {showInviteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowInviteModal(false)}>
+          <div className="bg-card rounded-lg shadow-lg border w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold">Invite Studio to Network</h2>
+            <div>
+              <label className="text-sm font-medium">Studio contact email</label>
+              <Input
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                placeholder="e.g. owner@anotherstudio.com"
+                className="mt-1"
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => { setShowInviteModal(false); setInviteEmail('') }}>Cancel</Button>
+              <Button
+                disabled={!inviteEmail.trim()}
+                onClick={() => {
+                  showToast(`Invitation sent to ${inviteEmail}`)
+                  setInviteEmail('')
+                  setShowInviteModal(false)
+                }}
+              >
+                Send Invite
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Configure Network Modal */}
+      {showConfigModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowConfigModal(false)}>
+          <div className="bg-card rounded-lg shadow-lg border w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold">Network Settings</h2>
+            <div>
+              <label className="text-sm font-medium">Cross-Booking Policy</label>
+              <select
+                value={configPolicy}
+                onChange={(e) => setConfigPolicy(e.target.value)}
+                className="mt-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="included">Included</option>
+                <option value="discounted">Discounted</option>
+                <option value="full_price">Full Price</option>
+              </select>
+            </div>
+            {configPolicy === 'discounted' && (
+              <div>
+                <label className="text-sm font-medium">Discount %</label>
+                <Input
+                  type="number"
+                  value={configDiscount}
+                  onChange={(e) => setConfigDiscount(e.target.value)}
+                  min="1"
+                  max="100"
+                  className="mt-1"
+                />
+              </div>
+            )}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setShowConfigModal(false)}>Cancel</Button>
+              <Button onClick={() => {
+                showToast('Network settings updated.')
+                setShowConfigModal(false)
+              }}>
+                Save
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>

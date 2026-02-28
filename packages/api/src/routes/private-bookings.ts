@@ -84,6 +84,7 @@ privateBookings.post('/:studioId/private-bookings', authMiddleware, requireStaff
   const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
 
   const title = (body.client_name as string) ?? (body.title as string)
+  const clientEmail = (body.client_email as string)?.toLowerCase().trim()
   const type = body.type as string | undefined
   const date = body.date as string | undefined
   const startTime = body.start_time as string | undefined
@@ -107,14 +108,25 @@ privateBookings.post('/:studioId/private-bookings', authMiddleware, requireStaff
     else if (typeLower.includes('group') || typeLower.includes('corporate')) dbType = 'group'
   }
 
+  // If client_email is provided, try to look up the user to link the booking
+  let bookingUserId = user.id // default to staff user
+  if (clientEmail) {
+    const { data: clientUser } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', clientEmail)
+      .maybeSingle()
+    if (clientUser) bookingUserId = clientUser.id
+  }
+
   const { data: booking, error } = await supabase
     .from('private_bookings')
     .insert({
       studio_id: studioId,
-      user_id: user.id,
+      user_id: bookingUserId,
       type: dbType,
       title,
-      description: description ?? `${body.client_email ? `Contact: ${body.client_email}` : ''}`,
+      description: description ?? (clientEmail ? `Contact: ${clientEmail}` : ''),
       notes: notes ?? null,
       date,
       start_time: startTime,
@@ -249,12 +261,20 @@ privateBookings.post('/:studioId/private-bookings/:id/deposit', authMiddleware, 
   const depositAmount = booking.deposit_cents ?? 0
   if (depositAmount <= 0) throw badRequest('No deposit amount configured for this booking')
 
+  // Look up the studio's currency
+  const { data: studio } = await supabase
+    .from('studios')
+    .select('currency')
+    .eq('id', studioId)
+    .single()
+  const currency = (studio?.currency ?? 'usd').toLowerCase()
+
   const connectedAccountId = await getConnectedAccountId(studioId)
   const customer = await getOrCreateStripeCustomer(booking.user_id, studioId, user.email)
 
   const paymentIntent = await createPaymentIntent({
     amount: depositAmount,
-    currency: 'nzd',
+    currency,
     customerId: customer.id,
     connectedAccountId,
     metadata: {
@@ -341,12 +361,20 @@ privateBookings.post('/:studioId/private-bookings/:id/pay-balance', authMiddlewa
 
   if (balanceDue <= 0) throw badRequest('No balance due — booking is fully paid')
 
+  // Look up the studio's currency
+  const { data: studio } = await supabase
+    .from('studios')
+    .select('currency')
+    .eq('id', studioId)
+    .single()
+  const currency = (studio?.currency ?? 'usd').toLowerCase()
+
   const connectedAccountId = await getConnectedAccountId(studioId)
   const customer = await getOrCreateStripeCustomer(booking.user_id, studioId, user.email)
 
   const paymentIntent = await createPaymentIntent({
     amount: balanceDue,
-    currency: 'nzd',
+    currency,
     customerId: customer.id,
     connectedAccountId,
     metadata: {

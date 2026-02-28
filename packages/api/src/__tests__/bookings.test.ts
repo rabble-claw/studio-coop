@@ -228,15 +228,19 @@ describe('POST /api/studios/:studioId/classes/:classId/book', () => {
           if (bookingsCallCount === 2) {
             return makeAsyncChain({ data: null, error: null, count: 5 })
           }
-          // Third call: insert returns booking
-          const insertChain: any = {
-            insert: vi.fn().mockReturnValue({
-              select: vi.fn().mockReturnValue({
-                single: vi.fn().mockResolvedValue({ data: { id: 'booking-new' }, error: null }),
+          if (bookingsCallCount === 3) {
+            // Insert returns booking
+            const insertChain: any = {
+              insert: vi.fn().mockReturnValue({
+                select: vi.fn().mockReturnValue({
+                  single: vi.fn().mockResolvedValue({ data: { id: 'booking-new' }, error: null }),
+                }),
               }),
-            }),
+            }
+            return insertChain
           }
-          return insertChain
+          // 4th call: post-insert capacity check (under capacity)
+          return makeAsyncChain({ data: null, error: null, count: 6 })
         }
         return makeAsyncChain({ data: null, error: null })
       }),
@@ -278,14 +282,18 @@ describe('POST /api/studios/:studioId/classes/:classId/book', () => {
           if (bookingsCallCount === 2) {
             return makeAsyncChain({ data: null, error: null, count: 5 })
           }
-          const insertChain: any = {
-            insert: vi.fn().mockReturnValue({
-              select: vi.fn().mockReturnValue({
-                single: vi.fn().mockResolvedValue({ data: { id: 'booking-sub' }, error: null }),
+          if (bookingsCallCount === 3) {
+            const insertChain: any = {
+              insert: vi.fn().mockReturnValue({
+                select: vi.fn().mockReturnValue({
+                  single: vi.fn().mockResolvedValue({ data: { id: 'booking-sub' }, error: null }),
+                }),
               }),
-            }),
+            }
+            return insertChain
           }
-          return insertChain
+          // 4th call: post-insert capacity check (under capacity)
+          return makeAsyncChain({ data: null, error: null, count: 6 })
         }
         return makeAsyncChain({ data: null, error: null })
       }),
@@ -323,14 +331,18 @@ describe('POST /api/studios/:studioId/classes/:classId/book', () => {
           if (bookingsCallCount === 2) {
             return makeAsyncChain({ data: null, error: null, count: 5 })
           }
-          const insertChain: any = {
-            insert: vi.fn().mockReturnValue({
-              select: vi.fn().mockReturnValue({
-                single: vi.fn().mockResolvedValue({ data: { id: 'booking-pack' }, error: null }),
+          if (bookingsCallCount === 3) {
+            const insertChain: any = {
+              insert: vi.fn().mockReturnValue({
+                select: vi.fn().mockReturnValue({
+                  single: vi.fn().mockResolvedValue({ data: { id: 'booking-pack' }, error: null }),
+                }),
               }),
-            }),
+            }
+            return insertChain
           }
-          return insertChain
+          // 4th call: post-insert capacity check (under capacity)
+          return makeAsyncChain({ data: null, error: null, count: 6 })
         }
         return makeAsyncChain({ data: null, error: null })
       }),

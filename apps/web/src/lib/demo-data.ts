@@ -1,5 +1,20 @@
 // Demo data for Empire Aerial Arts — used when NEXT_PUBLIC_SUPABASE_URL is not configured
 
+/** Get the local date string (YYYY-MM-DD) for a given timezone. */
+export function getLocalDateStr(timezone: string = 'Pacific/Auckland'): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: timezone }) // en-CA gives YYYY-MM-DD
+}
+
+/** Deterministic pseudo-random number from a string seed (0..1). */
+function seededRandom(seed: string): number {
+  let hash = 0
+  for (let i = 0; i < seed.length; i++) {
+    hash = ((hash << 5) - hash) + seed.charCodeAt(i)
+    hash |= 0
+  }
+  return Math.abs(hash % 100) / 100
+}
+
 const STUDIO_ID = 'demo-empire-001'
 const TEACHER_EMMA_ID = 'demo-teacher-emma'
 const TEACHER_JADE_ID = 'demo-teacher-jade'
@@ -153,11 +168,16 @@ function generateWeekSchedule(): typeof demoClasses {
     { time: '13:30', end: '14:30', templates: ['tpl-pole-2', 'tpl-aerial-silks'] },
   ]
 
+  const todayStr = getLocalDateStr(demoStudio.timezone)
+
   for (let dayOffset = 0; dayOffset < 14; dayOffset++) {
     const date = new Date(today)
     date.setDate(today.getDate() + dayOffset)
     const dayOfWeek = date.getDay()
-    const dateStr = date.toISOString().split('T')[0]
+    // Build YYYY-MM-DD relative to today's local date
+    const [y, m, d] = todayStr.split('-').map(Number)
+    const offsetDate = new Date(y!, m! - 1, d! + dayOffset)
+    const dateStr = `${offsetDate.getFullYear()}-${String(offsetDate.getMonth() + 1).padStart(2, '0')}-${String(offsetDate.getDate()).padStart(2, '0')}`
 
     const slots = dayOfWeek === 0 || dayOfWeek === 6 ? weekendSlots : weekdaySlots
     if (dayOfWeek === 0 && dayOffset > 7) continue // skip second Sunday
@@ -166,10 +186,11 @@ function generateWeekSchedule(): typeof demoClasses {
       const tplId = slot.templates[dayOffset % slot.templates.length]
       const tpl = demoTemplates.find((t) => t.id === tplId)!
       const teacherId = teachers[(dayOffset + slots.indexOf(slot)) % teachers.length]
-      const booked = Math.floor(Math.random() * (tpl.default_capacity - 2)) + 1
+      const classId = `cls-${dateStr}-${slot.time.replace(':', '')}`
+      const booked = Math.floor(seededRandom(classId) * (tpl.default_capacity - 2)) + 1
 
       classes.push({
-        id: `cls-${dateStr}-${slot.time.replace(':', '')}`,
+        id: classId,
         studio_id: STUDIO_ID,
         template_id: tplId,
         teacher_id: teacherId,
@@ -180,7 +201,7 @@ function generateWeekSchedule(): typeof demoClasses {
         booked_count: booked,
         status: 'scheduled',
         template: { name: tpl.name, description: tpl.description },
-        teacher: { name: teacherMap[teacherId] },
+        teacher: { id: teacherId, name: teacherMap[teacherId] },
       })
     }
   }
@@ -199,7 +220,7 @@ export interface DemoClass {
   booked_count: number
   status: string
   template: { name: string; description: string }
-  teacher: { name: string }
+  teacher: { id: string; name: string }
 }
 
 export const demoClasses: DemoClass[] = generateWeekSchedule()
@@ -489,11 +510,11 @@ export interface DemoAttendance {
 
 function generateAttendance(): DemoAttendance[] {
   const attendance: DemoAttendance[] = []
-  const todayStr = new Date().toISOString().split('T')[0]
+  const todayStr = getLocalDateStr(demoStudio.timezone)
   let idx = 0
 
   for (const cls of demoClasses) {
-    if (cls.date >= todayStr!) continue // only past classes
+    if (cls.date > todayStr) continue // past and today's classes get attendance
     const classBookings = demoBookings.filter((b) => b.class_id === cls.id && b.status !== 'cancelled')
     for (const booking of classBookings) {
       const seed = booking.id.charCodeAt(booking.id.length - 1)
@@ -527,6 +548,7 @@ export const demoClassFeedPosts = [
     id: 'cfp-1',
     class_id: demoClasses[0]?.id ?? 'cls-unknown',
     author: demoClasses[0]?.teacher.name ?? 'Alex',
+    author_id: demoClasses[0]?.teacher_id ?? TEACHER_EMMA_ID,
     content: 'Great energy in class today! Everyone really pushed through that combo sequence.',
     created_at: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString(),
     media_urls: [
@@ -538,6 +560,7 @@ export const demoClassFeedPosts = [
     id: 'cfp-2',
     class_id: demoClasses[0]?.id ?? 'cls-unknown',
     author: 'Kai',
+    author_id: 'member-2',
     content: 'Finally got that spin transition! Thanks for the tip about hand placement.',
     created_at: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
     media_urls: [],
@@ -547,6 +570,7 @@ export const demoClassFeedPosts = [
     id: 'cfp-3',
     class_id: demoClasses[1]?.id ?? 'cls-unknown',
     author: demoClasses[1]?.teacher.name ?? 'Jade',
+    author_id: demoClasses[1]?.teacher_id ?? TEACHER_JADE_ID,
     content: 'Photos from tonight are up! Check the shared album link in your booking confirmation email.',
     created_at: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
     media_urls: [
@@ -559,7 +583,8 @@ export const demoClassFeedPosts = [
     id: 'cfp-4',
     class_id: demoClasses[2]?.id ?? 'cls-unknown',
     author: 'Mia',
-    content: 'That conditioning circuit was no joke 😂 My arms are going to be sore tomorrow.',
+    author_id: 'member-3',
+    content: 'That conditioning circuit was no joke. My arms are going to be sore tomorrow.',
     created_at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
     media_urls: [],
     reactions: [{ emoji: '😂', count: 8 }, { emoji: '💪', count: 2 }],
@@ -568,6 +593,7 @@ export const demoClassFeedPosts = [
     id: 'cfp-5',
     class_id: demoClasses[1]?.id ?? 'cls-unknown',
     author: 'Jordan',
+    author_id: 'member-5',
     content: 'Second class ever and I already feel like I belong here. This community is amazing.',
     created_at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
     media_urls: [
