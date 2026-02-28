@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+# ─── Pre-push hook for Studio Co-op ──────────────────────────────────
+# Catches broken builds, failing tests, and missing demo/dashboard pages
+# before they reach production.
+#
+# Install: git config core.hooksPath .githooks
+# Skip once: git push --no-verify
+# ──────────────────────────────────────────────────────────────────────
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+NC='\033[0m'
+
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  Pre-push checks"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+FAILED=0
+
+# ── 1. API tests ──────────────────────────────────────────────────────
+echo ""
+echo -e "${YELLOW}[1/4]${NC} Running API tests..."
+if pnpm --filter @studio-coop/api test:run --reporter=dot 2>&1; then
+  echo -e "${GREEN}  ✓ API tests passed${NC}"
+else
+  echo -e "${RED}  ✗ API tests failed${NC}"
+  FAILED=1
+fi
+
+# ── 2. API build (esbuild bundle) ────────────────────────────────────
+echo ""
+echo -e "${YELLOW}[2/4]${NC} Building API bundle..."
+if pnpm --filter @studio-coop/api build 2>&1; then
+  echo -e "${GREEN}  ✓ API build passed${NC}"
+else
+  echo -e "${RED}  ✗ API build failed${NC}"
+  FAILED=1
+fi
+
+# ── 3. Web build (Next.js) ───────────────────────────────────────────
+echo ""
+echo -e "${YELLOW}[3/4]${NC} Building web app..."
+# Clean .next to avoid stale cache issues (the #1 deploy failure cause)
+rm -rf apps/web/.next
+if pnpm --filter @studio-coop/web build 2>&1; then
+  echo -e "${GREEN}  ✓ Web build passed${NC}"
+else
+  echo -e "${RED}  ✗ Web build failed${NC}"
+  FAILED=1
+fi
+
+# ── 4. Check that every nav link has a corresponding page ─────────────
+echo ""
+echo -e "${YELLOW}[4/4]${NC} Checking for missing pages..."
+
+# Extract nav paths from dashboard-shell.tsx (macOS-compatible)
+SHELL_FILE="apps/web/src/components/dashboard-shell.tsx"
+NAV_PATHS=$(sed -n "s/.*path: '\(\/[^']*\)'.*/\1/p" "$SHELL_FILE")
+
+MISSING=0
+for nav_path in $NAV_PATHS; do
+  # Check both /demo and /dashboard directories
+  demo_page="apps/web/src/app/demo${nav_path}/page.tsx"
+  dash_page="apps/web/src/app/dashboard${nav_path}/page.tsx"
+
+  if [ ! -f "$demo_page" ]; then
+    echo -e "${RED}  ✗ Missing demo page: ${demo_page}${NC}"
+    MISSING=1
+  fi
+  if [ ! -f "$dash_page" ]; then
+    echo -e "${RED}  ✗ Missing dashboard page: ${dash_page}${NC}"
+    MISSING=1
+  fi
+done
+
+if [ "$MISSING" -eq 0 ]; then
+  echo -e "${GREEN}  ✓ All nav links have matching pages${NC}"
+else
+  FAILED=1
+fi
+
+# ── Result ────────────────────────────────────────────────────────────
+echo ""
+if [ "$FAILED" -eq 1 ]; then
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo -e "${RED}  Push blocked — fix the issues above${NC}"
+  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  echo ""
+  exit 1
+fi
+
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo -e "${GREEN}  All checks passed — pushing${NC}"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""

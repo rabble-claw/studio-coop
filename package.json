@@ -2,6 +2,7 @@
   "name": "studio-coop",
   "private": true,
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks",
     "dev": "turbo dev",
     "build": "turbo build",
     "lint": "turbo lint",
