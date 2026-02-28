@@ -17,6 +17,16 @@ vi.mock('../middleware/studio-access', () => ({
     c.set('memberRole', 'admin')
     await next()
   }),
+  requireOwner: vi.fn(async (c: any, next: any) => {
+    c.set('studioId', c.req.param('studioId'))
+    c.set('memberRole', 'owner')
+    await next()
+  }),
+  requireStaff: vi.fn(async (c: any, next: any) => {
+    c.set('studioId', c.req.param('studioId'))
+    c.set('memberRole', 'staff')
+    await next()
+  }),
 }))
 
 import { createServiceClient } from '../lib/supabase'

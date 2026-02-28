@@ -2,8 +2,8 @@ import { Hono } from 'hono'
 import { authMiddleware } from '../middleware/auth'
 import { createServiceClient } from '../lib/supabase'
 import { notFound, forbidden, badRequest } from '../lib/errors'
-import { cancelStripeSubscription, pauseStripeSubscription, resumeStripeSubscription } from '../lib/stripe'
-import { getConnectedAccountId } from '../lib/payments'
+import { cancelStripeSubscription, pauseStripeSubscription, resumeStripeSubscription, createCheckoutSession } from '../lib/stripe'
+import { getConnectedAccountId, getOrCreateStripeCustomer } from '../lib/payments'
 
 // Mounted at /api/subscriptions — handles /:subscriptionId/*
 const subscriptions = new Hono()
@@ -163,6 +163,66 @@ subscriptions.post('/:subscriptionId/resume', authMiddleware, async (c) => {
 
   if (error) throw error
   return c.json({ subscription: updated })
+})
+
+/**
+ * POST /:subscriptionId/reactivate — reactivate a cancelled subscription
+ *
+ * Unlike 'resume' (for paused subs), this creates a new Stripe Checkout
+ * session for the same plan and updates the local subscription status.
+ */
+subscriptions.post('/:subscriptionId/reactivate', authMiddleware, async (c) => {
+  const subscriptionId = c.req.param('subscriptionId')
+  const user = c.get('user' as never) as { id: string; email: string }
+  const supabase = createServiceClient()
+
+  const { data: sub } = await supabase
+    .from('subscriptions')
+    .select('id, user_id, studio_id, stripe_subscription_id, status, plan_id')
+    .eq('id', subscriptionId)
+    .single()
+
+  if (!sub) throw notFound('Subscription')
+  if (sub.user_id !== user.id) throw forbidden()
+  if (sub.status !== 'cancelled') {
+    throw badRequest('Only cancelled subscriptions can be reactivated. Use resume for paused subscriptions.')
+  }
+
+  // Look up the plan to get the Stripe price
+  const { data: plan } = await supabase
+    .from('membership_plans')
+    .select('id, stripe_price_id, name')
+    .eq('id', sub.plan_id)
+    .single()
+
+  if (!plan?.stripe_price_id) {
+    throw badRequest('Plan does not have a Stripe price configured. Please contact the studio.')
+  }
+
+  // Create a new checkout session for re-subscription
+  const connectedAccountId = await getConnectedAccountId(sub.studio_id)
+  const customer = await getOrCreateStripeCustomer(user.id, sub.studio_id, user.email)
+
+  const webUrl = process.env.WEB_URL ?? 'https://studio.coop'
+  const session = await createCheckoutSession({
+    priceId: plan.stripe_price_id,
+    customerId: customer.id,
+    successUrl: `${webUrl}/dashboard?reactivated=true`,
+    cancelUrl: `${webUrl}/dashboard/plans`,
+    connectedAccountId,
+    metadata: {
+      userId: user.id,
+      studioId: sub.studio_id,
+      subscriptionId: sub.id,
+      type: 'reactivation',
+    },
+  })
+
+  return c.json({
+    checkoutUrl: session.url,
+    subscriptionId: sub.id,
+    message: 'Complete checkout to reactivate your subscription.',
+  })
 })
 
 export { subscriptions }

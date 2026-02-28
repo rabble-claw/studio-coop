@@ -4,6 +4,7 @@ import { requireAdmin, requireMember, requireOwner } from '../middleware/studio-
 import { generateClassInstances } from '../lib/class-generator'
 import { badRequest, forbidden, notFound } from '../lib/errors'
 import { createServiceClient } from '../lib/supabase'
+import { sendNotification } from '../lib/notifications'
 
 // Mounted at /api/studios and /api/admin — handles generation, modification, schedule view
 const schedule = new Hono()
@@ -309,6 +310,77 @@ schedule.get('/:studioId/schedule', authMiddleware, requireMember, async (c) => 
   })
 
   return c.json(normalized)
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Restore a cancelled class
+// POST /api/studios/:studioId/classes/:classId/restore
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Restore a cancelled class instance back to 'scheduled'.
+ * Sends notifications to all previously booked members.
+ */
+schedule.post('/:studioId/classes/:classId/restore', authMiddleware, requireAdmin, async (c) => {
+  const studioId = c.get('studioId' as never) as string
+  const classId = c.req.param('classId')
+  const supabase = createServiceClient()
+
+  // Verify the class instance exists and belongs to this studio
+  const { data: existing } = await supabase
+    .from('class_instances')
+    .select('id, studio_id, status')
+    .eq('id', classId)
+    .eq('studio_id', studioId)
+    .single()
+
+  if (!existing) throw notFound('Class instance')
+  if (existing.status !== 'cancelled') throw badRequest('Only cancelled classes can be restored')
+
+  // Restore to scheduled
+  const { data: updated, error } = await supabase
+    .from('class_instances')
+    .update({ status: 'scheduled' })
+    .eq('id', classId)
+    .select('*')
+    .single()
+
+  if (error) throw error
+
+  // Notify all previously booked members that the class is back on
+  const { data: bookings } = await supabase
+    .from('bookings')
+    .select('user_id, status')
+    .eq('class_instance_id', classId)
+    .in('status', ['booked', 'confirmed', 'cancelled'])
+
+  if (bookings && bookings.length > 0) {
+    const notifications = bookings.map((b) => ({
+      user_id: b.user_id,
+      studio_id: studioId,
+      type: 'class_restored',
+      title: 'Class Restored',
+      body: 'A previously cancelled class has been restored to the schedule.',
+      data: { classInstanceId: classId },
+    }))
+
+    await supabase.from('notifications').insert(notifications)
+
+    // Also send push notifications
+    for (const b of bookings) {
+      sendNotification({
+        userId: b.user_id,
+        studioId,
+        type: 'class_restored',
+        title: 'Class Restored',
+        body: 'A previously cancelled class has been restored to the schedule.',
+        data: { classInstanceId: classId, screen: 'ClassDetail' },
+        channels: ['push'],
+      }).catch(() => {})
+    }
+  }
+
+  return c.json(updated)
 })
 
 export { schedule }

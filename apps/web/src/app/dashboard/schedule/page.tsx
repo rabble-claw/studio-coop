@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-import { api } from '@/lib/api-client'
+import { api, scheduleApi } from '@/lib/api-client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -165,6 +165,28 @@ export default function SchedulePage() {
     setCreating(false)
   }
 
+  async function handleRestoreClass(e: React.MouseEvent, classId: string) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!studioId) return
+    if (!confirm('Restore this cancelled class? Previously booked members will be notified.')) return
+    try {
+      await scheduleApi.restoreClass(studioId, classId)
+      // Update local state
+      setClassesByDate((prev) => {
+        const updated = { ...prev }
+        for (const date of Object.keys(updated)) {
+          updated[date] = updated[date]!.map((cls) =>
+            cls.id === classId ? { ...cls, status: 'scheduled' } : cls,
+          )
+        }
+        return updated
+      })
+    } catch (err) {
+      alert(`Failed to restore class: ${(err as Error).message}`)
+    }
+  }
+
   if (loading) {
     return <div className="flex items-center justify-center py-20"><div className="text-muted-foreground">Loading schedule...</div></div>
   }
@@ -278,15 +300,29 @@ export default function SchedulePage() {
                                   />
                                 </div>
                               </div>
-                              <span className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${
-                                spotsLeft <= 2
-                                  ? 'bg-red-100 text-red-700'
-                                  : spotsLeft <= 4
-                                  ? 'bg-amber-100 text-amber-700'
-                                  : 'bg-green-100 text-green-700'
-                              }`}>
-                                {spotsLeft === 0 ? 'Full' : `${spotsLeft} left`}
-                              </span>
+                              {cls.status === 'cancelled' ? (
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs px-2 py-1 rounded-full whitespace-nowrap bg-red-100 text-red-700">
+                                    Cancelled
+                                  </span>
+                                  <button
+                                    onClick={(e) => handleRestoreClass(e, cls.id)}
+                                    className="text-xs px-2 py-1 rounded bg-green-50 text-green-700 hover:bg-green-100 whitespace-nowrap"
+                                  >
+                                    Restore
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${
+                                  spotsLeft <= 2
+                                    ? 'bg-red-100 text-red-700'
+                                    : spotsLeft <= 4
+                                    ? 'bg-amber-100 text-amber-700'
+                                    : 'bg-green-100 text-green-700'
+                                }`}>
+                                  {spotsLeft === 0 ? 'Full' : `${spotsLeft} left`}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </CardContent>

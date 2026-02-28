@@ -88,6 +88,7 @@ const COLUMN_MAPPINGS: { target: string; patterns: RegExp[]; required: boolean }
       /^name$/i,
       /^client\s*name$/i,
       /^member\s*name$/i,
+      /^customer\s*name$/i,
     ],
     required: true,
   },
@@ -112,11 +113,17 @@ const COLUMN_MAPPINGS: { target: string; patterns: RegExp[]; required: boolean }
   {
     target: 'phone',
     patterns: [
-      /^(mobile\s*)?phone([_\s]*number)?$/i,
-      /^phone$/i,
+      /^phone([_\s]*number)?$/i,
+      /^mobile([_\s]*phone)?$/i,
       /^cell([_\s]*phone)?$/i,
-      /^mobile$/i,
-      /^tel$/i,
+      /^tel(ephone)?$/i,
+    ],
+    required: false,
+  },
+  {
+    target: 'home_phone',
+    patterns: [
+      /^home[_\s]*phone$/i,
     ],
     required: false,
   },
@@ -128,6 +135,146 @@ const COLUMN_MAPPINGS: { target: string; patterns: RegExp[]; required: boolean }
       /^subscription$/i,
       /^membership$/i,
       /^package$/i,
+      /^active\s*memberships?$/i,
+      /^pricing\s*option$/i,
+    ],
+    required: false,
+  },
+  {
+    target: 'status',
+    patterns: [
+      /^status$/i,
+      /^active$/i,
+      /^member\s*status$/i,
+      /^client\s*status$/i,
+    ],
+    required: false,
+  },
+  {
+    target: 'join_date',
+    patterns: [
+      /^date\s*added$/i,
+      /^member\s*since$/i,
+      /^customer\s*since$/i,
+      /^creation\s*date$/i,
+      /^join(ed)?\s*date$/i,
+      /^sign[_\s]*up\s*date$/i,
+    ],
+    required: false,
+  },
+  {
+    target: 'last_visit',
+    patterns: [
+      /^last\s*visit$/i,
+      /^last\s*appointment$/i,
+      /^last\s*class$/i,
+      /^last\s*check[_\s-]*in$/i,
+    ],
+    required: false,
+  },
+  {
+    target: 'client_id',
+    patterns: [
+      /^(client\s*)?id$/i,
+      /^client\s*id$/i,
+      /^member\s*id$/i,
+      /^barcode\s*id$/i,
+      /^customer\s*id$/i,
+    ],
+    required: false,
+  },
+  {
+    target: 'notes',
+    patterns: [
+      /^notes?$/i,
+      /^comments?$/i,
+    ],
+    required: false,
+  },
+  {
+    target: 'address',
+    patterns: [
+      /^address$/i,
+      /^street\s*address$/i,
+    ],
+    required: false,
+  },
+  {
+    target: 'city',
+    patterns: [
+      /^city$/i,
+      /^town$/i,
+    ],
+    required: false,
+  },
+  {
+    target: 'state',
+    patterns: [
+      /^state$/i,
+      /^province$/i,
+      /^region$/i,
+    ],
+    required: false,
+  },
+  {
+    target: 'zip',
+    patterns: [
+      /^zip$/i,
+      /^zip\s*code$/i,
+      /^postal\s*code$/i,
+      /^postcode$/i,
+    ],
+    required: false,
+  },
+  {
+    target: 'birthday',
+    patterns: [
+      /^birthday$/i,
+      /^birth\s*date$/i,
+      /^date\s*of\s*birth$/i,
+      /^dob$/i,
+    ],
+    required: false,
+  },
+  {
+    target: 'gender',
+    patterns: [
+      /^gender$/i,
+      /^sex$/i,
+    ],
+    required: false,
+  },
+  {
+    target: 'source',
+    patterns: [
+      /^source$/i,
+      /^referral\s*source$/i,
+      /^how\s*did\s*(you|they)\s*(hear|find)/i,
+    ],
+    required: false,
+  },
+  {
+    target: 'account_balance',
+    patterns: [
+      /^account\s*balance$/i,
+      /^balance$/i,
+    ],
+    required: false,
+  },
+  {
+    target: 'payment_amount',
+    patterns: [
+      /^payment\s*amount$/i,
+      /^auto[_\s-]*pay\s*amount$/i,
+    ],
+    required: false,
+  },
+  {
+    target: 'payment_schedule',
+    patterns: [
+      /^auto[_\s-]*pay\s*schedule$/i,
+      /^billing\s*schedule$/i,
+      /^payment\s*schedule$/i,
     ],
     required: false,
   },

@@ -239,6 +239,49 @@ privateBookings.delete('/:studioId/private-bookings/:id', authMiddleware, requir
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
+// POST /:studioId/private-bookings/:id/restore — restore cancelled booking (staff only)
+// ─────────────────────────────────────────────────────────────────────────────
+
+privateBookings.post('/:studioId/private-bookings/:id/restore', authMiddleware, requireStaff, async (c) => {
+  const studioId = c.req.param('studioId')
+  const bookingId = c.req.param('id')
+  const supabase = createServiceClient()
+
+  const { data: existing } = await supabase
+    .from('private_bookings')
+    .select('id, status')
+    .eq('id', bookingId)
+    .eq('studio_id', studioId)
+    .single()
+
+  if (!existing) throw notFound('Private booking')
+  if (existing.status !== 'cancelled') throw badRequest('Only cancelled bookings can be restored')
+
+  const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
+  const restoreTo = (body.status as string) ?? 'requested'
+
+  if (!['requested', 'confirmed'].includes(restoreTo)) {
+    throw badRequest('Restore status must be requested or confirmed')
+  }
+
+  const { data: booking, error } = await supabase
+    .from('private_bookings')
+    .update({ status: restoreTo })
+    .eq('id', bookingId)
+    .select()
+    .single()
+
+  if (error) throw new Error(error.message)
+
+  return c.json({
+    booking: {
+      ...booking,
+      status: booking.status === 'requested' ? 'pending' : booking.status,
+    },
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
 // POST /:studioId/private-bookings/:id/deposit — collect deposit (staff only)
 // ─────────────────────────────────────────────────────────────────────────────
 

@@ -383,5 +383,86 @@ bookings.delete(
   },
 )
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Restore a cancelled booking (staff only)
+// POST /:studioId/classes/:classId/bookings/:bookingId/restore
+// ─────────────────────────────────────────────────────────────────────────────
+
+bookings.post(
+  '/:studioId/classes/:classId/bookings/:bookingId/restore',
+  authMiddleware,
+  requireStaff,
+  async (c) => {
+    const classId   = c.req.param('classId')
+    const studioId  = c.req.param('studioId')
+    const bookingId = c.req.param('bookingId')
+    const supabase  = createServiceClient()
+
+    // Fetch booking — verify it belongs to this class/studio
+    const { data: booking } = await supabase
+      .from('bookings')
+      .select('id, user_id, status, credit_source, credit_source_id, class_instance_id')
+      .eq('id', bookingId)
+      .eq('class_instance_id', classId)
+      .single()
+
+    if (!booking) throw notFound('Booking')
+    if (booking.status !== 'cancelled') throw badRequest('Only cancelled bookings can be restored')
+
+    // Verify the class belongs to this studio and is still bookable
+    const { data: cls } = await supabase
+      .from('class_instances')
+      .select('id, studio_id, status, max_capacity')
+      .eq('id', classId)
+      .eq('studio_id', studioId)
+      .single()
+
+    if (!cls) throw notFound('Class')
+    if (cls.status !== 'scheduled') throw badRequest('Class is not available for booking')
+
+    // Check capacity
+    const { count: activeCount } = await supabase
+      .from('bookings')
+      .select('*', { count: 'exact', head: true })
+      .eq('class_instance_id', classId)
+      .in('status', ['booked', 'confirmed'])
+
+    if ((activeCount ?? 0) >= cls.max_capacity) {
+      throw badRequest('Class is full — cannot restore booking')
+    }
+
+    // Restore booking status
+    await supabase
+      .from('bookings')
+      .update({ status: 'booked', cancelled_at: null })
+      .eq('id', bookingId)
+
+    // Deduct credit back (reverse the refund that happened on cancellation)
+    if (booking.credit_source && booking.credit_source !== 'none') {
+      try {
+        const creditCheck = await checkBookingCredits(booking.user_id, studioId)
+        if (creditCheck.hasCredits) {
+          await deductCredit(creditCheck)
+        }
+      } catch {
+        // Best-effort credit deduction — don't block the restore
+      }
+    }
+
+    // Notify the user their booking was restored
+    sendNotification({
+      userId: booking.user_id,
+      studioId,
+      type: 'booking_confirmed',
+      title: 'Booking Restored',
+      body: 'Your cancelled booking has been restored by staff.',
+      data: { classId, bookingId, screen: 'BookingDetail' },
+      channels: ['push', 'in_app'],
+    }).catch(() => {}) // fire-and-forget
+
+    return c.json({ bookingId, status: 'booked' })
+  },
+)
+
 export { bookings }
 export default bookings

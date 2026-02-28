@@ -22,16 +22,30 @@ const TARGET_OPTIONS = [
   { value: 'last_name', label: 'Last Name' },
   { value: 'email', label: 'Email' },
   { value: 'phone', label: 'Phone' },
+  { value: 'home_phone', label: 'Home Phone' },
   { value: 'membership_type', label: 'Membership Type' },
+  { value: 'status', label: 'Status' },
+  { value: 'join_date', label: 'Join Date' },
+  { value: 'last_visit', label: 'Last Visit' },
+  { value: 'client_id', label: 'Client ID' },
+  { value: 'notes', label: 'Notes' },
+  { value: 'address', label: 'Address' },
+  { value: 'city', label: 'City' },
+  { value: 'state', label: 'State' },
+  { value: 'zip', label: 'Zip' },
+  { value: 'birthday', label: 'Birthday' },
+  { value: 'gender', label: 'Gender' },
+  { value: 'source', label: 'Source' },
+  { value: 'account_balance', label: 'Account Balance' },
   { value: '', label: '-- Skip --' },
 ]
 
 const COLUMN_PATTERNS: { target: string; patterns: RegExp[]; required: boolean }[] = [
-  { target: 'name', patterns: [/^first\s*name$/i, /^full\s*name$/i, /^name$/i, /^client\s*name$/i], required: true },
-  { target: 'last_name', patterns: [/^last\s*name$/i, /^surname$/i], required: false },
-  { target: 'email', patterns: [/^e?-?mail$/i, /^email[_\s]*address$/i], required: true },
-  { target: 'phone', patterns: [/^(mobile\s*)?phone([_\s]*number)?$/i, /^cell$/i, /^mobile$/i], required: false },
-  { target: 'membership_type', patterns: [/^membership\s*type$/i, /^plan$/i, /^subscription$/i], required: false },
+  { target: 'name', patterns: [/^first\s*name$/i, /^full\s*name$/i, /^name$/i, /^client\s*name$/i, /^customer\s*name$/i], required: true },
+  { target: 'last_name', patterns: [/^last\s*name$/i, /^surname$/i, /^family\s*name$/i], required: false },
+  { target: 'email', patterns: [/^e?-?mail$/i, /^email[_\s]*address$/i, /^e-?mail[_\s]*address$/i], required: true },
+  { target: 'phone', patterns: [/^phone([_\s]*number)?$/i, /^mobile([_\s]*phone)?$/i, /^cell([_\s]*phone)?$/i, /^tel(ephone)?$/i], required: false },
+  { target: 'membership_type', patterns: [/^membership\s*type$/i, /^plan$/i, /^subscription$/i, /^active\s*memberships?$/i, /^pricing\s*option$/i], required: false },
 ]
 
 function parseCSV(content: string): Record<string, string>[] {
@@ -175,7 +189,38 @@ export default function DemoMigratePage() {
   }
 
   function loadSampleData() {
-    const sample = `First Name,Last Name,Email,Phone,Membership Type
+    let sample: string
+
+    if (source === 'mindbody') {
+      sample = `ID,First Name,Last Name,Email,Phone,Home Phone,Mobile Phone,Date Added,Last Visit,Status,Active Memberships,Account Balance
+1001,Sarah,Chen,sarah.chen@email.com,+64 21 555 0101,,+64 21 555 0101,2023-01-15,2024-12-20,Active,Unlimited Monthly,$0.00
+1002,James,Wilson,james.w@email.com,+64 22 555 0102,+64 9 555 0102,,2023-03-20,2024-12-18,Active,8-Class Pack,$15.00
+1003,Tina,Ruiz,tina.ruiz@email.com,+64 21 555 0103,,,2023-06-01,2024-11-30,Active,Unlimited Monthly,$0.00
+1004,Mike,Johnson,mike.j@email.com,+64 21 555 0104,,+64 21 555 0104,2023-02-10,2024-12-15,Active,Drop-In,$0.00
+1005,Emily,Brooks,emily.b@email.com,+64 22 555 0105,,,2023-08-22,2024-12-19,Active,8-Class Pack,$0.00
+1006,David,Kim,,+64 21 555 0106,,+64 21 555 0106,2023-04-05,2024-10-01,Inactive,,$0.00
+1007,Priya,Patel,priya.p@email.com,+64 22 555 0107,,,2023-07-12,2024-12-17,Active,Unlimited Monthly,$0.00
+1008,Alex,Turner,alex.turner@email.com,+64 21 555 0108,,+64 21 555 0108,2023-05-18,2024-12-20,Active,8-Class Pack,$0.00
+1009,Lisa,Martinez,invalid-email,+64 22 555 0109,,,2023-09-30,2024-11-15,Active,Drop-In,$25.00
+1010,Tom,Brown,tom.brown@email.com,+64 21 555 0110,,+64 21 555 0110,2023-01-08,2024-12-19,Active,Unlimited Monthly,$0.00
+1011,Nina,Kowalski,nina.k@email.com,+64 22 555 0111,,,2023-11-01,2024-12-10,Active,8-Class Pack,$0.00
+1012,Ryan,Foster,ryan.f@email.com,+64 22 555 0112,,,2023-03-15,2024-12-16,Active,Unlimited Monthly,$0.00`
+    } else if (source === 'vagaro') {
+      sample = `First Name,Last Name,Email,Mobile Phone,Home Phone,Address,City,State,Zip,Birthday,Gender,Notes,Last Appointment,Customer Since,Source
+Sarah,Chen,sarah.chen@email.com,+64 21 555 0101,,12 Queen St,Auckland,,1010,1990-05-15,Female,,2024-12-20,2023-01-15,Website
+James,Wilson,james.w@email.com,+64 22 555 0102,+64 9 555 0102,45 High St,Wellington,,6011,,Male,VIP client,2024-12-18,2023-03-20,Referral
+Tina,Ruiz,tina.ruiz@email.com,+64 21 555 0103,,8 Ponsonby Rd,Auckland,,1011,1985-11-22,Female,,2024-11-30,2023-06-01,Walk-in
+Mike,Johnson,mike.j@email.com,+64 21 555 0104,,,Christchurch,,8011,1992-03-08,Male,,2024-12-15,2023-02-10,Instagram
+Emily,Brooks,emily.b@email.com,+64 22 555 0105,,23 Cuba St,Wellington,,6011,1988-07-30,Female,Morning classes only,2024-12-19,2023-08-22,Website
+David,Kim,,+64 21 555 0106,,100 Symonds St,Auckland,,1010,,Male,,2024-10-01,2023-04-05,Referral
+Priya,Patel,priya.p@email.com,+64 22 555 0107,,5 Victoria St,Hamilton,,3204,1995-01-12,Female,,2024-12-17,2023-07-12,Google
+Alex,Turner,alex.turner@email.com,+64 21 555 0108,,67 Karangahape Rd,Auckland,,1010,1991-09-25,Male,,2024-12-20,2023-05-18,Website
+Lisa,Martinez,invalid-email,+64 22 555 0109,,34 Courtenay Pl,Wellington,,6011,1987-04-18,Female,Prefers evening classes,2024-11-15,2023-09-30,Walk-in
+Tom,Brown,tom.brown@email.com,+64 21 555 0110,,9 Lambton Quay,Wellington,,6011,1993-12-03,Male,,2024-12-19,2023-01-08,Website
+Nina,Kowalski,nina.k@email.com,+64 22 555 0111,,22 Mt Eden Rd,Auckland,,1024,,Female,,2024-12-10,2023-11-01,Referral
+Ryan,Foster,ryan.f@email.com,+64 22 555 0112,,18 Broadway,Newmarket,,1023,1989-06-14,Male,,2024-12-16,2023-03-15,Instagram`
+    } else {
+      sample = `First Name,Last Name,Email,Phone,Membership Type
 Sarah,Chen,sarah.chen@email.com,+64 21 555 0101,Unlimited Monthly
 James,Wilson,james.w@email.com,+64 22 555 0102,8-Class Pack
 Tina,Ruiz,tina.ruiz@email.com,,Unlimited Monthly
@@ -188,6 +233,8 @@ Lisa,Martinez,invalid-email,+64 22 555 0109,Drop-In
 Tom,Brown,tom.brown@email.com,+64 21 555 0110,Unlimited Monthly
 Nina,Kowalski,nina.k@email.com,,8-Class Pack
 Ryan,Foster,ryan.f@email.com,+64 22 555 0112,Unlimited Monthly`
+    }
+
     setCsvContent(sample)
     analyzeCSV(sample)
   }

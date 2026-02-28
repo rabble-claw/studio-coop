@@ -13,16 +13,36 @@ config.resolver.nodeModulesPaths = [
   path.resolve(monorepoRoot, 'node_modules'),
 ]
 
-// Force single instances of React and React Native to prevent
-// "Cannot read property 'useMemo' of null" errors caused by
-// pnpm hoisting React 19 (from web app) into .pnpm/node_modules/
-// while mobile needs React 18. Without this, NativeWind's jsx-runtime
-// resolves to React 19 via .pnpm/node_modules/react → react@19.2.4
-config.resolver.extraNodeModules = {
-  react: path.resolve(projectRoot, 'node_modules/react'),
-  'react-native': path.resolve(projectRoot, 'node_modules/react-native'),
-  'react/jsx-runtime': path.resolve(projectRoot, 'node_modules/react/jsx-runtime'),
-  'react/jsx-dev-runtime': path.resolve(projectRoot, 'node_modules/react/jsx-dev-runtime'),
+// Force single React instance in pnpm monorepo.
+//
+// Problem: pnpm's virtual store (.pnpm/) resolves React differently per
+// package. expo-router, expo-modules-core, and nativewind each have their
+// own node_modules/react symlink inside the .pnpm directory, which can
+// point to react@19.2.4 (from the web app) instead of react@18.3.1 (what
+// mobile needs). extraNodeModules doesn't help because pnpm packages
+// resolve from their own virtual store node_modules first. Two React
+// instances → hooks fail → "Cannot read property useMemo of null".
+//
+// Solution: Custom resolveRequest that intercepts 'react' and
+// 'react-native' imports and returns the app's copy directly.
+// Pre-resolve the exact file paths for React modules at config time.
+// These are the modules that MUST be singletons.
+const reactResolves = {}
+for (const mod of ['react', 'react/jsx-runtime', 'react/jsx-dev-runtime']) {
+  reactResolves[mod] = require.resolve(mod, { paths: [projectRoot] })
+}
+
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  // Redirect React imports to app's React 18 (exact match only)
+  if (reactResolves[moduleName]) {
+    return { type: 'sourceFile', filePath: reactResolves[moduleName] }
+  }
+  // Default resolution
+  return context.resolveRequest(
+    { ...context, resolveRequest: undefined },
+    moduleName,
+    platform,
+  )
 }
 
 module.exports = withNativeWind(config, { input: './global.css' })

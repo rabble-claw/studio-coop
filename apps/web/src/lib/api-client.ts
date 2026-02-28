@@ -69,13 +69,17 @@ export const scheduleApi = {
   deleteTemplate: (studioId: string, templateId: string) => api.delete(`/studios/${studioId}/templates/${templateId}`),
   getInstances: (studioId: string, params?: string) => api.get(`/studios/${studioId}/instances${params ? `?${params}` : ''}`),
   cancelInstance: (studioId: string, instanceId: string, reason?: string) => api.post(`/studios/${studioId}/instances/${instanceId}/cancel`, { reason }),
+  restoreClass: (studioId: string, classId: string) => api.post(`/studios/${studioId}/classes/${classId}/restore`),
 }
 
 export const memberApi = {
   list: (studioId: string, params?: string) => api.get(`/studios/${studioId}/members${params ? `?${params}` : ''}`),
   get: (studioId: string, memberId: string) => api.get(`/studios/${studioId}/members/${memberId}`),
   addNote: (studioId: string, memberId: string, note: string) => api.post(`/studios/${studioId}/members/${memberId}/notes`, { note }),
-  grantComp: (studioId: string, memberId: string, data: unknown) => api.post(`/studios/${studioId}/members/${memberId}/comps`, data),
+  grantComp: (studioId: string, memberId: string, data: unknown) => api.post(`/studios/${studioId}/members/${memberId}/comp`, data),
+  suspend: (studioId: string, userId: string) => api.put(`/studios/${studioId}/members/${userId}/suspend`),
+  reactivate: (studioId: string, userId: string) => api.put(`/studios/${studioId}/members/${userId}/reactivate`),
+  remove: (studioId: string, userId: string) => api.delete(`/studios/${studioId}/members/${userId}`),
 }
 
 export const planApi = {
@@ -95,6 +99,7 @@ export const couponApi = {
 
 export const bookingApi = {
   list: (studioId: string, params?: string) => api.get(`/studios/${studioId}/bookings${params ? `?${params}` : ''}`),
+  restore: (studioId: string, classId: string, bookingId: string) => api.post(`/studios/${studioId}/classes/${classId}/bookings/${bookingId}/restore`),
   privateList: (studioId: string) => api.get(`/studios/${studioId}/private-bookings`),
   privateCreate: (studioId: string, data: unknown) => api.post(`/studios/${studioId}/private-bookings`, data),
   privateUpdate: (studioId: string, bookingId: string, data: unknown) => api.put(`/studios/${studioId}/private-bookings/${bookingId}`, data),

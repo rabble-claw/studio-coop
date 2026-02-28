@@ -8,9 +8,9 @@
 
 import { Hono } from 'hono'
 import { authMiddleware } from '../middleware/auth'
-import { requireAdmin } from '../middleware/studio-access'
+import { requireAdmin, requireOwner } from '../middleware/studio-access'
 import { createServiceClient } from '../lib/supabase'
-import { badRequest } from '../lib/errors'
+import { badRequest, notFound } from '../lib/errors'
 
 const invitations = new Hono()
 
@@ -148,6 +148,98 @@ invitations.post('/:studioId/members/invite', authMiddleware, requireAdmin, asyn
       message: `Invitation for ${name ?? email} created, but email delivery failed.`,
     }, 201)
   }
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PUT /:studioId/members/:userId/suspend — suspend a member (admin only)
+// ─────────────────────────────────────────────────────────────────────────────
+
+invitations.put('/:studioId/members/:userId/suspend', authMiddleware, requireAdmin, async (c) => {
+  const studioId = c.req.param('studioId')
+  const userId = c.req.param('userId')
+  const supabase = createServiceClient()
+
+  const { data: membership } = await supabase
+    .from('memberships')
+    .select('id, status, role')
+    .eq('studio_id', studioId)
+    .eq('user_id', userId)
+    .single()
+
+  if (!membership) throw notFound('Membership')
+  if (membership.status !== 'active') throw badRequest('Only active memberships can be suspended')
+  if (membership.role === 'owner') throw badRequest('Cannot suspend the studio owner')
+
+  const { error } = await supabase
+    .from('memberships')
+    .update({ status: 'suspended' })
+    .eq('id', membership.id)
+
+  if (error) throw new Error(error.message)
+
+  return c.json({ userId, status: 'suspended' })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PUT /:studioId/members/:userId/reactivate — reactivate a suspended member (admin only)
+// ─────────────────────────────────────────────────────────────────────────────
+
+invitations.put('/:studioId/members/:userId/reactivate', authMiddleware, requireAdmin, async (c) => {
+  const studioId = c.req.param('studioId')
+  const userId = c.req.param('userId')
+  const supabase = createServiceClient()
+
+  const { data: membership } = await supabase
+    .from('memberships')
+    .select('id, status')
+    .eq('studio_id', studioId)
+    .eq('user_id', userId)
+    .single()
+
+  if (!membership) throw notFound('Membership')
+  if (membership.status === 'active') throw badRequest('Membership is already active')
+  if (!['suspended', 'cancelled'].includes(membership.status)) {
+    throw badRequest('Only suspended or cancelled memberships can be reactivated')
+  }
+
+  const { error } = await supabase
+    .from('memberships')
+    .update({ status: 'active' })
+    .eq('id', membership.id)
+
+  if (error) throw new Error(error.message)
+
+  return c.json({ userId, status: 'active' })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DELETE /:studioId/members/:userId — remove a member (owner only)
+// ─────────────────────────────────────────────────────────────────────────────
+
+invitations.delete('/:studioId/members/:userId', authMiddleware, requireOwner, async (c) => {
+  const studioId = c.req.param('studioId')
+  const userId = c.req.param('userId')
+  const supabase = createServiceClient()
+
+  const { data: membership } = await supabase
+    .from('memberships')
+    .select('id, status, role')
+    .eq('studio_id', studioId)
+    .eq('user_id', userId)
+    .single()
+
+  if (!membership) throw notFound('Membership')
+  if (membership.role === 'owner') throw badRequest('Cannot remove the studio owner')
+  if (membership.status === 'cancelled') throw badRequest('Membership is already cancelled')
+
+  const { error } = await supabase
+    .from('memberships')
+    .update({ status: 'cancelled' })
+    .eq('id', membership.id)
+
+  if (error) throw new Error(error.message)
+
+  return c.json({ userId, status: 'cancelled' })
 })
 
 export { invitations }

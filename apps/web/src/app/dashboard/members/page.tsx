@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { inviteApi } from '@/lib/api-client'
+import { inviteApi, memberApi } from '@/lib/api-client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,6 +15,7 @@ interface Member {
   name: string
   email: string
   role: string
+  status: string
   joined: string
   avatar_url: string | null
 }
@@ -51,9 +52,9 @@ export default function MembersPage() {
 
       const { data: studioMembers } = await supabase
         .from('memberships')
-        .select('role, joined_at, user:users(id, name, email, avatar_url)')
+        .select('role, status, joined_at, user:users(id, name, email, avatar_url)')
         .eq('studio_id', membership.studio_id)
-        .eq('status', 'active')
+        .in('status', ['active', 'suspended'])
         .order('joined_at')
 
       const mapped: Member[] = (studioMembers ?? []).map((m) => {
@@ -63,6 +64,7 @@ export default function MembersPage() {
           name: (u?.name as string) ?? 'Unknown',
           email: (u?.email as string) ?? '',
           role: m.role,
+          status: m.status,
           joined: m.joined_at,
           avatar_url: (u?.avatar_url as string) ?? null,
         }
@@ -93,6 +95,44 @@ export default function MembersPage() {
       setInviteMessage(`Error: ${e instanceof Error ? e.message : 'Failed to send invitation'}`)
     }
     setInviting(false)
+  }
+
+  async function handleSuspend(e: React.MouseEvent, memberId: string) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!studioId) return
+    if (!confirm('Suspend this member?')) return
+    try {
+      await memberApi.suspend(studioId, memberId)
+      setMembers((prev) => prev.map((m) => m.id === memberId ? { ...m, status: 'suspended' } : m))
+    } catch (err) {
+      alert(`Failed: ${(err as Error).message}`)
+    }
+  }
+
+  async function handleReactivate(e: React.MouseEvent, memberId: string) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!studioId) return
+    try {
+      await memberApi.reactivate(studioId, memberId)
+      setMembers((prev) => prev.map((m) => m.id === memberId ? { ...m, status: 'active' } : m))
+    } catch (err) {
+      alert(`Failed: ${(err as Error).message}`)
+    }
+  }
+
+  async function handleRemove(e: React.MouseEvent, memberId: string) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!studioId) return
+    if (!confirm('Remove this member from the studio?')) return
+    try {
+      await memberApi.remove(studioId, memberId)
+      setMembers((prev) => prev.filter((m) => m.id !== memberId))
+    } catch (err) {
+      alert(`Failed: ${(err as Error).message}`)
+    }
   }
 
   const filtered = members.filter(
@@ -192,9 +232,43 @@ export default function MembersPage() {
                     <span className={`text-xs px-2 py-1 rounded-full capitalize ${getRoleBadgeColor(member.role)}`}>
                       {member.role}
                     </span>
+                    {member.status === 'suspended' && (
+                      <span className="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-700">
+                        suspended
+                      </span>
+                    )}
                     <span className="text-xs text-muted-foreground hidden sm:inline whitespace-nowrap">
                       Joined {new Date(member.joined).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
                     </span>
+                    {member.role !== 'owner' && (
+                      <div className="flex items-center gap-1">
+                        {member.status === 'active' && (
+                          <button
+                            onClick={(e) => handleSuspend(e, member.id)}
+                            className="text-xs px-2 py-1 rounded text-amber-600 hover:bg-amber-50 hidden sm:inline"
+                            title="Suspend member"
+                          >
+                            Suspend
+                          </button>
+                        )}
+                        {member.status === 'suspended' && (
+                          <button
+                            onClick={(e) => handleReactivate(e, member.id)}
+                            className="text-xs px-2 py-1 rounded text-green-600 hover:bg-green-50 hidden sm:inline"
+                            title="Reactivate member"
+                          >
+                            Reactivate
+                          </button>
+                        )}
+                        <button
+                          onClick={(e) => handleRemove(e, member.id)}
+                          className="text-xs px-2 py-1 rounded text-red-600 hover:bg-red-50 hidden sm:inline"
+                          title="Remove member"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>

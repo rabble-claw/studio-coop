@@ -300,6 +300,88 @@ my.post('/my/bookings/reminders', async (c) => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Restore own cancelled booking (within 30 minutes of cancellation)
+// POST /api/bookings/:bookingId/restore
+// ─────────────────────────────────────────────────────────────────────────────
+
+my.post('/bookings/:bookingId/restore', authMiddleware, async (c) => {
+  const bookingId = c.req.param('bookingId')
+  const user      = c.get('user' as never) as { id: string }
+  const supabase  = createServiceClient()
+
+  // Fetch booking — must belong to the calling user
+  const { data: booking } = await supabase
+    .from('bookings')
+    .select(`
+      id, user_id, status, credit_source, credit_source_id, cancelled_at,
+      class_instance:class_instances(
+        id, studio_id, status, max_capacity,
+        template:class_templates(name)
+      )
+    `)
+    .eq('id', bookingId)
+    .single()
+
+  if (!booking) throw notFound('Booking')
+  if (booking.user_id !== user.id) throw forbidden('You can only restore your own bookings')
+  if (booking.status !== 'cancelled') throw badRequest('Only cancelled bookings can be restored')
+
+  // Check 30-minute restore window
+  const cancelledAt = booking.cancelled_at ? new Date(booking.cancelled_at) : null
+  if (!cancelledAt) throw badRequest('Cannot determine cancellation time')
+
+  const minutesSinceCancellation = (Date.now() - cancelledAt.getTime()) / (1000 * 60)
+  if (minutesSinceCancellation > 30) {
+    throw badRequest('Restore window has expired (30 minutes). Please contact staff.')
+  }
+
+  const classInstance = Array.isArray(booking.class_instance)
+    ? booking.class_instance[0]
+    : booking.class_instance
+
+  if (!classInstance) throw notFound('Class')
+  if (classInstance.status !== 'scheduled') throw badRequest('Class is no longer available')
+
+  // Check capacity
+  const { count: activeCount } = await supabase
+    .from('bookings')
+    .select('*', { count: 'exact', head: true })
+    .eq('class_instance_id', classInstance.id)
+    .in('status', ['booked', 'confirmed'])
+
+  if ((activeCount ?? 0) >= classInstance.max_capacity) {
+    throw badRequest('Class is full — cannot restore booking')
+  }
+
+  // Restore booking
+  await supabase
+    .from('bookings')
+    .update({ status: 'booked', cancelled_at: null })
+    .eq('id', bookingId)
+
+  // Deduct credit back (reverse the refund)
+  if (booking.credit_source && booking.credit_source !== 'none') {
+    try {
+      const { checkBookingCredits, deductCredit } = await import('../lib/credits')
+      const creditCheck = await checkBookingCredits(user.id, classInstance.studio_id)
+      if (creditCheck.hasCredits) {
+        await deductCredit(creditCheck)
+      }
+    } catch {
+      // Best-effort — don't block restore
+    }
+  }
+
+  const template = Array.isArray(classInstance.template) ? classInstance.template[0] : classInstance.template
+
+  return c.json({
+    bookingId,
+    status: 'booked',
+    message: `Booking for ${template?.name ?? 'class'} has been restored.`,
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Task 6: My upcoming bookings
 // GET /api/my/bookings
 // ─────────────────────────────────────────────────────────────────────────────

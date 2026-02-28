@@ -78,6 +78,10 @@ export default function MemberDetailPage() {
   const [grantError, setGrantError]       = useState<string | null>(null)
   const [grantSuccess, setGrantSuccess]   = useState<string | null>(null)
 
+  // Member management state
+  const [memberAction, setMemberAction] = useState<string | null>(null)
+  const [memberActionError, setMemberActionError] = useState<string | null>(null)
+
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
@@ -203,6 +207,50 @@ export default function MemberDetailPage() {
     }
   }
 
+  async function handleSuspend() {
+    if (!member) return
+    if (!confirm('Suspend this member? They will not be able to book classes until reactivated.')) return
+    setMemberAction('suspending')
+    setMemberActionError(null)
+    try {
+      await memberApi.suspend(member.studio_id, memberId)
+      setMember((prev) => prev ? { ...prev, status: 'suspended' } : prev)
+    } catch (err) {
+      setMemberActionError((err as Error).message)
+    } finally {
+      setMemberAction(null)
+    }
+  }
+
+  async function handleReactivate() {
+    if (!member) return
+    setMemberAction('reactivating')
+    setMemberActionError(null)
+    try {
+      await memberApi.reactivate(member.studio_id, memberId)
+      setMember((prev) => prev ? { ...prev, status: 'active' } : prev)
+    } catch (err) {
+      setMemberActionError((err as Error).message)
+    } finally {
+      setMemberAction(null)
+    }
+  }
+
+  async function handleRemove() {
+    if (!member) return
+    if (!confirm('Remove this member from the studio? This action sets their membership to cancelled.')) return
+    setMemberAction('removing')
+    setMemberActionError(null)
+    try {
+      await memberApi.remove(member.studio_id, memberId)
+      setMember((prev) => prev ? { ...prev, status: 'cancelled' } : prev)
+    } catch (err) {
+      setMemberActionError((err as Error).message)
+    } finally {
+      setMemberAction(null)
+    }
+  }
+
   async function handleRevoke(compId: string) {
     if (!member) return
     if (!confirm('Revoke this comp grant? The member will lose any remaining classes.')) return
@@ -276,6 +324,55 @@ export default function MemberDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Member Actions */}
+      {isStaff && member.role !== 'owner' && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Member Actions</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {memberActionError && (
+              <p className="text-sm text-red-600">{memberActionError}</p>
+            )}
+            <div className="flex flex-wrap gap-2">
+              {member.status === 'active' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-amber-600 border-amber-300 hover:bg-amber-50"
+                  onClick={handleSuspend}
+                  disabled={memberAction !== null}
+                >
+                  {memberAction === 'suspending' ? 'Suspending...' : 'Suspend Member'}
+                </Button>
+              )}
+              {(member.status === 'suspended' || member.status === 'cancelled') && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-green-600 border-green-300 hover:bg-green-50"
+                  onClick={handleReactivate}
+                  disabled={memberAction !== null}
+                >
+                  {memberAction === 'reactivating' ? 'Reactivating...' : 'Reactivate Member'}
+                </Button>
+              )}
+              {member.status !== 'cancelled' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-red-600 border-red-300 hover:bg-red-50"
+                  onClick={handleRemove}
+                  disabled={memberAction !== null}
+                >
+                  {memberAction === 'removing' ? 'Removing...' : 'Remove Member'}
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Subscription Status */}
       {subscription && (
