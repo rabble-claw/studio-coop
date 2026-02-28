@@ -24,33 +24,66 @@ export default function LandingPage() {
 
       {/* Hero */}
       <section className="max-w-6xl mx-auto px-6 pt-16 pb-24 sm:pt-24 sm:pb-32">
-        <div className="max-w-3xl">
-          <div className="inline-flex items-center gap-2 rounded-full bg-secondary px-4 py-1.5 text-sm text-muted-foreground mb-6">
-            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-            Built for indie studios
+        <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full bg-secondary px-4 py-1.5 text-sm text-muted-foreground mb-6">
+              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+              Built for indie studios
+            </div>
+            <h1 className="text-5xl sm:text-7xl font-extrabold tracking-tight leading-[1.05] mb-6">
+              Your studio,{' '}
+              <br className="hidden sm:block" />
+              your community,{' '}
+              <br className="hidden sm:block" />
+              your <span className="text-primary">platform</span>.
+            </h1>
+            <p className="text-xl text-muted-foreground leading-relaxed mb-10 max-w-2xl">
+              Studio Co-op is the management platform that puts community first.
+              Schedule classes, check in members with a tap, and build a real
+              community around your studio — without the corporate overhead.
+            </p>
+            <div className="flex flex-wrap gap-4">
+              <Button asChild size="lg" className="text-base px-8 h-12">
+                <Link href="/login?mode=signup">Start free</Link>
+              </Button>
+              <Button variant="outline" size="lg" asChild className="text-base px-8 h-12">
+                <Link href="/demo">See the demo</Link>
+              </Button>
+            </div>
           </div>
-          <h1 className="text-5xl sm:text-7xl font-extrabold tracking-tight leading-[1.05] mb-6">
-            Your studio,{' '}
-            <br className="hidden sm:block" />
-            your community,{' '}
-            <br className="hidden sm:block" />
-            your <span className="text-primary">platform</span>.
-          </h1>
-          <p className="text-xl text-muted-foreground leading-relaxed mb-10 max-w-2xl">
-            Studio Co-op is the management platform that puts community first.
-            Schedule classes, check in members with a tap, and build a real
-            community around your studio — without the corporate overhead.
-          </p>
-          <div className="flex flex-wrap gap-4">
-            <Button asChild size="lg" className="text-base px-8 h-12">
-              <Link href="/login?mode=signup">Start free</Link>
-            </Button>
-            <Button variant="outline" size="lg" asChild className="text-base px-8 h-12">
-              <Link href="/demo">See the demo</Link>
-            </Button>
+
+          {/* Hero image — studio photo + dashboard screenshot */}
+          <div className="relative hidden lg:block min-h-[400px]">
+            {/* Studio photo */}
+            <div className="rounded-2xl overflow-hidden shadow-2xl">
+              <img
+                src="/empire/fitness.jpg"
+                alt="Studio members forming a heart shape during a class at Empire Aerial Arts"
+                className="w-full h-auto object-cover"
+              />
+            </div>
+            {/* Dashboard screenshot overlay */}
+            <div className="absolute -bottom-8 -left-12 w-[75%] rounded-xl shadow-2xl border-2 border-white overflow-hidden">
+              <img
+                src="/assets/Screenshot 2026-02-27 at 2.52.12 PM.png"
+                alt="Studio Co-op dashboard showing schedule, community feed, and member stats"
+                className="w-full h-auto"
+              />
+            </div>
           </div>
         </div>
       </section>
+
+      {/* Mobile hero image */}
+      <div className="lg:hidden max-w-6xl mx-auto px-6 pb-12">
+        <div className="rounded-2xl overflow-hidden shadow-xl">
+          <img
+            src="/empire/fitness.jpg"
+            alt="Studio members forming a heart shape during a class at Empire Aerial Arts"
+            className="w-full h-auto object-cover"
+          />
+        </div>
+      </div>
 
       {/* Social proof bar */}
       <section className="border-y bg-card">
