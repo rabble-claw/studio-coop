@@ -1,11 +1,23 @@
 import '../../global.css'
 import { Slot, useRouter, useSegments } from 'expo-router'
 import { useEffect } from 'react'
-import { StripeProvider } from '@stripe/stripe-react-native'
+import { NativeModules } from 'react-native'
 import { AuthProvider, useAuth } from '@/lib/auth-context'
 import { setupNotificationListeners } from '@/lib/push'
 
 const STRIPE_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ''
+
+// @stripe/stripe-react-native requires a development build (not Expo Go).
+// Conditionally import to avoid crashing in Expo Go.
+const hasStripeNative = !!NativeModules.StripeSdk
+let StripeProvider: React.ComponentType<{ publishableKey: string; merchantIdentifier: string; children: React.ReactNode }> | null = null
+if (hasStripeNative) {
+  try {
+    StripeProvider = require('@stripe/stripe-react-native').StripeProvider
+  } catch {
+    // Stripe native module not available
+  }
+}
 
 function AuthGate() {
   const { session, loading, studioId, studioLoaded } = useAuth()
@@ -47,14 +59,22 @@ function AuthGate() {
 }
 
 export default function RootLayout() {
-  return (
-    <StripeProvider
-      publishableKey={STRIPE_PUBLISHABLE_KEY}
-      merchantIdentifier="merchant.coop.studio.app"
-    >
-      <AuthProvider>
-        <AuthGate />
-      </AuthProvider>
-    </StripeProvider>
+  const content = (
+    <AuthProvider>
+      <AuthGate />
+    </AuthProvider>
   )
+
+  if (StripeProvider) {
+    return (
+      <StripeProvider
+        publishableKey={STRIPE_PUBLISHABLE_KEY}
+        merchantIdentifier="merchant.coop.studio.app"
+      >
+        {content}
+      </StripeProvider>
+    )
+  }
+
+  return content
 }

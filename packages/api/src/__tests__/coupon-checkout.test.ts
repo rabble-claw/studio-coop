@@ -239,6 +239,7 @@ describe('Coupon redemption in checkout', () => {
       order: vi.fn().mockReturnThis(),
       limit: vi.fn().mockReturnThis(),
       insert: insertMock,
+      update: vi.fn().mockReturnThis(),
       rpc: rpcMock,
     }
     vi.mocked(createServiceClient).mockReturnValue(chain as any)

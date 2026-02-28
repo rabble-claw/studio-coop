@@ -1,20 +1,31 @@
 import { useState, useCallback } from 'react'
-import { Alert } from 'react-native'
-import { useStripe } from '@stripe/stripe-react-native'
+import { Alert, NativeModules, Linking } from 'react-native'
 
 interface UsePaymentSheetOptions {
   onSuccess?: () => void
   onError?: (error: string) => void
 }
 
+const hasStripe = !!NativeModules.StripeSdk
+
 export function usePaymentSheet(options?: UsePaymentSheetOptions) {
-  const { initPaymentSheet, presentPaymentSheet } = useStripe()
   const [loading, setLoading] = useState(false)
 
   const openPaymentSheet = useCallback(
     async (clientSecret: string, label?: string) => {
+      if (!hasStripe) {
+        Alert.alert(
+          'Stripe Not Available',
+          'In-app payments require a development build. Use the web dashboard to purchase.',
+        )
+        return false
+      }
+
       setLoading(true)
       try {
+        // Dynamic require — only runs when native module is present
+        const { initPaymentSheet, presentPaymentSheet } = require('@stripe/stripe-react-native')
+
         const { error: initError } = await initPaymentSheet({
           paymentIntentClientSecret: clientSecret,
           merchantDisplayName: label ?? 'Studio Co-op',
@@ -33,10 +44,7 @@ export function usePaymentSheet(options?: UsePaymentSheetOptions) {
         const { error: presentError } = await presentPaymentSheet()
 
         if (presentError) {
-          // User cancelled is code "Canceled"
-          if (presentError.code === 'Canceled') {
-            return false
-          }
+          if (presentError.code === 'Canceled') return false
           const msg = presentError.message ?? 'Payment failed'
           Alert.alert('Payment Failed', msg)
           options?.onError?.(msg)
@@ -54,8 +62,8 @@ export function usePaymentSheet(options?: UsePaymentSheetOptions) {
         setLoading(false)
       }
     },
-    [initPaymentSheet, presentPaymentSheet, options],
+    [options],
   )
 
-  return { openPaymentSheet, loading }
+  return { openPaymentSheet, loading, isAvailable: hasStripe }
 }

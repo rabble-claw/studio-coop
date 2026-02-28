@@ -299,6 +299,275 @@ networks.put('/:studioId/networks/:networkId/policy', authMiddleware, requireOwn
 })
 
 // ---------------------------------------------------------------------------
+// GET /:studioId/network-studios -- discover partner studios across networks
+// ---------------------------------------------------------------------------
+
+networks.get('/:studioId/network-studios', authMiddleware, requireMember, async (c) => {
+  const studioId = c.req.param('studioId')
+  const supabase = createServiceClient()
+
+  // Find all networks this studio belongs to
+  const { data: myMemberships } = await supabase
+    .from('studio_network_members')
+    .select('network_id')
+    .eq('studio_id', studioId)
+
+  const networkIds = (myMemberships ?? []).map((m) => m.network_id)
+  if (networkIds.length === 0) {
+    return c.json({ studios: [] })
+  }
+
+  // Get all other studios in those networks
+  const { data: partnerMemberships } = await supabase
+    .from('studio_network_members')
+    .select('studio_id, studio:studios(id, name, slug, discipline)')
+    .in('network_id', networkIds)
+    .neq('studio_id', studioId)
+
+  const studios = (partnerMemberships ?? []).map((m) => {
+    const s = m.studio as unknown as { id: string; name: string; slug: string; discipline: string } | null
+    return s ?? { id: m.studio_id, name: 'Unknown', slug: '', discipline: '' }
+  })
+
+  // Deduplicate by studio_id
+  const seen = new Set<string>()
+  const unique = studios.filter((s) => {
+    if (seen.has(s.id)) return false
+    seen.add(s.id)
+    return true
+  })
+
+  return c.json({ studios: unique })
+})
+
+// ---------------------------------------------------------------------------
+// POST /:networkId/invite -- invite a studio to the network (non-studio-scoped)
+// Mounted at /api/networks, so matches /api/networks/:networkId/invite
+// ---------------------------------------------------------------------------
+
+networks.post('/:networkId/invite', authMiddleware, async (c) => {
+  const networkId = c.req.param('networkId')
+  const user = c.get('user' as never) as { id: string; email: string }
+  const supabase = createServiceClient()
+
+  const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
+  const invitedStudioId = body.studioId as string | undefined
+
+  if (!invitedStudioId) {
+    throw badRequest('studioId is required')
+  }
+
+  // Fetch the network
+  const { data: network } = await supabase
+    .from('studio_networks')
+    .select('id, created_by_studio_id')
+    .eq('id', networkId)
+    .single()
+
+  if (!network) throw notFound('Network')
+
+  // Check user is admin/owner of the creator studio
+  const { data: userMembership } = await supabase
+    .from('memberships')
+    .select('studio_id, role')
+    .eq('user_id', user.id)
+    .eq('studio_id', network.created_by_studio_id)
+    .in('role', ['admin', 'owner'])
+    .maybeSingle()
+
+  if (!userMembership) throw forbidden('Only the network creator studio can invite')
+
+  // Check not already a member
+  const { data: existing } = await supabase
+    .from('studio_network_members')
+    .select('id')
+    .eq('network_id', networkId)
+    .eq('studio_id', invitedStudioId)
+    .maybeSingle()
+
+  if (existing) throw conflict('Studio is already a member of this network')
+
+  // Insert invitation as pending
+  const { data: invitation, error } = await supabase
+    .from('studio_network_members')
+    .insert({
+      network_id: networkId,
+      studio_id: invitedStudioId,
+      status: 'pending',
+      cross_booking_policy: 'full_price',
+    })
+    .select('*')
+    .single()
+
+  if (error || !invitation) throw badRequest('Failed to invite studio')
+
+  return c.json({ invitation }, 201)
+})
+
+// ---------------------------------------------------------------------------
+// POST /:networkId/accept -- accept a pending network invitation
+// ---------------------------------------------------------------------------
+
+networks.post('/:networkId/accept', authMiddleware, async (c) => {
+  const networkId = c.req.param('networkId')
+  const user = c.get('user' as never) as { id: string; email: string }
+  const supabase = createServiceClient()
+
+  const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
+  const studioId = body.studioId as string | undefined
+
+  if (!studioId) throw badRequest('studioId is required')
+
+  // Check user is admin/owner of the studio
+  const { data: userMembership } = await supabase
+    .from('memberships')
+    .select('studio_id, role')
+    .eq('user_id', user.id)
+    .eq('studio_id', studioId)
+    .in('role', ['admin', 'owner'])
+    .maybeSingle()
+
+  if (!userMembership) throw forbidden('Only studio admins/owners can accept invitations')
+
+  // Find the pending invitation
+  const { data: pendingInvitation } = await supabase
+    .from('studio_network_members')
+    .select('id, status')
+    .eq('network_id', networkId)
+    .eq('studio_id', studioId)
+    .eq('status', 'pending')
+    .maybeSingle()
+
+  if (!pendingInvitation) throw notFound('Pending invitation')
+
+  // Update to active
+  const { data: updated, error } = await supabase
+    .from('studio_network_members')
+    .update({ status: 'active', joined_at: new Date().toISOString() })
+    .eq('id', pendingInvitation.id)
+    .select('*')
+    .single()
+
+  if (error || !updated) throw badRequest('Failed to accept invitation')
+
+  return c.json({ membership: updated })
+})
+
+// ---------------------------------------------------------------------------
+// POST /:networkId/decline -- decline a pending network invitation
+// ---------------------------------------------------------------------------
+
+networks.post('/:networkId/decline', authMiddleware, async (c) => {
+  const networkId = c.req.param('networkId')
+  const user = c.get('user' as never) as { id: string; email: string }
+  const supabase = createServiceClient()
+
+  const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
+  const studioId = body.studioId as string | undefined
+
+  if (!studioId) throw badRequest('studioId is required')
+
+  // Check user is admin/owner of the studio
+  const { data: userMembership } = await supabase
+    .from('memberships')
+    .select('studio_id, role')
+    .eq('user_id', user.id)
+    .eq('studio_id', studioId)
+    .in('role', ['admin', 'owner'])
+    .maybeSingle()
+
+  if (!userMembership) throw forbidden('Only studio admins/owners can decline invitations')
+
+  // Find the pending invitation
+  const { data: pendingInvitation } = await supabase
+    .from('studio_network_members')
+    .select('id, status')
+    .eq('network_id', networkId)
+    .eq('studio_id', studioId)
+    .eq('status', 'pending')
+    .maybeSingle()
+
+  if (!pendingInvitation) throw notFound('Pending invitation')
+
+  // Update to declined
+  const { data: updated, error } = await supabase
+    .from('studio_network_members')
+    .update({ status: 'declined' })
+    .eq('id', pendingInvitation.id)
+    .select('*')
+    .single()
+
+  if (error || !updated) throw badRequest('Failed to decline invitation')
+
+  return c.json({ membership: updated })
+})
+
+// ---------------------------------------------------------------------------
+// PUT /:networkId/policy -- update cross-booking policy (non-studio-scoped)
+// Mounted at /api/networks, so matches /api/networks/:networkId/policy
+// ---------------------------------------------------------------------------
+
+networks.put('/:networkId/policy', authMiddleware, async (c) => {
+  const networkId = c.req.param('networkId')
+  const user = c.get('user' as never) as { id: string; email: string }
+  const supabase = createServiceClient()
+
+  const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
+  const studioId = body.studioId as string | undefined
+
+  if (!studioId) throw badRequest('studioId is required')
+
+  // Fetch the network to check creator
+  const { data: network } = await supabase
+    .from('studio_networks')
+    .select('id, created_by_studio_id')
+    .eq('id', networkId)
+    .single()
+
+  if (!network) throw notFound('Network')
+
+  // Check user is admin/owner of the creator studio
+  const { data: userMembership } = await supabase
+    .from('memberships')
+    .select('studio_id, role')
+    .eq('user_id', user.id)
+    .eq('studio_id', network.created_by_studio_id)
+    .in('role', ['admin', 'owner'])
+    .maybeSingle()
+
+  if (!userMembership) throw forbidden('Only the network creator can update policy')
+
+  // Build update payload
+  const updates: Record<string, unknown> = {}
+  if (typeof body.allow_cross_booking === 'boolean') {
+    updates.allow_cross_booking = body.allow_cross_booking
+  }
+  if (typeof body.credit_sharing === 'boolean') {
+    updates.credit_sharing = body.credit_sharing
+  }
+  if (typeof body.cross_booking_policy === 'string') {
+    updates.cross_booking_policy = body.cross_booking_policy
+  }
+  if (typeof body.discount_percent === 'number') {
+    updates.discount_percent = body.discount_percent
+  }
+
+  // Upsert or update the network policy
+  const { data: policy, error } = await supabase
+    .from('network_policies')
+    .upsert({
+      network_id: networkId,
+      ...updates,
+    })
+    .select('*')
+    .single()
+
+  if (error || !policy) throw badRequest('Failed to update policy')
+
+  return c.json({ policy })
+})
+
+// ---------------------------------------------------------------------------
 // GET /discover -- list all networks for discovery (public)
 // ---------------------------------------------------------------------------
 

@@ -188,11 +188,12 @@ describe('POST /api/jobs/generate-classes', () => {
 
   it('generates classes for all active studios', async () => {
     const studios = [{ id: 's1' }, { id: 's2' }]
+    const templates = [{ studio_id: 's1' }, { studio_id: 's2' }]
 
     vi.mocked(createServiceClient).mockReturnValue({
       from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'class_templates') return fluentChain({ data: templates, error: null })
         if (table === 'studios') return fluentChain({ data: studios, error: null })
-        if (table === 'class_templates') return fluentChain({ data: [], error: null })
         return fluentChain({ data: studios, error: null })
       }),
     } as any)

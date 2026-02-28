@@ -263,12 +263,12 @@ plans.post('/:studioId/plans/:planId/subscribe', authMiddleware, requireMember, 
     }
 
     // Handle free_classes coupon: grant comp classes instead of Stripe discount
-    if (coupon.type === 'free_classes' && coupon.value) {
+    if (coupon.type === 'free_classes' && coupon.free_classes) {
       await supabase.from('comp_classes').insert({
         user_id: user.id,
         studio_id: studioId,
-        total_classes: coupon.value,
-        remaining_classes: coupon.value,
+        total_classes: coupon.free_classes,
+        remaining_classes: coupon.free_classes,
         reason: `Coupon ${couponCode!.toUpperCase()}`,
       })
 
@@ -277,10 +277,9 @@ plans.post('/:studioId/plans/:planId/subscribe', authMiddleware, requireMember, 
         .from('coupons')
         .update({ current_redemptions: coupon.current_redemptions + 1 })
         .eq('id', coupon.id)
-    } else {
-      // For percent_off / amount_off coupons, pass metadata for Stripe discount
-      // (no stripe_coupon_id column exists; discount handled via Stripe API separately)
-      stripeCouponId = undefined
+    } else if (coupon.stripe_coupon_id) {
+      // For percent_off / amount_off coupons, pass Stripe coupon ID to checkout
+      stripeCouponId = coupon.stripe_coupon_id
     }
   }
 
