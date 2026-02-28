@@ -3,6 +3,7 @@
 
 import { createServiceClient } from './supabase'
 import { checkBookingCredits, deductCredit } from './credits'
+import { sendNotification } from './notifications'
 
 /**
  * Add a user to the waitlist for a class.
@@ -115,8 +116,16 @@ export async function promoteFromWaitlist(classId: string): Promise<void> {
         })
         .eq('id', booking.id)
 
-      // TODO: send push notification via Plan 10 notifications system
-      // "A spot opened up in [Class] — you're in!"
+      // Send waitlist promotion notification
+      sendNotification({
+        userId: booking.user_id,
+        studioId: classInstance.studio_id,
+        type: 'waitlist_promoted',
+        title: 'You\'re In!',
+        body: 'A spot opened up and you\'ve been moved off the waitlist.',
+        data: { classId, bookingId: booking.id, screen: 'BookingDetail' },
+        channels: ['push', 'in_app'],
+      }).catch(() => {}) // fire-and-forget
       console.log(`[waitlist] Promoted booking ${booking.id} (user ${booking.user_id})`)
 
       // Compact remaining waitlist positions (close the gap)

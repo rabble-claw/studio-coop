@@ -96,7 +96,7 @@ classFeed.get('/:classId/feed', authMiddleware, async (c) => {
   }
 
   const result = (posts ?? []).map((p) => {
-    const u = p.user as { id: string; name: string; avatar_url: string | null }
+    const u = p.user as unknown as { id: string; name: string; avatar_url: string | null }
     return {
       id: p.id,
       content: p.content,
@@ -141,7 +141,7 @@ classFeed.post('/:classId/feed', authMiddleware, async (c) => {
 
   if (error || !post) throw badRequest('Failed to create post')
 
-  const u = post.user as { id: string; name: string; avatar_url: string | null }
+  const u = post.user as unknown as { id: string; name: string; avatar_url: string | null }
   return c.json({
     id: post.id,
     content: post.content,

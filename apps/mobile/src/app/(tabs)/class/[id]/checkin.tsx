@@ -99,7 +99,7 @@ export default function CheckinScreen() {
       setRefreshing(false)
       return
     }
-    setClassInfo(cls)
+    setClassInfo(cls as unknown as ClassInfo)
 
     // Verify staff
     const { data: membership } = await supabase

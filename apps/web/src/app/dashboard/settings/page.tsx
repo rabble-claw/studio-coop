@@ -1,18 +1,21 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { studioApi, stripeApi } from '@/lib/api-client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 export default function SettingsPage() {
+  const [studioId, setStudioId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
   const [studio, setStudio] = useState({
-    name: 'Empire Aerial Arts', slug: 'empire-aerial',
-    description: 'Wellington\'s premier aerial arts studio. Pole, silks, trapeze & more.',
-    address: '123 Cuba Street', city: 'Wellington', country: 'NZ',
-    timezone: 'Pacific/Auckland', phone: '', email: 'hello@empireaerial.co.nz',
-    website: 'https://empireaerial.co.nz',
+    name: '', slug: '', description: '',
+    address: '', city: '', country: '',
+    timezone: 'Pacific/Auckland', phone: '', email: '', website: '',
   })
 
   const [notifications, setNotifications] = useState({
@@ -28,13 +31,99 @@ export default function SettingsPage() {
   })
 
   const [saving, setSaving] = useState(false)
+  const [saveMessage, setSaveMessage] = useState('')
 
-  async function handleSave() {
+  const [stripeStatus, setStripeStatus] = useState<{ connected: boolean; accountId?: string; dashboardUrl?: string }>({ connected: false })
+  const [stripeLoading, setStripeLoading] = useState(false)
+
+  useEffect(() => {
+    async function load() {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setLoading(false); return }
+
+      const { data: membership } = await supabase
+        .from('memberships')
+        .select('studio_id')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .limit(1)
+        .single()
+
+      if (!membership) { setLoading(false); return }
+      setStudioId(membership.studio_id)
+
+      try {
+        const settings = await studioApi.getSettings(membership.studio_id)
+        const g = settings.general as Record<string, string>
+        setStudio({
+          name: g.name ?? '', slug: g.slug ?? '', description: g.description ?? '',
+          address: g.address ?? '', city: g.city ?? '', country: g.country ?? '',
+          timezone: g.timezone ?? 'Pacific/Auckland', phone: g.phone ?? '',
+          email: g.email ?? '', website: g.website ?? '',
+        })
+        const n = settings.notifications as Record<string, unknown>
+        setNotifications(prev => ({ ...prev, ...n }))
+        const ca = settings.cancellation as Record<string, unknown>
+        setCancellation(prev => ({ ...prev, ...ca }))
+        // Fetch Stripe status
+        try {
+          const status = await stripeApi.status(membership.studio_id)
+          setStripeStatus(status)
+        } catch {
+          // Stripe not configured
+        }
+      } catch {
+        // Fall through to defaults if API not reachable
+      }
+      setLoading(false)
+    }
+    load()
+  }, [])
+
+  async function handleSaveGeneral() {
+    if (!studioId) return
     setSaving(true)
-    // TODO: API call
-    await new Promise(r => setTimeout(r, 500))
+    setSaveMessage('')
+    try {
+      await studioApi.updateGeneral(studioId, studio)
+      setSaveMessage('Settings saved!')
+    } catch (e) {
+      setSaveMessage(`Error: ${e instanceof Error ? e.message : 'Failed to save'}`)
+    }
     setSaving(false)
+    setTimeout(() => setSaveMessage(''), 3000)
   }
+
+  async function handleSaveNotifications() {
+    if (!studioId) return
+    setSaving(true)
+    setSaveMessage('')
+    try {
+      await studioApi.updateNotifications(studioId, notifications)
+      setSaveMessage('Notification settings saved!')
+    } catch (e) {
+      setSaveMessage(`Error: ${e instanceof Error ? e.message : 'Failed to save'}`)
+    }
+    setSaving(false)
+    setTimeout(() => setSaveMessage(''), 3000)
+  }
+
+  async function handleSaveCancellation() {
+    if (!studioId) return
+    setSaving(true)
+    setSaveMessage('')
+    try {
+      await studioApi.updateCancellation(studioId, cancellation)
+      setSaveMessage('Cancellation policy saved!')
+    } catch (e) {
+      setSaveMessage(`Error: ${e instanceof Error ? e.message : 'Failed to save'}`)
+    }
+    setSaving(false)
+    setTimeout(() => setSaveMessage(''), 3000)
+  }
+
+  if (loading) return <div className="py-20 text-center text-muted-foreground">Loading settings...</div>
 
   return (
     <div className="space-y-6">
@@ -43,19 +132,25 @@ export default function SettingsPage() {
         <p className="text-muted-foreground">Manage your studio configuration</p>
       </div>
 
+      {saveMessage && (
+        <div className={`text-sm px-4 py-2 rounded-md ${saveMessage.startsWith('Error') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
+          {saveMessage}
+        </div>
+      )}
+
       <Tabs defaultValue="general">
-        <TabsList>
-          <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="notifications">Notifications</TabsTrigger>
-          <TabsTrigger value="cancellation">Cancellation Policy</TabsTrigger>
-          <TabsTrigger value="integrations">Integrations</TabsTrigger>
+        <TabsList className="flex-wrap h-auto">
+          <TabsTrigger value="general" className="min-h-[44px] touch-manipulation">General</TabsTrigger>
+          <TabsTrigger value="notifications" className="min-h-[44px] touch-manipulation">Notifications</TabsTrigger>
+          <TabsTrigger value="cancellation" className="min-h-[44px] touch-manipulation">Cancellation</TabsTrigger>
+          <TabsTrigger value="integrations" className="min-h-[44px] touch-manipulation">Integrations</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="mt-4">
           <Card>
             <CardHeader><CardTitle>Studio Information</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium">Studio Name</label>
                   <Input value={studio.name} onChange={e => setStudio({...studio, name: e.target.value})} />
@@ -73,7 +168,7 @@ export default function SettingsPage() {
                 <textarea className="w-full border rounded-md px-3 py-2 text-sm min-h-[80px]"
                   value={studio.description} onChange={e => setStudio({...studio, description: e.target.value})} />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium">Email</label>
                   <Input value={studio.email} onChange={e => setStudio({...studio, email: e.target.value})} />
@@ -83,7 +178,7 @@ export default function SettingsPage() {
                   <Input value={studio.phone} onChange={e => setStudio({...studio, phone: e.target.value})} />
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="text-sm font-medium">Address</label>
                   <Input value={studio.address} onChange={e => setStudio({...studio, address: e.target.value})} />
@@ -97,7 +192,7 @@ export default function SettingsPage() {
                   <Input value={studio.timezone} onChange={e => setStudio({...studio, timezone: e.target.value})} />
                 </div>
               </div>
-              <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save Changes'}</Button>
+              <Button onClick={handleSaveGeneral} disabled={saving}>{saving ? 'Saving...' : 'Save Changes'}</Button>
             </CardContent>
           </Card>
         </TabsContent>
@@ -134,7 +229,7 @@ export default function SettingsPage() {
                     onChange={e => setNotifications({...notifications, reminder_hours: parseInt(e.target.value) || 2})} />
                 </div>
               )}
-              <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save Notification Settings'}</Button>
+              <Button onClick={handleSaveNotifications} disabled={saving}>{saving ? 'Saving...' : 'Save Notification Settings'}</Button>
             </CardContent>
           </Card>
         </TabsContent>
@@ -172,7 +267,7 @@ export default function SettingsPage() {
                 <Input type="number" step="0.01" className="w-32 mt-1" value={cancellation.no_show_fee_cents / 100}
                   onChange={e => setCancellation({...cancellation, no_show_fee_cents: Math.round(parseFloat(e.target.value || '0') * 100)})} />
               </div>
-              <Button onClick={handleSave} disabled={saving}>{saving ? 'Saving...' : 'Save Policy'}</Button>
+              <Button onClick={handleSaveCancellation} disabled={saving}>{saving ? 'Saving...' : 'Save Policy'}</Button>
             </CardContent>
           </Card>
         </TabsContent>
@@ -183,24 +278,75 @@ export default function SettingsPage() {
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between py-3 border-b">
                 <div>
-                  <div className="font-medium">💳 Stripe</div>
+                  <div className="font-medium">Stripe</div>
                   <div className="text-sm text-muted-foreground">Accept payments from members</div>
                 </div>
-                <Button variant="outline" size="sm">Connected ✓</Button>
+                <div className="flex items-center gap-2">
+                  {stripeStatus.connected ? (
+                    <>
+                      <span className="inline-flex items-center gap-1.5 text-sm text-green-700 bg-green-50 px-2.5 py-1 rounded-full">
+                        <span className="w-2 h-2 rounded-full bg-green-500" />
+                        Connected
+                      </span>
+                      {stripeStatus.dashboardUrl && (
+                        <Button variant="outline" size="sm" asChild>
+                          <a href={stripeStatus.dashboardUrl} target="_blank" rel="noopener noreferrer">
+                            Stripe Dashboard
+                          </a>
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={stripeLoading}
+                        onClick={async () => {
+                          if (!studioId) return
+                          setStripeLoading(true)
+                          try {
+                            const result = await stripeApi.refreshLink(studioId)
+                            if (result.url) window.open(result.url, '_blank')
+                          } catch { /* ignore */ }
+                          setStripeLoading(false)
+                        }}
+                      >
+                        {stripeLoading ? 'Loading...' : 'Refresh Link'}
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      size="sm"
+                      disabled={stripeLoading}
+                      onClick={async () => {
+                        if (!studioId) return
+                        setStripeLoading(true)
+                        try {
+                          const result = await stripeApi.onboard(studioId) as { url?: string }
+                          if (result.url) window.location.href = result.url
+                        } catch (e) {
+                          setSaveMessage(`Error: ${e instanceof Error ? e.message : 'Failed to connect Stripe'}`)
+                          setTimeout(() => setSaveMessage(''), 3000)
+                        }
+                        setStripeLoading(false)
+                      }}
+                    >
+                      {stripeLoading ? 'Connecting...' : 'Connect Stripe'}
+                    </Button>
+                  )}
+                </div>
               </div>
               <div className="flex items-center justify-between py-3 border-b">
                 <div>
-                  <div className="font-medium">📧 Custom Domain Email</div>
+                  <div className="font-medium">Custom Domain Email</div>
                   <div className="text-sm text-muted-foreground">Send emails from your domain</div>
                 </div>
-                <Button variant="outline" size="sm">Set up</Button>
+                <Button variant="outline" size="sm" disabled>Coming soon</Button>
               </div>
               <div className="flex items-center justify-between py-3">
                 <div>
-                  <div className="font-medium">🌐 Custom Domain</div>
+                  <div className="font-medium">Custom Domain</div>
                   <div className="text-sm text-muted-foreground">Use your own domain instead of studio.coop subdomain</div>
                 </div>
-                <Button variant="outline" size="sm">Configure</Button>
+                <Button variant="outline" size="sm" disabled>Coming soon</Button>
               </div>
             </CardContent>
           </Card>

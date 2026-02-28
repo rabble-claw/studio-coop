@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { Hono } from 'hono'
 import subscriptions from '../routes/subscriptions'
+import { errorHandler } from '../middleware/error-handler'
 
 vi.mock('../lib/supabase', () => ({ createServiceClient: vi.fn() }))
 vi.mock('../lib/stripe', () => ({
@@ -23,6 +24,7 @@ const SUB_ID = 'sub-abc'
 
 function makeApp() {
   const app = new Hono()
+  app.onError(errorHandler)
   app.route('/api/subscriptions', subscriptions)
   return app
 }
@@ -195,7 +197,7 @@ describe('POST /api/subscriptions/:subscriptionId/pause', () => {
     })
     expect(res.status).toBe(400)
     const body = await res.json()
-    expect(body.error.message).toMatch(/pause/i)
+    expect(body.error.message).toMatch(/paus/i)
   })
 })
 

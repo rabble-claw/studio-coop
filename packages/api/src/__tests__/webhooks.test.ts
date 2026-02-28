@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { Hono } from 'hono'
 import webhooks from '../routes/webhooks'
+import { errorHandler } from '../middleware/error-handler'
 
 vi.mock('../lib/supabase', () => ({ createServiceClient: vi.fn() }))
 vi.mock('../lib/stripe', () => ({
@@ -12,6 +13,7 @@ import { constructWebhookEvent } from '../lib/stripe'
 
 function makeApp() {
   const app = new Hono()
+  app.onError(errorHandler)
   app.route('/api/webhooks', webhooks)
   return app
 }
@@ -225,6 +227,95 @@ describe('POST /api/webhooks/stripe', () => {
     })
     expect(res.status).toBe(200)
     expect(chain.update).toHaveBeenCalled()
+  })
+
+  // ─── A6: account.updated ─────────────────────────────────────────────────
+  it('handles account.updated → updates studio Stripe status', async () => {
+    const event = {
+      id: 'evt_acct',
+      type: 'account.updated',
+      data: {
+        object: {
+          id: 'acct_connected_123',
+          charges_enabled: true,
+          payouts_enabled: true,
+          details_submitted: true,
+        },
+      },
+    }
+    vi.mocked(constructWebhookEvent).mockReturnValue(event as any)
+
+    const chain = makeChain()
+    vi.mocked(createServiceClient).mockReturnValue(chain as any)
+
+    const app = makeApp()
+    const res = await app.request('/api/webhooks/stripe', {
+      method: 'POST',
+      headers: { 'stripe-signature': 'valid-sig' },
+      body: JSON.stringify(event),
+    })
+    expect(res.status).toBe(200)
+    expect(chain.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stripe_charges_enabled: true,
+        stripe_payouts_enabled: true,
+        stripe_details_submitted: true,
+      }),
+    )
+  })
+
+  // ─── A6: invoice.payment_failed ────────────────────────────────────────────
+  it('handles invoice.payment_failed → marks subscription past_due', async () => {
+    const event = {
+      id: 'evt_inv_fail',
+      type: 'invoice.payment_failed',
+      data: {
+        object: {
+          subscription: 'sub_stripe_123',
+          attempt_count: 1,
+        },
+      },
+    }
+    vi.mocked(constructWebhookEvent).mockReturnValue(event as any)
+
+    const chain = makeChain()
+    vi.mocked(createServiceClient).mockReturnValue(chain as any)
+
+    const app = makeApp()
+    const res = await app.request('/api/webhooks/stripe', {
+      method: 'POST',
+      headers: { 'stripe-signature': 'valid-sig' },
+      body: JSON.stringify(event),
+    })
+    expect(res.status).toBe(200)
+    expect(chain.update).toHaveBeenCalledWith({ status: 'past_due' })
+  })
+
+  it('handles invoice.payment_failed without subscription (no-op)', async () => {
+    const event = {
+      id: 'evt_inv_fail_nosub',
+      type: 'invoice.payment_failed',
+      data: {
+        object: {
+          subscription: null,
+          attempt_count: 1,
+        },
+      },
+    }
+    vi.mocked(constructWebhookEvent).mockReturnValue(event as any)
+
+    const chain = makeChain()
+    vi.mocked(createServiceClient).mockReturnValue(chain as any)
+
+    const app = makeApp()
+    const res = await app.request('/api/webhooks/stripe', {
+      method: 'POST',
+      headers: { 'stripe-signature': 'valid-sig' },
+      body: JSON.stringify(event),
+    })
+    expect(res.status).toBe(200)
+    // Should not have called update since there's no subscription
+    expect(chain.update).not.toHaveBeenCalled()
   })
 
   it('acknowledges unknown event types without error', async () => {

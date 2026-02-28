@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { Hono } from 'hono'
 import classes from '../routes/classes'
+import { errorHandler } from '../middleware/error-handler'
 
 vi.mock('../lib/supabase', () => ({ createServiceClient: vi.fn() }))
 vi.mock('../lib/stripe', () => ({ createPaymentIntent: vi.fn() }))
@@ -29,6 +30,7 @@ const CLASS_ID = 'class-xyz'
 
 function makeApp() {
   const app = new Hono()
+  app.onError(errorHandler)
   app.route('/api/studios', classes)
   return app
 }

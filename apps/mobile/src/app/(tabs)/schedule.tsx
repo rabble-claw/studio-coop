@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
-import { View, Text, TouchableOpacity, FlatList, RefreshControl } from 'react-native'
+import { View, Text, TouchableOpacity, FlatList, RefreshControl, Alert } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useAuth } from '@/lib/auth-context'
-import { scheduleApi } from '@/lib/api'
+import { scheduleApi, bookingApi } from '@/lib/api'
 
 interface ClassInstance {
   id: string
@@ -10,16 +10,14 @@ interface ClassInstance {
   start_time: string
   end_time: string
   status: string
-  booked_count: number
+  booking_count: number
   max_capacity: number
-  is_booked: boolean
+  is_booked?: boolean
   template: {
     id: string
     name: string
-    discipline_type: string
-    level: string | null
-  }
-  teacher: { name: string }
+  } | null
+  teacher: { name: string } | null
 }
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -48,6 +46,7 @@ export default function ScheduleScreen() {
   const [loading, setLoading] = useState(true)
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]!)
   const [weekOffset, setWeekOffset] = useState(0)
+  const [bookingInProgress, setBookingInProgress] = useState<string | null>(null)
 
   const weekDates = getWeekDates(weekOffset)
 
@@ -55,8 +54,8 @@ export default function ScheduleScreen() {
     setLoading(true)
     try {
       if (studioId) {
-        const data = await scheduleApi.instances(studioId, `date=${selectedDate}`) as ClassInstance[]
-        setClasses(data)
+        const data = await scheduleApi.list(studioId, `from=${selectedDate}&to=${selectedDate}`) as ClassInstance[]
+        setClasses(data ?? [])
       } else {
         setClasses([])
       }
@@ -69,6 +68,20 @@ export default function ScheduleScreen() {
   }, [selectedDate, studioId])
 
   useEffect(() => { loadClasses() }, [loadClasses])
+
+  async function handleQuickBook(cls: ClassInstance) {
+    if (!studioId) return
+    setBookingInProgress(cls.id)
+    try {
+      await bookingApi.book(studioId, cls.id)
+      Alert.alert('Booked!', `You're booked for ${cls.template?.name ?? 'class'}.`)
+      loadClasses()
+    } catch (e: any) {
+      Alert.alert('Booking Failed', e.message || 'Could not book this class.')
+    } finally {
+      setBookingInProgress(null)
+    }
+  }
 
   return (
     <View className="flex-1 bg-background">
@@ -110,7 +123,7 @@ export default function ScheduleScreen() {
 
       {!studioId && !loading && (
         <View className="items-center py-20 px-6">
-          <Text className="text-4xl mb-3">🏠</Text>
+          <Text className="text-4xl mb-3">&#x1F3E0;</Text>
           <Text className="text-foreground font-medium text-center">No studio found</Text>
           <Text className="text-muted text-sm text-center mt-1">Join a studio to see your class schedule.</Text>
         </View>
@@ -122,49 +135,59 @@ export default function ScheduleScreen() {
         keyExtractor={c => c.id}
         refreshControl={<RefreshControl refreshing={loading} onRefresh={loadClasses} />}
         contentContainerStyle={{ padding: 16 }}
-        renderItem={({ item: cls }) => (
-          <TouchableOpacity
-            className="bg-card rounded-2xl border border-border p-4 mb-3"
-            activeOpacity={0.7}
-            onPress={() => router.push({ pathname: '/(tabs)/class/[id]', params: { id: cls.id } })}
-          >
-            <View className="flex-row justify-between items-start">
-              <View className="flex-1">
-                <Text className="text-foreground font-semibold text-base">{cls.template.name}</Text>
-                <Text className="text-muted text-sm mt-0.5">
-                  {formatTime(cls.start_time)} — {formatTime(cls.end_time)} · {cls.teacher.name}
-                </Text>
-                {cls.template.level && (
-                  <View className="mt-1 self-start bg-secondary rounded-full px-2 py-0.5">
-                    <Text className="text-xs text-foreground">Level {cls.template.level}</Text>
-                  </View>
-                )}
+        renderItem={({ item: cls }) => {
+          const spotsLeft = cls.max_capacity - cls.booking_count
+          const isFull = spotsLeft <= 0
+          return (
+            <TouchableOpacity
+              className="bg-card rounded-2xl border border-border p-4 mb-3"
+              activeOpacity={0.7}
+              onPress={() => router.push({ pathname: '/(tabs)/class/[id]', params: { id: cls.id } })}
+            >
+              <View className="flex-row justify-between items-start">
+                <View className="flex-1">
+                  <Text className="text-foreground font-semibold text-base">{cls.template?.name ?? 'Class'}</Text>
+                  <Text className="text-muted text-sm mt-0.5">
+                    {formatTime(cls.start_time)} — {formatTime(cls.end_time)}
+                    {cls.teacher ? ` with ${cls.teacher.name}` : ''}
+                  </Text>
+                  <Text className={`text-xs mt-1 ${isFull ? 'text-red-500' : 'text-muted'}`}>
+                    {cls.booking_count}/{cls.max_capacity} booked
+                    {spotsLeft > 0 ? ` - ${spotsLeft} spots left` : ' - Full'}
+                  </Text>
+                </View>
+                <View className="items-end ml-3">
+                  {cls.is_booked ? (
+                    <View className="bg-green-100 rounded-full px-3 py-1.5">
+                      <Text className="text-xs text-green-700 font-medium">Booked</Text>
+                    </View>
+                  ) : isFull ? (
+                    <View className="bg-yellow-100 rounded-full px-3 py-1.5">
+                      <Text className="text-xs text-yellow-700 font-medium">Waitlist</Text>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      className="bg-primary rounded-full px-4 py-1.5"
+                      onPress={(e) => {
+                        e.stopPropagation?.()
+                        handleQuickBook(cls)
+                      }}
+                      disabled={bookingInProgress === cls.id}
+                    >
+                      <Text className="text-xs text-white font-medium">
+                        {bookingInProgress === cls.id ? 'Booking...' : 'Book'}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
-              <View className="items-end">
-                <Text className={`text-sm font-medium ${cls.booked_count >= cls.max_capacity ? 'text-red-500' : 'text-foreground'}`}>
-                  {cls.booked_count}/{cls.max_capacity}
-                </Text>
-                {cls.is_booked ? (
-                  <View className="mt-1 bg-green-100 rounded-full px-3 py-1">
-                    <Text className="text-xs text-green-700 font-medium">Booked</Text>
-                  </View>
-                ) : cls.booked_count >= cls.max_capacity ? (
-                  <View className="mt-1 bg-yellow-100 rounded-full px-3 py-1">
-                    <Text className="text-xs text-yellow-700 font-medium">Waitlist</Text>
-                  </View>
-                ) : (
-                  <View className="mt-1 bg-primary/10 rounded-full px-3 py-1">
-                    <Text className="text-xs text-primary font-medium">Book</Text>
-                  </View>
-                )}
-              </View>
-            </View>
-          </TouchableOpacity>
-        )}
+            </TouchableOpacity>
+          )
+        }}
         ListEmptyComponent={
           !loading && studioId ? (
             <View className="items-center py-20">
-              <Text className="text-4xl mb-3">📅</Text>
+              <Text className="text-4xl mb-3">&#x1F4C5;</Text>
               <Text className="text-foreground font-medium">No classes on this day</Text>
             </View>
           ) : null

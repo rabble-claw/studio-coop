@@ -16,6 +16,10 @@
       "dependsOn": ["^build"],
       "outputs": []
     },
+    "ship": {
+      "dependsOn": ["^build"],
+      "cache": false
+    },
     "db:migrate": {},
     "db:seed": {}
   }

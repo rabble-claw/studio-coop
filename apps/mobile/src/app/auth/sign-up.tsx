@@ -4,6 +4,7 @@ import { Link } from 'expo-router'
 import { useAuth } from '@/lib/auth-context'
 
 export default function SignUpScreen() {
+  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -15,7 +16,7 @@ export default function SignUpScreen() {
     setLoading(true)
     setError('')
     setMessage('')
-    const { error } = await signUp(email, password)
+    const { error } = await signUp(email, password, name.trim() || undefined)
     if (error) {
       setError(error.message)
     } else {
@@ -37,6 +38,16 @@ export default function SignUpScreen() {
 
         <View className="space-y-4">
           <View>
+            <TextInput
+              className="bg-card border border-border rounded-xl px-4 py-3 text-foreground"
+              placeholder="Full Name"
+              placeholderTextColor="#6b6560"
+              value={name}
+              onChangeText={setName}
+              autoCapitalize="words"
+            />
+          </View>
+          <View className="mt-3">
             <TextInput
               className="bg-card border border-border rounded-xl px-4 py-3 text-foreground"
               placeholder="Email"

@@ -362,4 +362,99 @@ describe('GET /api/my/attendance', () => {
     expect(body.stats.total_this_month).toBe(0)
     expect(body.stats.streak_weeks).toBe(0)
   })
+
+  it('filters out records with null dates', async () => {
+    const records = [
+      {
+        id: 'att-1',
+        class_instance_id: 'inst-1',
+        walk_in: false,
+        class_instance: {
+          id: 'inst-1',
+          date: null, // no date
+          start_time: '09:00',
+          studio_id: 'studio-xyz',
+          template: { name: 'Yoga' },
+        },
+      },
+      {
+        id: 'att-2',
+        class_instance_id: 'inst-2',
+        walk_in: false,
+        class_instance: {
+          id: 'inst-2',
+          date: '2026-02-20',
+          start_time: '09:00',
+          studio_id: 'studio-xyz',
+          template: { name: 'Yoga' },
+        },
+      },
+    ]
+    vi.mocked(createServiceClient).mockReturnValue(makePersonalAttMock(records) as any)
+
+    const app = makeApp()
+    const res = await app.request('/api/my/attendance', {
+      headers: { Authorization: 'Bearer tok' },
+    })
+
+    const body = await res.json() as any
+    // Only the record with a valid date should be returned
+    expect(body.history).toHaveLength(1)
+    expect(body.history[0].date).toBe('2026-02-20')
+  })
+
+  it('includes walk_in flag in history', async () => {
+    const records = [
+      {
+        id: 'att-walk',
+        class_instance_id: 'inst-1',
+        walk_in: true,
+        class_instance: {
+          id: 'inst-1',
+          date: '2026-02-25',
+          start_time: '10:00',
+          studio_id: 'studio-xyz',
+          template: { name: 'Pilates' },
+        },
+      },
+    ]
+    vi.mocked(createServiceClient).mockReturnValue(makePersonalAttMock(records) as any)
+
+    const app = makeApp()
+    const res = await app.request('/api/my/attendance', {
+      headers: { Authorization: 'Bearer tok' },
+    })
+
+    const body = await res.json() as any
+    expect(body.history[0].walk_in).toBe(true)
+    expect(body.history[0].class_name).toBe('Pilates')
+  })
+})
+
+// ─── Additional studio attendance tests ─────────────────────────────────────
+
+describe('GET /api/studios/:studioId/attendance — date validation', () => {
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it('returns 400 when to is missing', async () => {
+    vi.mocked(createServiceClient).mockReturnValue({ from: vi.fn() } as any)
+
+    const app = makeApp()
+    const res = await app.request(
+      `/api/studios/${STUDIO_ID}/attendance?from=2026-02-01`,
+      { headers: { Authorization: 'Bearer tok' } },
+    )
+    expect(res.status).toBe(400)
+  })
+
+  it('returns 400 when date format is invalid', async () => {
+    vi.mocked(createServiceClient).mockReturnValue({ from: vi.fn() } as any)
+
+    const app = makeApp()
+    const res = await app.request(
+      `/api/studios/${STUDIO_ID}/attendance?from=02-2026-01&to=2026-02-28`,
+      { headers: { Authorization: 'Bearer tok' } },
+    )
+    expect(res.status).toBe(400)
+  })
 })

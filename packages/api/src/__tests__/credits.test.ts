@@ -183,6 +183,48 @@ describe('checkBookingCredits — priority ordering', () => {
     expect(result.hasCredits).toBe(false)
     expect(result.source).toBe('none')
   })
+
+  it('uses comp class with no expiry (expires_at null)', async () => {
+    const mock = makeSupabaseMock({
+      compClasses: [{ id: 'comp-no-expiry', remaining_classes: 5, expires_at: null }],
+      subscription: null,
+      classPasses: [],
+    })
+    vi.mocked(createServiceClient).mockReturnValue(mock as any)
+
+    const result = await checkBookingCredits(USER_ID, STUDIO_ID)
+    expect(result.source).toBe('comp_class')
+    expect(result.sourceId).toBe('comp-no-expiry')
+    expect(result.remainingAfter).toBe(4)
+  })
+
+  it('uses class pack with no expiry when subscription is exhausted', async () => {
+    const mock = makeSupabaseMock({
+      compClasses: [],
+      subscription: { id: 'sub-1', plan_id: 'plan-1', status: 'active', classes_used_this_period: 10, plan: { type: 'limited', class_limit: 10 } },
+      classPasses: [{ id: 'pass-no-exp', remaining_classes: 2, expires_at: null }],
+    })
+    vi.mocked(createServiceClient).mockReturnValue(mock as any)
+
+    const result = await checkBookingCredits(USER_ID, STUDIO_ID)
+    expect(result.source).toBe('class_pack')
+    expect(result.sourceId).toBe('pass-no-exp')
+    expect(result.remainingAfter).toBe(1)
+  })
+
+  it('returns none when all sources are exhausted', async () => {
+    const pastExpiry = new Date(Date.now() - 1000).toISOString()
+    const mock = makeSupabaseMock({
+      compClasses: [{ id: 'comp-exp', remaining_classes: 1, expires_at: pastExpiry }],
+      subscription: { id: 'sub-1', plan_id: 'plan-1', status: 'active', classes_used_this_period: 5, plan: { type: 'limited', class_limit: 5 } },
+      classPasses: [{ id: 'pass-exp', remaining_classes: 3, expires_at: pastExpiry }],
+    })
+    vi.mocked(createServiceClient).mockReturnValue(mock as any)
+
+    const result = await checkBookingCredits(USER_ID, STUDIO_ID)
+    expect(result.hasCredits).toBe(false)
+    expect(result.source).toBe('none')
+  })
 })
 
 describe('deductCredit', () => {

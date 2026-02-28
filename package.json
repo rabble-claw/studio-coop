@@ -6,7 +6,10 @@
     "build": "turbo build",
     "lint": "turbo lint",
     "db:migrate": "turbo db:migrate --filter=@studio-coop/db",
-    "db:seed": "turbo db:seed --filter=@studio-coop/db"
+    "db:seed": "turbo db:seed --filter=@studio-coop/db",
+    "ship": "turbo ship --filter=@studio-coop/api --filter=@studio-coop/web",
+    "ship:api": "turbo ship --filter=@studio-coop/api",
+    "ship:web": "turbo ship --filter=@studio-coop/web"
   },
   "devDependencies": {
     "turbo": "^2"

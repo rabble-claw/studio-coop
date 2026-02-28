@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { Platform } from 'react-native'
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001'
 
@@ -63,23 +64,26 @@ export const studioApi = {
 
 // Schedule
 export const scheduleApi = {
-  instances: (studioId: string, params?: string) => api.get(`/studios/${studioId}/instances${params ? `?${params}` : ''}`),
-  instanceDetail: (studioId: string, instanceId: string) => api.get(`/studios/${studioId}/instances/${instanceId}`),
+  list: (studioId: string, params?: string) => api.get(`/studios/${studioId}/schedule${params ? `?${params}` : ''}`),
+  instanceDetail: (studioId: string, instanceId: string) => api.get(`/studios/${studioId}/classes/${instanceId}`),
 }
 
 // Bookings
 export const bookingApi = {
-  book: (studioId: string, instanceId: string) => api.post(`/studios/${studioId}/instances/${instanceId}/book`),
-  cancel: (studioId: string, instanceId: string) => api.post(`/studios/${studioId}/instances/${instanceId}/cancel-booking`),
-  joinWaitlist: (studioId: string, instanceId: string) => api.post(`/studios/${studioId}/instances/${instanceId}/waitlist`),
-  myBookings: (studioId: string) => api.get(`/studios/${studioId}/me/bookings`),
+  book: (studioId: string, classId: string) => api.post(`/studios/${studioId}/classes/${classId}/book`),
+  cancel: (bookingId: string) => api.delete(`/bookings/${bookingId}`),
+  joinWaitlist: (studioId: string, classId: string) => api.post(`/studios/${studioId}/classes/${classId}/book`, { waitlist: true }),
+  myBookings: () => api.get('/my/bookings'),
+  listMy: (studioId: string) => api.get(`/my/bookings?studio_id=${studioId}`),
 }
 
 // Check-in
 export const checkinApi = {
-  getAttendees: (studioId: string, instanceId: string) => api.get(`/studios/${studioId}/instances/${instanceId}/attendees`),
-  checkin: (studioId: string, instanceId: string, userId: string) => api.post(`/studios/${studioId}/instances/${instanceId}/checkin`, { user_id: userId }),
-  batchCheckin: (studioId: string, instanceId: string, userIds: string[]) => api.post(`/studios/${studioId}/instances/${instanceId}/checkin/batch`, { user_ids: userIds }),
+  getRoster: (classId: string) => api.get(`/classes/${classId}/roster`),
+  checkin: (classId: string, userId: string) => api.post(`/classes/${classId}/checkin`, { user_id: userId }),
+  batchCheckin: (classId: string, userIds: string[]) => api.post(`/classes/${classId}/checkin/batch`, { user_ids: userIds }),
+  addWalkin: (classId: string, email: string) => api.post(`/classes/${classId}/walkin`, { email }),
+  completeClass: (classId: string) => api.post(`/classes/${classId}/complete`),
 }
 
 // Feed
@@ -99,13 +103,28 @@ export const profileApi = {
   comps: (studioId: string) => api.get(`/studios/${studioId}/me/comps`),
 }
 
+// Subscriptions
+export const subscriptionApi = {
+  mine: (studioId: string) => api.get(`/studios/${studioId}/me/subscription`),
+  cancel: (subscriptionId: string) => api.post(`/subscriptions/${subscriptionId}/cancel`),
+  pause: (subscriptionId: string, resumeDate?: string) => api.post(`/subscriptions/${subscriptionId}/pause`, resumeDate ? { resume_date: resumeDate } : undefined),
+  resume: (subscriptionId: string) => api.post(`/subscriptions/${subscriptionId}/resume`),
+}
+
 // Notifications
 export const notificationApi = {
   list: () => api.get('/me/notifications'),
-  markRead: (id: string) => api.put(`/me/notifications/${id}/read`),
-  registerPush: (token: string) => api.post('/me/push-token', { token }),
+  markRead: (id: string) => api.post(`/me/notifications/${id}/read`),
+  markAllRead: () => api.post('/me/notifications/read-all'),
+  unreadCount: () => api.get<{ count: number }>('/me/notifications/count'),
+  registerPush: (token: string) => api.post('/me/push-token', { token, platform: Platform.OS }),
   preferences: () => api.get('/me/notification-preferences'),
   updatePreferences: (data: unknown) => api.put('/me/notification-preferences', data),
+}
+
+// Studios
+export const studioListApi = {
+  myStudios: () => api.get<Array<{ id: string; studio_id: string; role: string; studio: { id: string; name: string; slug: string; discipline: string } }>>('/me/memberships'),
 }
 
 export { ApiError }

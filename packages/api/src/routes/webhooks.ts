@@ -223,6 +223,40 @@ webhooks.post('/stripe', async (c) => {
       break
     }
 
+    // ─── A6: Account updated → update studio Stripe status ────────────────
+    case 'account.updated': {
+      const account = event.data.object as {
+        id: string
+        charges_enabled: boolean
+        payouts_enabled: boolean
+        details_submitted: boolean
+      }
+      await supabase
+        .from('studios')
+        .update({
+          stripe_charges_enabled: account.charges_enabled,
+          stripe_payouts_enabled: account.payouts_enabled,
+          stripe_details_submitted: account.details_submitted,
+        })
+        .eq('stripe_account_id', account.id)
+      break
+    }
+
+    // ─── A6: Invoice payment failed → mark subscription past_due ────────
+    case 'invoice.payment_failed': {
+      const invoice = event.data.object as {
+        subscription: string | null
+        attempt_count: number
+      }
+      if (invoice.subscription) {
+        await supabase
+          .from('subscriptions')
+          .update({ status: 'past_due' })
+          .eq('stripe_subscription_id', invoice.subscription)
+      }
+      break
+    }
+
     default:
       // Unhandled event type — acknowledge receipt
       break

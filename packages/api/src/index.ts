@@ -16,8 +16,13 @@ import coupons from './routes/coupons'
 import notifications from './routes/notifications'
 import jobs from './routes/jobs'
 import studioSettings from './routes/studio-settings'
+import privateBookings from './routes/private-bookings'
+import reports from './routes/reports'
+import invitations from './routes/invitations'
 import feed, { postFeed } from './routes/feed'
 import { upload } from './routes/upload'
+import networks from './routes/networks'
+import migration from './routes/migration'
 
 const app = new Hono()
 
@@ -61,9 +66,15 @@ app.route('/api/studios', coupons)
 app.route('/api/my', notifications)
 app.route('/api/jobs', jobs)
 app.route('/api/studios', studioSettings)
+app.route('/api/studios', privateBookings)
+app.route('/api/studios', reports)
+app.route('/api/studios', invitations)
 app.route('/api/classes', feed)
 app.route('/api/feed', postFeed)
 app.route('/api/upload', upload)
+app.route('/api/studios', networks)
+app.route('/api/networks', networks)
+app.route('/api/studios', migration)
 
 export default app
 export { app }

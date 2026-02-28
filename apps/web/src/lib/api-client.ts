@@ -54,8 +54,10 @@ export const api = {
 export const studioApi = {
   get: (studioId: string) => api.get(`/studios/${studioId}`),
   update: (studioId: string, data: unknown) => api.put(`/studios/${studioId}`, data),
-  getSettings: (studioId: string) => api.get(`/studios/${studioId}/settings`),
-  updateSettings: (studioId: string, data: unknown) => api.put(`/studios/${studioId}/settings`, data),
+  getSettings: (studioId: string) => api.get<{ studioId: string; general: Record<string, unknown>; notifications: Record<string, unknown>; cancellation: Record<string, unknown> }>(`/studios/${studioId}/settings`),
+  updateGeneral: (studioId: string, data: unknown) => api.put(`/studios/${studioId}/settings/general`, data),
+  updateNotifications: (studioId: string, data: unknown) => api.put(`/studios/${studioId}/settings/notifications`, data),
+  updateCancellation: (studioId: string, data: unknown) => api.put(`/studios/${studioId}/settings/cancellation`, data),
 }
 
 export const scheduleApi = {
@@ -97,10 +99,64 @@ export const bookingApi = {
 }
 
 export const reportApi = {
-  attendance: (studioId: string, params?: string) => api.get(`/studios/${studioId}/reports/attendance${params ? `?${params}` : ''}`),
-  revenue: (studioId: string, params?: string) => api.get(`/studios/${studioId}/reports/revenue${params ? `?${params}` : ''}`),
-  retention: (studioId: string, params?: string) => api.get(`/studios/${studioId}/reports/retention${params ? `?${params}` : ''}`),
-  popular: (studioId: string) => api.get(`/studios/${studioId}/reports/popular-classes`),
+  overview: (studioId: string) => api.get<{ activeMembers: number; totalRevenue: number; avgAttendanceRate: number; retentionRate: number }>(`/studios/${studioId}/reports/overview`),
+  attendance: (studioId: string, params?: string) => api.get<{ attendance: Array<{ week: string; classes: number; checkins: number; rate: number }> }>(`/studios/${studioId}/reports/attendance${params ? `?${params}` : ''}`),
+  revenue: (studioId: string, params?: string) => api.get<{ revenue: Array<{ month: string; revenue: number; memberships: number; dropins: number; packs: number }> }>(`/studios/${studioId}/reports/revenue${params ? `?${params}` : ''}`),
+  popular: (studioId: string) => api.get<{ classes: Array<{ name: string; avgAttendance: number; capacity: number; fillRate: number }> }>(`/studios/${studioId}/reports/popular-classes`),
+  atRisk: (studioId: string) => api.get<{ members: Array<{ name: string; email: string; lastClass: string | null }> }>(`/studios/${studioId}/reports/at-risk`),
+}
+
+export const inviteApi = {
+  send: (studioId: string, data: { email: string; name?: string; role?: string }) => api.post(`/studios/${studioId}/members/invite`, data),
+}
+
+export const notificationApi = {
+  list: () => api.get<{ notifications: Array<{ id: string; type: string; title: string; body: string; sent_at: string; read_at: string | null }> }>('/my/notifications'),
+  count: () => api.get<{ unreadCount: number }>('/my/notifications/count'),
+  markRead: (id: string) => api.post(`/my/notifications/${id}/read`),
+  markAllRead: () => api.post('/my/notifications/read-all'),
+}
+
+export const checkinApi = {
+  getRoster: (classId: string) => api.get(`/classes/${classId}/roster`),
+  batchCheckin: (classId: string, userIds: string[]) => api.post(`/classes/${classId}/batch-checkin`, { userIds }),
+  addWalkin: (classId: string, data: unknown) => api.post(`/classes/${classId}/walkin`, data),
+  completeClass: (classId: string) => api.post(`/classes/${classId}/complete`),
+}
+
+export const feedApi = {
+  getClassFeed: (classId: string, params?: string) => api.get(`/classes/${classId}/feed${params ? `?${params}` : ''}`),
+  createPost: (classId: string, data: unknown) => api.post(`/classes/${classId}/feed`, data),
+  react: (postId: string, reaction: string) => api.post(`/feed/${postId}/react`, { reaction }),
+}
+
+export const stripeApi = {
+  onboard: (studioId: string) => api.post(`/studios/${studioId}/stripe/onboard`),
+  status: (studioId: string) => api.get<{ connected: boolean; accountId?: string; dashboardUrl?: string }>(`/studios/${studioId}/stripe/status`),
+  refreshLink: (studioId: string) => api.post<{ url: string }>(`/studios/${studioId}/stripe/refresh-link`),
+}
+
+export const subscriptionApi = {
+  getMy: (studioId: string) => api.get(`/studios/${studioId}/my-subscription`),
+  cancel: (studioId: string) => api.post(`/studios/${studioId}/my-subscription/cancel`),
+  pause: (studioId: string) => api.post(`/studios/${studioId}/my-subscription/pause`),
+}
+
+export const networkApi = {
+  list: (studioId: string) => api.get<{ networks: Array<{ id: string; name: string; description: string | null; status: string; created_by_studio_id: string | null }> }>(`/studios/${studioId}/networks`),
+  create: (studioId: string, data: { name: string; description?: string }) => api.post<{ network: { id: string; name: string } }>(`/studios/${studioId}/networks`, data),
+  invite: (networkId: string, studioId: string) => api.post(`/networks/${networkId}/invite`, { studioId }),
+  accept: (networkId: string, studioId: string) => api.post(`/networks/${networkId}/accept`, { studioId }),
+  decline: (networkId: string, studioId: string) => api.post(`/networks/${networkId}/decline`, { studioId }),
+  updatePolicy: (networkId: string, studioId: string, policy: { allow_cross_booking?: boolean; credit_sharing?: boolean }) => api.put(`/networks/${networkId}/policy`, { studioId, ...policy }),
+  partnerStudios: (studioId: string) => api.get<{ studios: Array<{ id: string; name: string; slug: string; discipline: string }> }>(`/studios/${studioId}/network-studios`),
+}
+
+export const migrateApi = {
+  upload: (studioId: string, csv: string) => api.post<{ preview: { totalRows: number; validRows: number; invalidRows: number; columns: Array<{ source: string; target: string; required: boolean }>; sampleRows: Array<{ data: Record<string, string>; valid: boolean; errors: string[] }> } }>(`/studios/${studioId}/migrate/upload`, { csv }),
+  preview: (studioId: string, csv: string, columns: Array<{ source: string; target: string; required: boolean }>) => api.post<{ preview: { totalRows: number; validRows: number; invalidRows: number; columns: Array<{ source: string; target: string; required: boolean }>; sampleRows: Array<{ data: Record<string, string>; valid: boolean; errors: string[] }> } }>(`/studios/${studioId}/migrate/preview`, { csv, columns }),
+  execute: (studioId: string, csv: string, columns: Array<{ source: string; target: string; required: boolean }>) => api.post<{ result: { totalProcessed: number; created: number; skipped: number; failed: number; errors: Array<{ row: number; email: string; error: string }> } }>(`/studios/${studioId}/migrate/execute`, { csv, columns }),
+  status: (studioId: string) => api.get<{ status: string; lastImport: unknown }>(`/studios/${studioId}/migrate/status`),
 }
 
 export { ApiError }

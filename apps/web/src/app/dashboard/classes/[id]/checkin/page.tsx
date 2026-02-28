@@ -481,8 +481,8 @@ function MemberCard({
       onClick={onToggle}
       title={entry.notes ?? undefined}
       className={[
-        'flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all text-left w-full',
-        'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
+        'flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all text-left w-full min-h-[44px]',
+        'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 touch-manipulation',
         entry.checkedIn
           ? 'border-green-500 bg-green-50 dark:bg-green-950'
           : 'border-border hover:border-primary/50 hover:bg-muted/40',

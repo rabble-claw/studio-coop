@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { api, stripeApi } from '@/lib/api-client'
 
 const DISCIPLINES = [
   'aerial', 'pole', 'yoga', 'pilates', 'dance', 'boxing', 'crossfit',
@@ -27,14 +28,13 @@ export default function SetupWizardPage() {
     name: '', day: 'monday', startTime: '18:00', endTime: '19:00', maxCapacity: 12,
   })
 
+  const [createdStudioId, setCreatedStudioId] = useState<string | null>(null)
+
   async function createStudio() {
     setLoading(true)
     try {
-      const res = await fetch('/api/studio/create', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(studioData),
-      })
-      if (!res.ok) throw new Error('Failed to create studio')
+      const result = await api.post<{ studio: { id: string } }>('/studios', studioData)
+      setCreatedStudioId(result.studio.id)
       setStep('stripe')
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Error creating studio')
@@ -44,29 +44,33 @@ export default function SetupWizardPage() {
   }
 
   async function connectStripe() {
+    if (!createdStudioId) { setStep('schedule'); return }
     setLoading(true)
     try {
-      const res = await fetch('/api/stripe/connect', { method: 'POST' })
-      const { url } = await res.json()
-      if (url) window.location.href = url
+      const result = await stripeApi.onboard(createdStudioId) as { url?: string }
+      if (result.url) window.location.href = result.url
       else setStep('schedule')
     } catch {
-      setStep('schedule') // Skip if Stripe not configured
+      setStep('schedule')
     } finally {
       setLoading(false)
     }
   }
 
   async function createFirstTemplate() {
+    if (!createdStudioId) { setStep('done'); return }
     setLoading(true)
     try {
-      await fetch('/api/classes/templates', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(templateData),
+      await api.post(`/studios/${createdStudioId}/templates`, {
+        name: templateData.name,
+        day_of_week: DAYS.indexOf(templateData.day),
+        start_time: templateData.startTime,
+        end_time: templateData.endTime,
+        default_capacity: templateData.maxCapacity,
       })
       setStep('done')
     } catch {
-      setStep('done') // Continue anyway
+      setStep('done')
     } finally {
       setLoading(false)
     }

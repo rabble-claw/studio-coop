@@ -262,8 +262,21 @@ plans.post('/:studioId/plans/:planId/subscribe', authMiddleware, requireMember, 
       throw badRequest('Coupon has reached its maximum redemptions')
     }
 
-    // stripe_coupon_id would be stored on coupons table after Stripe sync
-    stripeCouponId = coupon.stripe_coupon_id ?? undefined
+    // Handle free_classes coupon: grant comp credits instead of Stripe discount
+    if (coupon.type === 'free_classes' && coupon.free_classes) {
+      await supabase.from('comp_credits').insert({
+        user_id: user.id,
+        studio_id: studioId,
+        remaining_classes: coupon.free_classes,
+        reason: `Coupon ${couponCode!.toUpperCase()}`,
+      })
+
+      // Increment redemption counter
+      await supabase.rpc('increment_coupon_redemptions', { coupon_code: couponCode!.toUpperCase(), studio: studioId })
+    } else {
+      // stripe_coupon_id would be stored on coupons table after Stripe sync
+      stripeCouponId = coupon.stripe_coupon_id ?? undefined
+    }
   }
 
   // Create Stripe Checkout Session

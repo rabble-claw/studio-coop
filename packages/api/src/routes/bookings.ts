@@ -14,6 +14,7 @@ import { notFound, badRequest, conflict, forbidden } from '../lib/errors'
 import { checkBookingCredits, deductCredit } from '../lib/credits'
 import { addToWaitlist } from '../lib/waitlist'
 import { buildBookingCalEvent } from '../lib/calendar'
+import { sendNotification } from '../lib/notifications'
 
 const bookings = new Hono()
 
@@ -142,6 +143,17 @@ bookings.post(
       studio_email: undefined,
       timezone: studio?.timezone ?? 'UTC',
     })
+
+    // ── 10. Send booking confirmation notification ─────────────────────────────
+    sendNotification({
+      userId: user.id,
+      studioId,
+      type: 'booking_confirmed',
+      title: 'Booking Confirmed',
+      body: `You're booked for ${template?.name ?? 'class'} on ${cls.date}`,
+      data: { classId, bookingId: booking.id, screen: 'BookingDetail' },
+      channels: ['push', 'in_app'],
+    }).catch(() => {}) // fire-and-forget — don't block the booking response
 
     return c.json({
       status: 'booked',
@@ -328,6 +340,17 @@ bookings.delete(
         sourceId: booking.credit_source_id ?? undefined,
       })
     }
+
+    // Notify the user their booking was cancelled
+    sendNotification({
+      userId: booking.user_id,
+      studioId,
+      type: 'booking_cancelled',
+      title: 'Booking Cancelled',
+      body: 'Your booking has been cancelled by staff.',
+      data: { classId, bookingId, screen: 'BookingDetail' },
+      channels: ['push', 'in_app'],
+    }).catch(() => {}) // fire-and-forget
 
     // Trigger waitlist promotion
     const { promoteFromWaitlist } = await import('../lib/waitlist')

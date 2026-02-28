@@ -7,7 +7,9 @@
     "dev": "tsx watch src/serve.ts",
     "build": "tsc",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "ship": "npx wrangler deploy",
+    "ship:staging": "npx wrangler deploy --env staging"
   },
   "dependencies": {
     "@hono/node-server": "^1.14",

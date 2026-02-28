@@ -6,7 +6,7 @@ vi.mock('expo-server-sdk', () => {
   const Expo = vi.fn().mockImplementation(() => ({
     chunkPushNotifications: vi.fn((msgs: unknown[]) => [msgs]),
     sendPushNotificationsAsync: vi.fn().mockResolvedValue([{ status: 'ok' }]),
-  }))
+  })) as any
   Expo.isExpoPushToken = vi.fn().mockReturnValue(true)
   return { default: Expo }
 })

@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import AdminShell from '@/components/admin-shell'
+import { supabase } from '@/lib/supabase'
 
 interface Studio {
   id: string
@@ -11,44 +12,261 @@ interface Studio {
   slug: string
   discipline: string
   tier: string
-  members: number
-  revenue_cents: number
-  status: 'active' | 'pending' | 'suspended'
+  description: string | null
+  settings: Record<string, unknown>
+  stripe_account_id: string | null
+  currency: string
+  timezone: string
   created_at: string
-  owner_email: string
-  stripe_connected: boolean
-  custom_domain: string | null
 }
 
-const DEMO_STUDIOS: Record<string, Studio> = {
-  '1': { id: '1', name: 'Empire Aerial Arts', slug: 'empire-aerial', discipline: 'aerial', tier: 'growth', members: 47, revenue_cents: 461300, status: 'active', created_at: '2026-01-15', owner_email: 'sarah@empireaerial.co.nz', stripe_connected: true, custom_domain: 'empireaerial.co.nz' },
-  '2': { id: '2', name: 'Wellington Yoga Collective', slug: 'welly-yoga', discipline: 'yoga', tier: 'starter', members: 82, revenue_cents: 812600, status: 'active', created_at: '2026-01-22', owner_email: 'info@wellyyoga.co.nz', stripe_connected: true, custom_domain: null },
-  '3': { id: '3', name: 'CrossFit Cuba St', slug: 'cf-cuba', discipline: 'crossfit', tier: 'growth', members: 124, revenue_cents: 1487200, status: 'active', created_at: '2026-02-01', owner_email: 'mike@cfcuba.nz', stripe_connected: true, custom_domain: 'cfcuba.nz' },
-  '4': { id: '4', name: 'Dance Central', slug: 'dance-central', discipline: 'dance', tier: 'starter', members: 35, revenue_cents: 277200, status: 'active', created_at: '2026-02-10', owner_email: 'jen@dancecentral.nz', stripe_connected: true, custom_domain: null },
-  '5': { id: '5', name: 'Barre & Beyond', slug: 'barre-beyond', discipline: 'barre', tier: 'growth', members: 58, revenue_cents: 574200, status: 'active', created_at: '2026-02-15', owner_email: 'lisa@barrebeyond.co.nz', stripe_connected: true, custom_domain: null },
-  '6': { id: '6', name: 'Flow Pilates Studio', slug: 'flow-pilates', discipline: 'pilates', tier: 'starter', members: 0, revenue_cents: 0, status: 'pending', created_at: '2026-02-25', owner_email: 'emma@flowpilates.nz', stripe_connected: false, custom_domain: null },
+interface Member {
+  id: string
+  user_name: string
+  user_email: string
+  role: string
+  status: string
+  joined_at: string
 }
 
-const DEMO_MEMBERS = [
-  { id: 'm1', name: 'Alice Johnson', email: 'alice@example.com', plan: 'Unlimited', joined: '2026-01-20', status: 'active' },
-  { id: 'm2', name: 'Bob Smith', email: 'bob@example.com', plan: '10-Pack', joined: '2026-01-25', status: 'active' },
-  { id: 'm3', name: 'Carol Davis', email: 'carol@example.com', plan: 'Unlimited', joined: '2026-02-01', status: 'active' },
-  { id: 'm4', name: 'Dan Wilson', email: 'dan@example.com', plan: 'Drop-in', joined: '2026-02-10', status: 'active' },
-  { id: 'm5', name: 'Eva Martinez', email: 'eva@example.com', plan: 'Unlimited', joined: '2026-02-15', status: 'paused' },
-]
+interface RevenueMonth {
+  month: string
+  bookings: number
+  revenue: number
+  payout: number
+}
 
-const DEMO_REVENUE = [
-  { month: 'Jan 2026', bookings: 412, revenue: 156800, payout: 141120 },
-  { month: 'Feb 2026', bookings: 487, revenue: 184200, payout: 165780 },
-]
+interface ActivityMetric {
+  label: string
+  value: string | number
+}
 
 const TABS = ['Overview', 'Members', 'Revenue', 'Settings'] as const
 type Tab = typeof TABS[number]
 
 export default function StudioDetailPage() {
   const params = useParams()
+  const studioId = params.id as string
+
   const [activeTab, setActiveTab] = useState<Tab>('Overview')
-  const studio = DEMO_STUDIOS[params.id as string]
+  const [studio, setStudio] = useState<Studio | null>(null)
+  const [memberCount, setMemberCount] = useState(0)
+  const [totalRevenue, setTotalRevenue] = useState(0)
+  const [members, setMembers] = useState<Member[]>([])
+  const [revenue, setRevenue] = useState<RevenueMonth[]>([])
+  const [loading, setLoading] = useState(true)
+  const [ownerEmail, setOwnerEmail] = useState<string | null>(null)
+  const [activityMetrics, setActivityMetrics] = useState<ActivityMetric[]>([])
+  const [suspending, setSuspending] = useState(false)
+
+  // Load studio data
+  useEffect(() => {
+    async function loadStudio() {
+      setLoading(true)
+      try {
+        const { data, error } = await supabase
+          .from('studios')
+          .select('*')
+          .eq('id', studioId)
+          .single()
+
+        if (error || !data) {
+          setStudio(null)
+          return
+        }
+
+        setStudio(data)
+
+        // Fetch member count and total revenue in parallel
+        const [membersCountRes, paymentsRes, ownerRes] = await Promise.all([
+          supabase
+            .from('memberships')
+            .select('*', { count: 'exact', head: true })
+            .eq('studio_id', studioId)
+            .eq('status', 'active'),
+          supabase
+            .from('payments')
+            .select('amount_cents')
+            .eq('studio_id', studioId),
+          // Get owner email
+          supabase
+            .from('memberships')
+            .select('user_id')
+            .eq('studio_id', studioId)
+            .eq('role', 'owner')
+            .limit(1),
+        ])
+
+        setMemberCount(membersCountRes.count ?? 0)
+
+        const total = paymentsRes.data?.reduce((sum, p) => sum + (p.amount_cents ?? 0), 0) ?? 0
+        setTotalRevenue(total)
+
+        // Fetch owner email
+        if (ownerRes.data && ownerRes.data.length > 0) {
+          const { data: ownerUser } = await supabase
+            .from('users')
+            .select('email')
+            .eq('id', ownerRes.data[0].user_id)
+            .single()
+          setOwnerEmail(ownerUser?.email ?? null)
+        }
+
+        // Fetch activity metrics
+        try {
+          const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+          const [classesRes, bookingsRes, recentPaymentsRes] = await Promise.all([
+            supabase
+              .from('class_instances')
+              .select('*', { count: 'exact', head: true })
+              .eq('studio_id', studioId)
+              .gte('start_time', thirtyDaysAgo),
+            supabase
+              .from('bookings')
+              .select('id, class_instance_id!inner(studio_id)')
+              .eq('class_instance_id.studio_id' as string, studioId),
+            supabase
+              .from('payments')
+              .select('amount_cents')
+              .eq('studio_id', studioId)
+              .gte('created_at', thirtyDaysAgo),
+          ])
+
+          const recentRevenue = recentPaymentsRes.data?.reduce((sum, p) => sum + (p.amount_cents ?? 0), 0) ?? 0
+
+          setActivityMetrics([
+            { label: 'Classes (30d)', value: classesRes.count ?? 0 },
+            { label: 'Total Bookings', value: bookingsRes.data?.length ?? 0 },
+            { label: 'Revenue (30d)', value: `$${(recentRevenue / 100).toLocaleString()}` },
+            { label: 'Avg Revenue/Member', value: membersCountRes.count ? `$${Math.round(total / (membersCountRes.count * 100)).toLocaleString()}` : '$0' },
+          ])
+        } catch {
+          // Activity metrics are optional
+        }
+      } catch (err) {
+        console.error('Failed to load studio:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadStudio()
+  }, [studioId])
+
+  // Load members when Members tab is active
+  useEffect(() => {
+    if (activeTab !== 'Members') return
+
+    async function loadMembers() {
+      const { data: membershipsData } = await supabase
+        .from('memberships')
+        .select('id, user_id, role, status, joined_at')
+        .eq('studio_id', studioId)
+        .order('joined_at', { ascending: false })
+
+      if (!membershipsData || membershipsData.length === 0) {
+        setMembers([])
+        return
+      }
+
+      // Fetch user details
+      const userIds = membershipsData.map((m) => m.user_id)
+      const { data: usersData } = await supabase
+        .from('users')
+        .select('id, name, email')
+        .in('id', userIds)
+
+      const userMap: Record<string, { name: string; email: string }> = {}
+      usersData?.forEach((u) => {
+        userMap[u.id] = { name: u.name, email: u.email }
+      })
+
+      setMembers(
+        membershipsData.map((m) => ({
+          id: m.id,
+          user_name: userMap[m.user_id]?.name ?? 'Unknown',
+          user_email: userMap[m.user_id]?.email ?? '',
+          role: m.role,
+          status: m.status,
+          joined_at: m.joined_at,
+        }))
+      )
+    }
+
+    loadMembers()
+  }, [activeTab, studioId])
+
+  // Load revenue when Revenue tab is active
+  useEffect(() => {
+    if (activeTab !== 'Revenue') return
+
+    async function loadRevenue() {
+      const { data: paymentsData } = await supabase
+        .from('payments')
+        .select('amount_cents, created_at')
+        .eq('studio_id', studioId)
+        .order('created_at', { ascending: true })
+
+      if (!paymentsData || paymentsData.length === 0) {
+        setRevenue([])
+        return
+      }
+
+      // Also get bookings count per month
+      const { data: bookingsData } = await supabase
+        .from('bookings')
+        .select('booked_at, class_instance_id!inner(studio_id)')
+        .eq('class_instance_id.studio_id' as string, studioId)
+
+      // Group payments by month
+      const monthMap: Record<string, { revenue: number; bookings: number }> = {}
+
+      paymentsData.forEach((p) => {
+        const date = new Date(p.created_at)
+        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+        if (!monthMap[key]) monthMap[key] = { revenue: 0, bookings: 0 }
+        monthMap[key].revenue += p.amount_cents ?? 0
+      })
+
+      bookingsData?.forEach((b) => {
+        const date = new Date(b.booked_at)
+        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+        if (!monthMap[key]) monthMap[key] = { revenue: 0, bookings: 0 }
+        monthMap[key].bookings += 1
+      })
+
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+      setRevenue(
+        Object.entries(monthMap)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([key, val]) => {
+            const [year, month] = key.split('-')
+            return {
+              month: `${monthNames[parseInt(month) - 1]} ${year}`,
+              bookings: val.bookings,
+              revenue: val.revenue,
+              payout: Math.round(val.revenue * 0.9),
+            }
+          })
+      )
+    }
+
+    loadRevenue()
+  }, [activeTab, studioId])
+
+  if (loading) {
+    return (
+      <AdminShell>
+        <div className="flex items-center justify-center py-20">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--muted-foreground)] border-t-[var(--primary)]" />
+            <p className="text-sm text-[var(--muted-foreground)]">Loading studio...</p>
+          </div>
+        </div>
+      </AdminShell>
+    )
+  }
 
   if (!studio) {
     return (
@@ -61,6 +279,27 @@ export default function StudioDetailPage() {
         </div>
       </AdminShell>
     )
+  }
+
+  const stripeConnected = !!studio.stripe_account_id
+  const settings = studio.settings as Record<string, unknown>
+  const studioStatus = settings?.suspended ? 'suspended' : stripeConnected ? 'active' : 'pending'
+  const customDomain = settings?.custom_domain as string | null
+
+  async function handleSuspendToggle() {
+    if (!studio) return
+    setSuspending(true)
+    const currentSettings = (studio.settings ?? {}) as Record<string, unknown>
+    const isSuspended = !!currentSettings.suspended
+    const newSettings = { ...currentSettings, suspended: !isSuspended }
+
+    await supabase
+      .from('studios')
+      .update({ settings: newSettings })
+      .eq('id', studioId)
+
+    setStudio({ ...studio, settings: newSettings })
+    setSuspending(false)
   }
 
   return (
@@ -80,17 +319,21 @@ export default function StudioDetailPage() {
           <div className="flex items-center gap-3">
             <span
               className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${
-                studio.status === 'active'
+                studioStatus === 'active'
                   ? 'bg-emerald-950 text-emerald-400'
-                  : studio.status === 'pending'
-                    ? 'bg-yellow-950 text-yellow-400'
-                    : 'bg-red-950 text-red-400'
+                  : studioStatus === 'suspended'
+                    ? 'bg-red-950 text-red-400'
+                    : 'bg-yellow-950 text-yellow-400'
               }`}
             >
-              {studio.status}
+              {studioStatus}
             </span>
             <span className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${
-              studio.tier === 'growth' ? 'bg-violet-950 text-violet-400' : 'bg-zinc-800 text-zinc-400'
+              studio.tier === 'pro'
+                ? 'bg-violet-950 text-violet-400'
+                : studio.tier === 'studio'
+                  ? 'bg-blue-950 text-blue-400'
+                  : 'bg-zinc-800 text-zinc-400'
             }`}>
               {studio.tier}
             </span>
@@ -121,28 +364,46 @@ export default function StudioDetailPage() {
           <div className="grid grid-cols-4 gap-4">
             <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6">
               <p className="text-sm text-[var(--muted-foreground)]">Members</p>
-              <p className="mt-1 text-3xl font-extrabold">{studio.members}</p>
+              <p className="mt-1 text-3xl font-extrabold">{memberCount}</p>
             </div>
             <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6">
-              <p className="text-sm text-[var(--muted-foreground)]">Revenue</p>
-              <p className="mt-1 text-3xl font-extrabold">${(studio.revenue_cents / 100).toLocaleString()}</p>
+              <p className="text-sm text-[var(--muted-foreground)]">Total Revenue</p>
+              <p className="mt-1 text-3xl font-extrabold">${(totalRevenue / 100).toLocaleString()}</p>
             </div>
             <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6">
               <p className="text-sm text-[var(--muted-foreground)]">Stripe</p>
-              <p className="mt-1 text-3xl font-extrabold">{studio.stripe_connected ? 'Connected' : 'Pending'}</p>
+              <div className="mt-1 flex items-center gap-2">
+                <div className={`h-3 w-3 rounded-full ${stripeConnected ? 'bg-emerald-400' : 'bg-yellow-400'}`} />
+                <p className="text-lg font-extrabold">{stripeConnected ? 'Connected' : 'Pending'}</p>
+              </div>
+              {studio.stripe_account_id && (
+                <p className="mt-1 text-xs font-mono text-[var(--muted-foreground)]">{studio.stripe_account_id}</p>
+              )}
             </div>
             <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6">
               <p className="text-sm text-[var(--muted-foreground)]">Domain</p>
-              <p className="mt-1 text-lg font-extrabold">{studio.custom_domain ?? 'None'}</p>
+              <p className="mt-1 text-lg font-extrabold">{customDomain ?? 'None'}</p>
             </div>
           </div>
+
+          {/* Activity Metrics */}
+          {activityMetrics.length > 0 && (
+            <div className="grid grid-cols-4 gap-4">
+              {activityMetrics.map((m) => (
+                <div key={m.label} className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6">
+                  <p className="text-sm text-[var(--muted-foreground)]">{m.label}</p>
+                  <p className="mt-1 text-2xl font-extrabold">{m.value}</p>
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6">
             <h3 className="mb-4 text-lg font-bold">Studio Details</h3>
             <dl className="grid grid-cols-2 gap-4">
               <div>
                 <dt className="text-sm text-[var(--muted-foreground)]">Owner Email</dt>
-                <dd className="mt-1 font-medium">{studio.owner_email}</dd>
+                <dd className="mt-1 font-medium">{ownerEmail ?? 'No owner assigned'}</dd>
               </div>
               <div>
                 <dt className="text-sm text-[var(--muted-foreground)]">Discipline</dt>
@@ -150,11 +411,19 @@ export default function StudioDetailPage() {
               </div>
               <div>
                 <dt className="text-sm text-[var(--muted-foreground)]">Created</dt>
-                <dd className="mt-1 font-medium">{studio.created_at}</dd>
+                <dd className="mt-1 font-medium">{new Date(studio.created_at).toLocaleDateString()}</dd>
               </div>
               <div>
                 <dt className="text-sm text-[var(--muted-foreground)]">Subdomain</dt>
                 <dd className="mt-1 font-medium">{studio.slug}.studio.coop</dd>
+              </div>
+              <div>
+                <dt className="text-sm text-[var(--muted-foreground)]">Timezone</dt>
+                <dd className="mt-1 font-medium">{studio.timezone}</dd>
+              </div>
+              <div>
+                <dt className="text-sm text-[var(--muted-foreground)]">Currency</dt>
+                <dd className="mt-1 font-medium">{studio.currency}</dd>
               </div>
             </dl>
           </div>
@@ -164,34 +433,47 @@ export default function StudioDetailPage() {
       {activeTab === 'Members' && (
         <div className="rounded-xl border border-[var(--border)] bg-[var(--card)]">
           <div className="border-b border-[var(--border)] px-6 py-4">
-            <h3 className="text-lg font-bold">Members ({DEMO_MEMBERS.length})</h3>
+            <h3 className="text-lg font-bold">Members ({members.length})</h3>
           </div>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-[var(--border)]">
                 <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">Name</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">Email</th>
-                <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">Plan</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">Role</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">Joined</th>
                 <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">Status</th>
               </tr>
             </thead>
             <tbody>
-              {DEMO_MEMBERS.map((m) => (
+              {members.map((m) => (
                 <tr key={m.id} className="border-b border-[var(--border)] last:border-0">
-                  <td className="px-6 py-3 font-medium">{m.name}</td>
-                  <td className="px-6 py-3 text-[var(--muted-foreground)]">{m.email}</td>
-                  <td className="px-6 py-3">{m.plan}</td>
-                  <td className="px-6 py-3 text-[var(--muted-foreground)]">{m.joined}</td>
+                  <td className="px-6 py-3 font-medium">{m.user_name}</td>
+                  <td className="px-6 py-3 text-[var(--muted-foreground)]">{m.user_email}</td>
+                  <td className="px-6 py-3 capitalize">{m.role}</td>
+                  <td className="px-6 py-3 text-[var(--muted-foreground)]">
+                    {new Date(m.joined_at).toLocaleDateString()}
+                  </td>
                   <td className="px-6 py-3">
                     <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                      m.status === 'active' ? 'bg-emerald-950 text-emerald-400' : 'bg-yellow-950 text-yellow-400'
+                      m.status === 'active'
+                        ? 'bg-emerald-950 text-emerald-400'
+                        : m.status === 'suspended'
+                          ? 'bg-red-950 text-red-400'
+                          : 'bg-yellow-950 text-yellow-400'
                     }`}>
                       {m.status}
                     </span>
                   </td>
                 </tr>
               ))}
+              {members.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-[var(--muted-foreground)]">
+                    No members yet
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -202,15 +484,15 @@ export default function StudioDetailPage() {
           <div className="grid grid-cols-3 gap-4">
             <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6">
               <p className="text-sm text-[var(--muted-foreground)]">Total Revenue</p>
-              <p className="mt-1 text-3xl font-extrabold">${(studio.revenue_cents / 100).toLocaleString()}</p>
+              <p className="mt-1 text-3xl font-extrabold">${(totalRevenue / 100).toLocaleString()}</p>
             </div>
             <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6">
               <p className="text-sm text-[var(--muted-foreground)]">Platform Fee (10%)</p>
-              <p className="mt-1 text-3xl font-extrabold">${(studio.revenue_cents / 1000).toLocaleString()}</p>
+              <p className="mt-1 text-3xl font-extrabold">${(totalRevenue / 1000).toLocaleString()}</p>
             </div>
             <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6">
               <p className="text-sm text-[var(--muted-foreground)]">Studio Payout</p>
-              <p className="mt-1 text-3xl font-extrabold">${((studio.revenue_cents * 0.9) / 100).toLocaleString()}</p>
+              <p className="mt-1 text-3xl font-extrabold">${((totalRevenue * 0.9) / 100).toLocaleString()}</p>
             </div>
           </div>
 
@@ -228,7 +510,7 @@ export default function StudioDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {DEMO_REVENUE.map((r) => (
+                {revenue.map((r) => (
                   <tr key={r.month} className="border-b border-[var(--border)] last:border-0">
                     <td className="px-6 py-3 font-medium">{r.month}</td>
                     <td className="px-6 py-3">{r.bookings}</td>
@@ -236,6 +518,13 @@ export default function StudioDetailPage() {
                     <td className="px-6 py-3">${(r.payout / 100).toLocaleString()}</td>
                   </tr>
                 ))}
+                {revenue.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-12 text-center text-[var(--muted-foreground)]">
+                      No revenue data yet
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -253,7 +542,11 @@ export default function StudioDetailPage() {
                   <p className="text-sm text-[var(--muted-foreground)]">Current subscription tier</p>
                 </div>
                 <span className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${
-                  studio.tier === 'growth' ? 'bg-violet-950 text-violet-400' : 'bg-zinc-800 text-zinc-400'
+                  studio.tier === 'pro'
+                    ? 'bg-violet-950 text-violet-400'
+                    : studio.tier === 'studio'
+                      ? 'bg-blue-950 text-blue-400'
+                      : 'bg-zinc-800 text-zinc-400'
                 }`}>
                   {studio.tier}
                 </span>
@@ -261,7 +554,7 @@ export default function StudioDetailPage() {
               <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
                 <div>
                   <p className="font-medium">Custom Domain</p>
-                  <p className="text-sm text-[var(--muted-foreground)]">{studio.custom_domain ?? 'Not configured'}</p>
+                  <p className="text-sm text-[var(--muted-foreground)]">{customDomain ?? 'Not configured'}</p>
                 </div>
                 <button className="rounded-lg bg-[var(--muted)] px-3 py-1.5 text-xs font-medium hover:bg-zinc-700 transition-colors">
                   Configure
@@ -270,21 +563,45 @@ export default function StudioDetailPage() {
               <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
                 <div>
                   <p className="font-medium">Stripe Connection</p>
-                  <p className="text-sm text-[var(--muted-foreground)]">{studio.stripe_connected ? 'Connected' : 'Not connected'}</p>
+                  <p className="text-sm text-[var(--muted-foreground)]">{stripeConnected ? 'Connected' : 'Not connected'}</p>
                 </div>
                 <span className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${
-                  studio.stripe_connected ? 'bg-emerald-950 text-emerald-400' : 'bg-yellow-950 text-yellow-400'
+                  stripeConnected ? 'bg-emerald-950 text-emerald-400' : 'bg-yellow-950 text-yellow-400'
                 }`}>
-                  {studio.stripe_connected ? 'Active' : 'Pending'}
+                  {stripeConnected ? 'Active' : 'Pending'}
                 </span>
+              </div>
+              <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
+                <div>
+                  <p className="font-medium">Timezone</p>
+                  <p className="text-sm text-[var(--muted-foreground)]">{studio.timezone}</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
+                <div>
+                  <p className="font-medium">Currency</p>
+                  <p className="text-sm text-[var(--muted-foreground)]">{studio.currency}</p>
+                </div>
               </div>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-medium text-red-400">Suspend Studio</p>
-                  <p className="text-sm text-[var(--muted-foreground)]">Temporarily disable this studio</p>
+                  <p className={`font-medium ${studioStatus === 'suspended' ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {studioStatus === 'suspended' ? 'Reactivate Studio' : 'Suspend Studio'}
+                  </p>
+                  <p className="text-sm text-[var(--muted-foreground)]">
+                    {studioStatus === 'suspended' ? 'Re-enable this studio' : 'Temporarily disable this studio'}
+                  </p>
                 </div>
-                <button className="rounded-lg bg-red-950 px-3 py-1.5 text-xs font-semibold text-red-400 hover:bg-red-900 transition-colors">
-                  Suspend
+                <button
+                  onClick={handleSuspendToggle}
+                  disabled={suspending}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    studioStatus === 'suspended'
+                      ? 'bg-emerald-950 text-emerald-400 hover:bg-emerald-900'
+                      : 'bg-red-950 text-red-400 hover:bg-red-900'
+                  }`}
+                >
+                  {suspending ? 'Processing...' : studioStatus === 'suspended' ? 'Reactivate' : 'Suspend'}
                 </button>
               </div>
             </div>

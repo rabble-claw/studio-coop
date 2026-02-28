@@ -1,107 +1,143 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { migrateApi } from '@/lib/api-client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 
-type MigrationStep = 'upload' | 'mapping' | 'preview' | 'importing' | 'done'
+type MigrationStep = 'upload' | 'mapping' | 'preview' | 'confirm' | 'done'
 
-interface CsvColumn { index: number; name: string; sample: string }
-interface MappingField { csvColumn: number | null; targetField: string; label: string; required: boolean }
+interface MigrationColumn { source: string; target: string; required: boolean }
+interface MigrationRow { data: Record<string, string>; valid: boolean; errors: string[] }
+interface MigrationPreview {
+  totalRows: number; validRows: number; invalidRows: number
+  columns: MigrationColumn[]; sampleRows: MigrationRow[]
+}
+interface MigrationResult {
+  totalProcessed: number; created: number; skipped: number; failed: number
+  errors: Array<{ row: number; email: string; error: string }>
+}
+
+const TARGET_OPTIONS = [
+  { value: 'name', label: 'Name' },
+  { value: 'last_name', label: 'Last Name' },
+  { value: 'email', label: 'Email' },
+  { value: 'phone', label: 'Phone' },
+  { value: 'membership_type', label: 'Membership Type' },
+  { value: '', label: '-- Skip --' },
+]
 
 export default function MigratePage() {
+  const [studioId, setStudioId] = useState<string | null>(null)
   const [step, setStep] = useState<MigrationStep>('upload')
   const [source, setSource] = useState<'mindbody' | 'vagaro' | 'csv'>('mindbody')
-  const [csvColumns, setCsvColumns] = useState<CsvColumn[]>([])
-  const [mappings, setMappings] = useState<MappingField[]>([])
-  const [previewData, setPreviewData] = useState<Record<string, string>[]>([])
-  const [importProgress, setImportProgress] = useState(0)
-  const [importStats, setImportStats] = useState({ members: 0, classes: 0, plans: 0, errors: 0 })
+  const [csvContent, setCsvContent] = useState('')
+  const [columns, setColumns] = useState<MigrationColumn[]>([])
+  const [preview, setPreview] = useState<MigrationPreview | null>(null)
+  const [result, setResult] = useState<MigrationResult | null>(null)
+  const [executing, setExecuting] = useState(false)
+  const [error, setError] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    async function load() {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data: membership } = await supabase
+        .from('memberships')
+        .select('studio_id')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .limit(1)
+        .single()
+      if (membership) setStudioId(membership.studio_id)
+    }
+    load()
+  }, [])
 
   function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-
     const reader = new FileReader()
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       const text = evt.target?.result as string
-      const lines = text.split('\n').filter(l => l.trim())
-      if (lines.length < 2) return
-
-      const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''))
-      const firstRow = lines[1].split(',').map(v => v.trim().replace(/^"|"$/g, ''))
-
-      const cols: CsvColumn[] = headers.map((h, i) => ({
-        index: i, name: h, sample: firstRow[i] || ''
-      }))
-      setCsvColumns(cols)
-
-      // Auto-detect mappings for Mindbody
-      const targetFields: MappingField[] = [
-        { csvColumn: null, targetField: 'name', label: 'Member Name', required: true },
-        { csvColumn: null, targetField: 'email', label: 'Email', required: true },
-        { csvColumn: null, targetField: 'phone', label: 'Phone', required: false },
-        { csvColumn: null, targetField: 'membership_type', label: 'Membership Type', required: false },
-        { csvColumn: null, targetField: 'start_date', label: 'Join Date', required: false },
-        { csvColumn: null, targetField: 'status', label: 'Status', required: false },
-      ]
-
-      // Auto-map by header similarity
-      for (const field of targetFields) {
-        const match = cols.find(c =>
-          c.name.toLowerCase().includes(field.targetField.replace('_', ' ')) ||
-          c.name.toLowerCase().includes(field.label.toLowerCase())
-        )
-        if (match) field.csvColumn = match.index
-      }
-
-      setMappings(targetFields)
-
-      // Preview data
-      const preview = lines.slice(1, 6).map(line => {
-        const vals = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''))
-        const row: Record<string, string> = {}
-        headers.forEach((h, i) => row[h] = vals[i] || '')
-        return row
-      })
-      setPreviewData(preview)
-      setStep('mapping')
+      setCsvContent(text)
+      await uploadCSV(text)
     }
     reader.readAsText(file)
   }
 
-  async function runImport() {
-    setStep('importing')
-    // Simulate import progress
-    for (let i = 0; i <= 100; i += 5) {
-      setImportProgress(i)
-      await new Promise(r => setTimeout(r, 200))
+  async function uploadCSV(csv: string) {
+    if (!studioId) return
+    setError('')
+    try {
+      const res = await migrateApi.upload(studioId, csv)
+      setPreview(res.preview)
+      setColumns(res.preview.columns)
+      setStep('mapping')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Upload failed')
     }
-    setImportStats({ members: previewData.length * 10, classes: 28, plans: 4, errors: 2 })
-    setStep('done')
   }
+
+  async function handleRepreview() {
+    if (!studioId) return
+    setError('')
+    try {
+      const res = await migrateApi.preview(studioId, csvContent, columns)
+      setPreview(res.preview)
+      setStep('preview')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Preview failed')
+    }
+  }
+
+  async function runImport() {
+    if (!studioId) return
+    setExecuting(true)
+    setError('')
+    try {
+      const res = await migrateApi.execute(studioId, csvContent, columns)
+      setResult(res.result)
+      setStep('done')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Import failed')
+    }
+    setExecuting(false)
+  }
+
+  function updateColumnTarget(index: number, target: string) {
+    setColumns(prev => prev.map((col, i) => i === index ? { ...col, target } : col))
+  }
+
+  const stepIndex = ['upload', 'mapping', 'preview', 'confirm', 'done'].indexOf(step)
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Migrate to Studio Co-op</h1>
-        <p className="text-muted-foreground">Import your members, classes, and plans from your current platform</p>
+        <p className="text-muted-foreground">Import your members from your current platform</p>
       </div>
 
       {/* Progress */}
       <div className="flex gap-2">
-        {['upload', 'mapping', 'preview', 'importing', 'done'].map((s, i) => (
-          <div key={s} className="flex items-center gap-2">
+        {['Upload', 'Map Columns', 'Validate', 'Confirm', 'Results'].map((label, i) => (
+          <div key={label} className="flex items-center gap-2">
             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-              step === s ? 'bg-primary text-white' :
-              ['upload','mapping','preview','importing','done'].indexOf(step) > i ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'
-            }`}>{i + 1}</div>
-            {i < 4 && <div className="w-8 h-0.5 bg-muted" />}
+              stepIndex === i ? 'bg-primary text-white' :
+              stepIndex > i ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'
+            }`}>{stepIndex > i ? '\u2713' : i + 1}</div>
+            <span className="text-xs hidden sm:inline">{label}</span>
+            {i < 4 && <div className="w-6 h-0.5 bg-muted" />}
           </div>
         ))}
       </div>
+
+      {error && (
+        <div className="text-sm px-4 py-2 rounded-md bg-red-50 text-red-700">{error}</div>
+      )}
 
       {step === 'upload' && (
         <Card>
@@ -127,7 +163,7 @@ export default function MigratePage() {
               <div className="bg-blue-50 p-4 rounded-lg text-sm">
                 <p className="font-medium text-blue-900 mb-2">How to export from Mindbody:</p>
                 <ol className="list-decimal ml-4 space-y-1 text-blue-800">
-                  <li>Go to Reports → Client Reports → Client Export</li>
+                  <li>Go to Reports &rarr; Client Reports &rarr; Client Export</li>
                   <li>Select all fields and date range</li>
                   <li>Click Export to CSV</li>
                   <li>Upload the file below</li>
@@ -138,132 +174,194 @@ export default function MigratePage() {
             <div>
               <input ref={fileRef} type="file" accept=".csv,.txt" onChange={handleFileUpload} className="hidden" />
               <Button onClick={() => fileRef.current?.click()} className="w-full" size="lg">
-                📁 Upload CSV File
+                Upload CSV File
+              </Button>
+            </div>
+
+            <div>
+              <label className="text-sm font-medium text-muted-foreground">Or paste CSV content directly</label>
+              <textarea
+                className="w-full border rounded-md px-3 py-2 text-sm min-h-[100px] font-mono mt-1"
+                value={csvContent}
+                onChange={e => setCsvContent(e.target.value)}
+                placeholder="First Name,Last Name,Email,Phone&#10;John,Doe,john@example.com,+1234567890"
+              />
+              <Button variant="outline" className="mt-2" onClick={() => uploadCSV(csvContent)} disabled={!csvContent.trim()}>
+                Analyze CSV
               </Button>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {step === 'mapping' && (
+      {step === 'mapping' && preview && (
         <Card>
           <CardHeader><CardTitle>Map your columns</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-sm text-muted-foreground">We detected {csvColumns.length} columns. Map them to Studio Co-op fields:</p>
-            {mappings.map((m, i) => (
-              <div key={m.targetField} className="flex items-center gap-4">
-                <div className="w-40">
-                  <span className="text-sm font-medium">{m.label}</span>
-                  {m.required && <span className="text-red-500 ml-1">*</span>}
+            <p className="text-sm text-muted-foreground">
+              We auto-detected {columns.length} column mappings. Adjust as needed:
+            </p>
+            {columns.map((col, i) => (
+              <div key={i} className="flex items-center gap-4">
+                <div className="w-1/3">
+                  <span className="text-sm font-medium">{col.source}</span>
+                  <span className="text-xs text-muted-foreground ml-2">(CSV)</span>
                 </div>
-                <select className="flex-1 border rounded-md px-3 py-2 text-sm"
-                  value={m.csvColumn ?? ''}
-                  onChange={e => {
-                    const updated = [...mappings]
-                    updated[i].csvColumn = e.target.value ? parseInt(e.target.value) : null
-                    setMappings(updated)
-                  }}
+                <span className="text-muted-foreground">&rarr;</span>
+                <select
+                  value={col.target}
+                  onChange={e => updateColumnTarget(i, e.target.value)}
+                  className="flex-1 border rounded-md px-3 py-2 text-sm"
                 >
-                  <option value="">— Skip —</option>
-                  {csvColumns.map(c => (
-                    <option key={c.index} value={c.index}>
-                      {c.name} (e.g. &quot;{c.sample}&quot;)
-                    </option>
+                  {TARGET_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
+                {col.required && <span className="text-xs text-red-500">required</span>}
               </div>
             ))}
             <div className="flex gap-3">
-              <Button onClick={() => setStep('preview')}>Preview Import →</Button>
+              <Button onClick={handleRepreview}>Validate Data</Button>
               <Button variant="outline" onClick={() => setStep('upload')}>Back</Button>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {step === 'preview' && (
+      {step === 'preview' && preview && (
         <Card>
-          <CardHeader>
-            <CardTitle>Preview ({previewData.length} sample rows)</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>Data Validation</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b">
-                    {mappings.filter(m => m.csvColumn !== null).map(m => (
-                      <th key={m.targetField} className="text-left py-2 px-3 font-medium">{m.label}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {previewData.map((row, i) => (
-                    <tr key={i} className="border-b">
-                      {mappings.filter(m => m.csvColumn !== null).map(m => {
-                        const col = csvColumns[m.csvColumn!]
-                        return <td key={m.targetField} className="py-2 px-3">{row[col.name] || '—'}</td>
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="p-4 border rounded-lg text-center">
+                <p className="text-2xl font-bold">{preview.totalRows}</p>
+                <p className="text-sm text-muted-foreground">Total Rows</p>
+              </div>
+              <div className="p-4 border rounded-lg text-center">
+                <p className="text-2xl font-bold text-green-600">{preview.validRows}</p>
+                <p className="text-sm text-muted-foreground">Valid</p>
+              </div>
+              <div className="p-4 border rounded-lg text-center">
+                <p className="text-2xl font-bold text-red-600">{preview.invalidRows}</p>
+                <p className="text-sm text-muted-foreground">Invalid</p>
+              </div>
             </div>
+
+            {preview.sampleRows.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/50">
+                      <th className="px-3 py-2 text-left text-xs font-medium">Status</th>
+                      {columns.map(col => (
+                        <th key={col.source} className="px-3 py-2 text-left text-xs font-medium">{col.source}</th>
+                      ))}
+                      <th className="px-3 py-2 text-left text-xs font-medium">Errors</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {preview.sampleRows.map((row, i) => (
+                      <tr key={i} className="border-b last:border-0">
+                        <td className="px-3 py-2">
+                          {row.valid
+                            ? <span className="text-green-600 text-xs font-medium">OK</span>
+                            : <span className="text-red-600 text-xs font-medium">Error</span>
+                          }
+                        </td>
+                        {columns.map(col => (
+                          <td key={col.source} className="px-3 py-2 text-xs">{row.data[col.source] ?? ''}</td>
+                        ))}
+                        <td className="px-3 py-2 text-xs text-red-600">{row.errors.join(', ')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
             <div className="flex gap-3">
-              <Button onClick={runImport}>🚀 Start Import</Button>
+              <Button onClick={() => setStep('confirm')} disabled={preview.validRows === 0}>
+                Continue
+              </Button>
               <Button variant="outline" onClick={() => setStep('mapping')}>Back</Button>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {step === 'importing' && (
+      {step === 'confirm' && preview && (
         <Card>
-          <CardHeader><CardTitle>Importing...</CardTitle></CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="h-4 bg-muted rounded-full overflow-hidden">
-                <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${importProgress}%` }} />
-              </div>
-              <p className="text-sm text-muted-foreground text-center">{importProgress}% complete</p>
+          <CardHeader><CardTitle>Confirm Import</CardTitle></CardHeader>
+          <CardContent className="space-y-4">
+            <div className="p-4 border rounded-lg bg-muted/50">
+              <p className="font-medium">Ready to import {preview.validRows} members</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                {preview.invalidRows > 0 && `${preview.invalidRows} invalid rows will be skipped. `}
+                Existing members will not be duplicated.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <Button onClick={runImport} disabled={executing}>
+                {executing ? 'Importing...' : 'Start Import'}
+              </Button>
+              <Button variant="outline" onClick={() => setStep('preview')}>Back</Button>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {step === 'done' && (
+      {step === 'done' && result && (
         <Card>
-          <CardHeader><CardTitle>🎉 Migration Complete!</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Migration Complete</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-4 gap-4 text-center">
               <div>
-                <div className="text-2xl font-bold text-green-600">{importStats.members}</div>
-                <div className="text-xs text-muted-foreground">Members</div>
+                <div className="text-2xl font-bold">{result.totalProcessed}</div>
+                <div className="text-xs text-muted-foreground">Processed</div>
               </div>
               <div>
-                <div className="text-2xl font-bold text-green-600">{importStats.classes}</div>
-                <div className="text-xs text-muted-foreground">Class Templates</div>
+                <div className="text-2xl font-bold text-green-600">{result.created}</div>
+                <div className="text-xs text-muted-foreground">Created</div>
               </div>
               <div>
-                <div className="text-2xl font-bold text-green-600">{importStats.plans}</div>
-                <div className="text-xs text-muted-foreground">Plans</div>
+                <div className="text-2xl font-bold text-yellow-600">{result.skipped}</div>
+                <div className="text-xs text-muted-foreground">Skipped</div>
               </div>
               <div>
-                <div className="text-2xl font-bold text-red-500">{importStats.errors}</div>
-                <div className="text-xs text-muted-foreground">Errors</div>
+                <div className="text-2xl font-bold text-red-500">{result.failed}</div>
+                <div className="text-xs text-muted-foreground">Failed</div>
               </div>
             </div>
-            {importStats.errors > 0 && (
-              <div className="bg-red-50 p-3 rounded-lg text-sm text-red-800">
-                {importStats.errors} records had issues (duplicate emails). Review in Members → filter by &quot;needs attention&quot;.
+
+            {result.errors.length > 0 && (
+              <div className="border rounded-lg max-h-48 overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/50">
+                      <th className="px-3 py-2 text-left text-xs font-medium">Row</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium">Email</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium">Error</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {result.errors.map((err, i) => (
+                      <tr key={i} className="border-b last:border-0">
+                        <td className="px-3 py-2">{err.row}</td>
+                        <td className="px-3 py-2">{err.email || '-'}</td>
+                        <td className="px-3 py-2 text-red-600">{err.error}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
+
             <div className="bg-blue-50 p-3 rounded-lg text-sm text-blue-800">
               <p className="font-medium mb-1">Next steps:</p>
               <ul className="list-disc ml-4 space-y-0.5">
                 <li>Members will need to set up payment methods (send welcome emails from Settings)</li>
                 <li>Review and verify your class schedule</li>
                 <li>Test a booking flow end-to-end</li>
-                <li>Share your studio page with members</li>
               </ul>
             </div>
             <Button onClick={() => window.location.href = '/dashboard'} className="w-full">Go to Dashboard</Button>

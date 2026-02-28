@@ -308,7 +308,7 @@ checkin.post('/:classId/walkin', authMiddleware, async (c) => {
       .eq('id', classId)
       .single()
     if (cls2) {
-      checkAndCreateMilestones(targetUserId, cls2.studio_id, classId).catch(() => {})
+      checkAndCreateMilestones(targetUserId!, cls2.studio_id as string, classId).catch(() => {})
     }
   }
 

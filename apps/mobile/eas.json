@@ -18,6 +18,12 @@
       },
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.studio.coop",
+        "EXPO_PUBLIC_APP_NAME": "Studio Co-op",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://lomrjhkneodiowwarrzz.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxvbXJqaGtuZW9kaW93d2Fycnp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxNDU3MTgsImV4cCI6MjA4NzcyMTcxOH0.og8khaCHXvD2Dl2hkqyl6BI3Ucuy8hst6m8dnKX8TT8"
       }
     },
     "production": {
@@ -27,7 +33,13 @@
       "android": {
         "buildType": "app-bundle"
       },
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.studio.coop",
+        "EXPO_PUBLIC_APP_NAME": "Studio Co-op",
+        "EXPO_PUBLIC_SUPABASE_URL": "https://lomrjhkneodiowwarrzz.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxvbXJqaGtuZW9kaW93d2Fycnp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxNDU3MTgsImV4cCI6MjA4NzcyMTcxOH0.og8khaCHXvD2Dl2hkqyl6BI3Ucuy8hst6m8dnKX8TT8"
+      }
     }
   },
   "submit": {

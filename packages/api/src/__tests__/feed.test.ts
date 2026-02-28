@@ -387,3 +387,203 @@ describe('DELETE /api/feed/:postId/react', () => {
     expect(body.ok).toBe(true)
   })
 })
+
+// ─── Privacy enforcement tests ──────────────────────────────────────────────
+
+describe('Feed privacy enforcement', () => {
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it('returns 404 when class instance does not exist', async () => {
+    const mockSupabase = {
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'class_instances') {
+          return makeChain({ data: null, error: null })
+        }
+        return makeChain({ data: null, error: null })
+      }),
+    }
+    ;(createServiceClient as any).mockReturnValue(mockSupabase)
+
+    const app = makeApp()
+    const res = await app.request('/api/classes/nonexistent/feed', {
+      headers: { Authorization: 'Bearer token' },
+    })
+    expect(res.status).toBe(404)
+  })
+
+  it('blocks access when user has no attendance and is not staff', async () => {
+    const mockSupabase = {
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'class_instances') {
+          return makeChain({ data: { id: CLASS_ID, studio_id: STUDIO_ID, feed_enabled: true }, error: null })
+        }
+        if (table === 'attendance') {
+          return makeChain({ data: null, error: null }) // not checked in
+        }
+        if (table === 'memberships') {
+          return makeChain({ data: { role: 'member' }, error: null }) // member, not staff
+        }
+        return makeChain({ data: null, error: null })
+      }),
+    }
+    ;(createServiceClient as any).mockReturnValue(mockSupabase)
+
+    const app = makeApp()
+    const res = await app.request(`/api/classes/${CLASS_ID}/feed`, {
+      headers: { Authorization: 'Bearer token' },
+    })
+    expect(res.status).toBe(403)
+    const body = await res.json() as any
+    expect(body.error.code).toBe('FORBIDDEN')
+  })
+
+  it('allows access for admin role without attendance', async () => {
+    const mockSupabase = {
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'class_instances') {
+          return makeChain({ data: { id: CLASS_ID, studio_id: STUDIO_ID, feed_enabled: true }, error: null })
+        }
+        if (table === 'attendance') {
+          return makeChain({ data: null, error: null }) // not checked in
+        }
+        if (table === 'memberships') {
+          return makeChain({ data: { role: 'admin' }, error: null })
+        }
+        if (table === 'feed_posts') {
+          return makeChain({ data: [], error: null })
+        }
+        if (table === 'feed_reactions') {
+          return makeChain({ data: [], error: null })
+        }
+        return makeChain({ data: null, error: null })
+      }),
+    }
+    ;(createServiceClient as any).mockReturnValue(mockSupabase)
+
+    const app = makeApp()
+    const res = await app.request(`/api/classes/${CLASS_ID}/feed`, {
+      headers: { Authorization: 'Bearer token' },
+    })
+    expect(res.status).toBe(200)
+  })
+
+  it('allows access for owner role without attendance', async () => {
+    const mockSupabase = {
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'class_instances') {
+          return makeChain({ data: { id: CLASS_ID, studio_id: STUDIO_ID, feed_enabled: true }, error: null })
+        }
+        if (table === 'attendance') {
+          return makeChain({ data: null, error: null })
+        }
+        if (table === 'memberships') {
+          return makeChain({ data: { role: 'owner' }, error: null })
+        }
+        if (table === 'feed_posts') {
+          return makeChain({ data: [], error: null })
+        }
+        if (table === 'feed_reactions') {
+          return makeChain({ data: [], error: null })
+        }
+        return makeChain({ data: null, error: null })
+      }),
+    }
+    ;(createServiceClient as any).mockReturnValue(mockSupabase)
+
+    const app = makeApp()
+    const res = await app.request(`/api/classes/${CLASS_ID}/feed`, {
+      headers: { Authorization: 'Bearer token' },
+    })
+    expect(res.status).toBe(200)
+  })
+
+  it('blocks non-attendee from posting to feed', async () => {
+    const mockSupabase = {
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'class_instances') {
+          return makeChain({ data: { id: CLASS_ID, studio_id: STUDIO_ID, feed_enabled: true }, error: null })
+        }
+        if (table === 'attendance') {
+          return makeChain({ data: null, error: null })
+        }
+        if (table === 'memberships') {
+          return makeChain({ data: null, error: null }) // not even a member
+        }
+        return makeChain({ data: null, error: null })
+      }),
+    }
+    ;(createServiceClient as any).mockReturnValue(mockSupabase)
+
+    const app = makeApp()
+    const res = await app.request(`/api/classes/${CLASS_ID}/feed`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer token', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: 'Should be blocked' }),
+    })
+    expect(res.status).toBe(403)
+  })
+
+  it('blocks non-attendee from reacting to a post', async () => {
+    const mockSupabase = {
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'feed_posts') {
+          return makeChain({ data: { id: POST_ID, class_instance_id: CLASS_ID }, error: null })
+        }
+        if (table === 'class_instances') {
+          return makeChain({ data: { id: CLASS_ID, studio_id: STUDIO_ID, feed_enabled: true }, error: null })
+        }
+        if (table === 'attendance') {
+          return makeChain({ data: null, error: null })
+        }
+        if (table === 'memberships') {
+          return makeChain({ data: null, error: null })
+        }
+        return makeChain({ data: null, error: null })
+      }),
+    }
+    ;(createServiceClient as any).mockReturnValue(mockSupabase)
+
+    const app = makeApp()
+    const res = await app.request(`/api/feed/${POST_ID}/react`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer token', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emoji: '❤️' }),
+    })
+    expect(res.status).toBe(403)
+  })
+
+  it('staff can delete another users post', async () => {
+    const deleteChain: any = {
+      eq: vi.fn().mockReturnThis(),
+      then: (res: any) => Promise.resolve({ data: null, error: null }).then(res),
+      catch: (rej: any) => Promise.resolve({ data: null, error: null }).catch(rej),
+      [Symbol.toStringTag]: 'Promise',
+    }
+
+    const mockSupabase = {
+      from: vi.fn().mockImplementation((table: string) => {
+        if (table === 'feed_posts') {
+          return {
+            ...makeChain({ data: { id: POST_ID, user_id: 'other-user', class_instance_id: CLASS_ID }, error: null }),
+            delete: vi.fn().mockReturnValue(deleteChain),
+          }
+        }
+        if (table === 'class_instances') {
+          return makeChain({ data: { studio_id: STUDIO_ID }, error: null })
+        }
+        if (table === 'memberships') {
+          return makeChain({ data: { role: 'admin' }, error: null }) // staff role
+        }
+        return makeChain({ data: null, error: null })
+      }),
+    }
+    ;(createServiceClient as any).mockReturnValue(mockSupabase)
+
+    const app = makeApp()
+    const res = await app.request(`/api/feed/${POST_ID}`, {
+      method: 'DELETE',
+      headers: { Authorization: 'Bearer token' },
+    })
+    expect(res.status).toBe(200)
+  })
+})

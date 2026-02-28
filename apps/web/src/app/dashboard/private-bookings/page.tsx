@@ -1,6 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { bookingApi } from '@/lib/api-client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -21,23 +23,9 @@ interface PrivateBooking {
 }
 
 export default function PrivateBookingsPage() {
-  const [bookings, setBookings] = useState<PrivateBooking[]>([
-    {
-      id: '1', client_name: 'Alex Rivera', client_email: 'alex@example.com',
-      type: 'Private Aerial Silks', date: '2026-03-05', start_time: '14:00', end_time: '15:00',
-      status: 'confirmed', price_cents: 12000, deposit_paid: true, notes: 'Birthday celebration, 4 people'
-    },
-    {
-      id: '2', client_name: 'Jordan Walsh', client_email: 'jordan@example.com',
-      type: 'Pole Party', date: '2026-03-08', start_time: '18:00', end_time: '20:00',
-      status: 'pending', price_cents: 35000, deposit_paid: false, notes: 'Hen party, 12 people, needs bubbly setup'
-    },
-    {
-      id: '3', client_name: 'Sam Chen', client_email: 'sam@example.com',
-      type: '1-on-1 Trapeze', date: '2026-03-02', start_time: '10:00', end_time: '11:00',
-      status: 'completed', price_cents: 9500, deposit_paid: true, notes: ''
-    },
-  ])
+  const [studioId, setStudioId] = useState<string | null>(null)
+  const [bookings, setBookings] = useState<PrivateBooking[]>([])
+  const [loading, setLoading] = useState(true)
 
   const [showCreate, setShowCreate] = useState(false)
   const [newBooking, setNewBooking] = useState({
@@ -45,27 +33,63 @@ export default function PrivateBookingsPage() {
     date: '', start_time: '', end_time: '', price: '', notes: '',
   })
 
-  function handleCreate() {
-    const booking: PrivateBooking = {
-      id: Date.now().toString(),
-      client_name: newBooking.client_name,
-      client_email: newBooking.client_email,
-      type: newBooking.type,
-      date: newBooking.date,
-      start_time: newBooking.start_time,
-      end_time: newBooking.end_time,
-      status: 'pending',
-      price_cents: Math.round(parseFloat(newBooking.price || '0') * 100),
-      deposit_paid: false,
-      notes: newBooking.notes,
+  useEffect(() => {
+    async function load() {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setLoading(false); return }
+
+      const { data: membership } = await supabase
+        .from('memberships')
+        .select('studio_id')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .limit(1)
+        .single()
+
+      if (!membership) { setLoading(false); return }
+      setStudioId(membership.studio_id)
+
+      try {
+        const result = await bookingApi.privateList(membership.studio_id) as { bookings: PrivateBooking[] }
+        setBookings(result.bookings ?? [])
+      } catch {
+        // API not available
+      }
+      setLoading(false)
     }
-    setBookings([booking, ...bookings])
-    setShowCreate(false)
-    setNewBooking({ client_name: '', client_email: '', type: 'Private Lesson', date: '', start_time: '', end_time: '', price: '', notes: '' })
+    load()
+  }, [])
+
+  async function handleCreate() {
+    if (!studioId) return
+    try {
+      const result = await bookingApi.privateCreate(studioId, {
+        client_name: newBooking.client_name,
+        client_email: newBooking.client_email,
+        type: newBooking.type,
+        date: newBooking.date,
+        start_time: newBooking.start_time,
+        end_time: newBooking.end_time,
+        price_cents: Math.round(parseFloat(newBooking.price || '0') * 100),
+        notes: newBooking.notes,
+      }) as { booking: PrivateBooking }
+      setBookings([result.booking, ...bookings])
+      setShowCreate(false)
+      setNewBooking({ client_name: '', client_email: '', type: 'Private Lesson', date: '', start_time: '', end_time: '', price: '', notes: '' })
+    } catch (e) {
+      alert(`Failed to create booking: ${e instanceof Error ? e.message : 'Unknown error'}`)
+    }
   }
 
-  function updateStatus(id: string, status: PrivateBooking['status']) {
-    setBookings(bookings.map(b => b.id === id ? { ...b, status } : b))
+  async function updateStatus(id: string, status: PrivateBooking['status']) {
+    if (!studioId) return
+    try {
+      await bookingApi.privateUpdate(studioId, id, { status })
+      setBookings(bookings.map(b => b.id === id ? { ...b, status } : b))
+    } catch (e) {
+      alert(`Failed to update: ${e instanceof Error ? e.message : 'Unknown error'}`)
+    }
   }
 
   const statusColors = {
@@ -74,6 +98,8 @@ export default function PrivateBookingsPage() {
     completed: 'bg-blue-100 text-blue-800',
     cancelled: 'bg-red-100 text-red-800',
   }
+
+  if (loading) return <div className="py-20 text-center text-muted-foreground">Loading bookings...</div>
 
   return (
     <div className="space-y-6">
@@ -91,7 +117,7 @@ export default function PrivateBookingsPage() {
         <Card>
           <CardHeader><CardTitle>New Private Booking</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium">Client Name</label>
                 <Input value={newBooking.client_name} onChange={e => setNewBooking({...newBooking, client_name: e.target.value})} />
@@ -101,7 +127,7 @@ export default function PrivateBookingsPage() {
                 <Input type="email" value={newBooking.client_email} onChange={e => setNewBooking({...newBooking, client_email: e.target.value})} />
               </div>
             </div>
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div>
                 <label className="text-sm font-medium">Type</label>
                 <select className="w-full border rounded-md px-3 py-2 text-sm" value={newBooking.type}
@@ -127,7 +153,7 @@ export default function PrivateBookingsPage() {
                 <Input type="time" value={newBooking.end_time} onChange={e => setNewBooking({...newBooking, end_time: e.target.value})} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium">Price ($NZD)</label>
                 <Input type="number" step="0.01" value={newBooking.price} onChange={e => setNewBooking({...newBooking, price: e.target.value})} />
@@ -143,33 +169,40 @@ export default function PrivateBookingsPage() {
       )}
 
       <div className="space-y-4">
+        {bookings.length === 0 && (
+          <Card>
+            <CardContent className="py-12 text-center text-muted-foreground">
+              No private bookings yet. Create your first booking above.
+            </CardContent>
+          </Card>
+        )}
         {bookings.map(booking => (
           <Card key={booking.id}>
             <CardContent className="py-4">
-              <div className="flex items-start justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                 <div className="space-y-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{booking.client_name}</span>
                     <Badge className={statusColors[booking.status]}>{booking.status}</Badge>
                     {booking.deposit_paid && <Badge variant="outline">Deposit paid</Badge>}
                   </div>
                   <div className="text-sm text-muted-foreground">
-                    {booking.type} · {booking.date} · {booking.start_time}–{booking.end_time}
+                    {booking.type} · {booking.date} · {booking.start_time}{booking.end_time ? `–${booking.end_time}` : ''}
                   </div>
-                  <div className="text-sm text-muted-foreground">{booking.client_email}</div>
+                  {booking.client_email && <div className="text-sm text-muted-foreground">{booking.client_email}</div>}
                   {booking.notes && <div className="text-sm italic mt-1">&ldquo;{booking.notes}&rdquo;</div>}
                 </div>
-                <div className="text-right space-y-2">
+                <div className="flex sm:flex-col items-center sm:items-end gap-2 sm:text-right">
                   <div className="font-bold">${(booking.price_cents / 100).toFixed(2)}</div>
                   <div className="flex gap-2">
                     {booking.status === 'pending' && (
                       <>
-                        <Button size="sm" onClick={() => updateStatus(booking.id, 'confirmed')}>Confirm</Button>
-                        <Button size="sm" variant="outline" onClick={() => updateStatus(booking.id, 'cancelled')}>Decline</Button>
+                        <Button size="sm" className="min-h-[44px] touch-manipulation" onClick={() => updateStatus(booking.id, 'confirmed')}>Confirm</Button>
+                        <Button size="sm" variant="outline" className="min-h-[44px] touch-manipulation" onClick={() => updateStatus(booking.id, 'cancelled')}>Decline</Button>
                       </>
                     )}
                     {booking.status === 'confirmed' && (
-                      <Button size="sm" onClick={() => updateStatus(booking.id, 'completed')}>Mark Complete</Button>
+                      <Button size="sm" className="min-h-[44px] touch-manipulation" onClick={() => updateStatus(booking.id, 'completed')}>Mark Complete</Button>
                     )}
                   </div>
                 </div>

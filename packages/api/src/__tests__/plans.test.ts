@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { Hono } from 'hono'
 import plans from '../routes/plans'
+import { errorHandler } from '../middleware/error-handler'
 
 // Mock the supabase module so no real DB calls are made
 vi.mock('../lib/supabase', () => ({
@@ -49,6 +50,7 @@ const PLAN_ID = 'plan-xyz'
 
 function makeApp() {
   const app = new Hono()
+  app.onError(errorHandler)
   app.route('/api/studios', plans)
   return app
 }

@@ -33,6 +33,27 @@ interface CompGrant {
   granted_by_user: { name: string } | null
 }
 
+interface AttendanceEntry {
+  id: string
+  checked_in: boolean
+  walk_in: boolean
+  checked_in_at: string | null
+  class_instance: {
+    id: string
+    date: string
+    start_time: string
+    template: { name: string } | null
+  }
+}
+
+interface SubscriptionInfo {
+  id: string
+  status: string
+  plan: { name: string; price_cents: number; interval: string } | null
+  current_period_end: string | null
+  created_at: string
+}
+
 export default function MemberDetailPage() {
   const params  = useParams()
   const router  = useRouter()
@@ -42,6 +63,8 @@ export default function MemberDetailPage() {
 
   const [member, setMember]       = useState<MemberDetail | null>(null)
   const [compGrants, setCompGrants] = useState<CompGrant[]>([])
+  const [attendance, setAttendance] = useState<AttendanceEntry[]>([])
+  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null)
   const [loading, setLoading]     = useState(true)
   const [isStaff, setIsStaff]     = useState(false)
 
@@ -101,6 +124,39 @@ export default function MemberDetailPage() {
         .order('created_at', { ascending: false })
 
       setCompGrants(grants ?? [])
+
+      // Fetch attendance history
+      const { data: attendanceData } = await supabase
+        .from('attendance')
+        .select(`
+          id, checked_in, walk_in, checked_in_at,
+          class_instance:class_instances!attendance_class_instance_id_fkey(
+            id, date, start_time,
+            template:class_templates!class_instances_template_id_fkey(name)
+          )
+        `)
+        .eq('user_id', memberId)
+        .eq('checked_in', true)
+        .order('checked_in_at', { ascending: false })
+        .limit(50)
+
+      setAttendance((attendanceData ?? []) as unknown as AttendanceEntry[])
+
+      // Fetch subscription
+      const { data: sub } = await supabase
+        .from('subscriptions')
+        .select(`
+          id, status, current_period_end, created_at,
+          plan:plans!subscriptions_plan_id_fkey(name, price_cents, interval)
+        `)
+        .eq('user_id', memberId)
+        .eq('studio_id', membership.studio_id)
+        .in('status', ['active', 'past_due', 'paused'])
+        .limit(1)
+        .maybeSingle()
+
+      setSubscription(sub as unknown as SubscriptionInfo | null)
+
       setLoading(false)
     }
     load()
@@ -233,6 +289,78 @@ export default function MemberDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Subscription Status */}
+      {subscription && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Subscription</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="font-medium">{subscription.plan?.name ?? 'Plan'}</div>
+                <div className="text-sm text-muted-foreground">
+                  ${((subscription.plan?.price_cents ?? 0) / 100).toFixed(2)} / {subscription.plan?.interval ?? 'month'}
+                </div>
+              </div>
+              <div className="text-right">
+                <Badge variant={subscription.status === 'active' ? 'default' : 'secondary'}>
+                  {subscription.status}
+                </Badge>
+                {subscription.current_period_end && (
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Renews {new Date(subscription.current_period_end).toLocaleDateString()}
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Attendance History */}
+      {attendance.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Attendance History ({attendance.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left">
+                    <th className="pb-2 font-medium">Date</th>
+                    <th className="pb-2 font-medium">Class</th>
+                    <th className="pb-2 font-medium">Type</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {attendance.map((a) => (
+                    <tr key={a.id} className="border-b last:border-0">
+                      <td className="py-2 text-muted-foreground">
+                        {a.class_instance?.date
+                          ? new Date(a.class_instance.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                          : 'Unknown'}
+                      </td>
+                      <td className="py-2">
+                        {a.class_instance?.template?.name ?? 'Class'}
+                      </td>
+                      <td className="py-2">
+                        {a.walk_in ? (
+                          <Badge variant="outline" className="text-xs">Walk-in</Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-xs">Booked</Badge>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Comp Classes */}
       {isStaff && (

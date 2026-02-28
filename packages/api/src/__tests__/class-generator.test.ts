@@ -133,6 +133,27 @@ describe('calculateDates — biweekly', () => {
 
     expect(dates).toEqual(['2026-03-09', '2026-03-23'])
   })
+
+  it('biweekly skips closure dates correctly', () => {
+    const from = new Date('2026-03-02T00:00:00Z')
+    const to = new Date('2026-04-13T00:00:00Z')
+    const closures = new Set(['2026-03-16']) // skip second biweekly occurrence
+
+    const dates = calculateDates('tpl-2', MONDAY, 'biweekly', from, to, closures, new Set())
+
+    // Would be 03-02, 03-16, 03-30, 04-13 but 03-16 is a closure
+    expect(dates).toEqual(['2026-03-02', '2026-03-30', '2026-04-13'])
+    expect(dates).not.toContain('2026-03-16')
+  })
+
+  it('biweekly returns empty when window is too narrow', () => {
+    const from = new Date('2026-03-03T00:00:00Z') // Tuesday
+    const to = new Date('2026-03-07T00:00:00Z')   // Saturday (no Monday in range)
+
+    const dates = calculateDates('tpl-2', MONDAY, 'biweekly', from, to, new Set(), new Set())
+
+    expect(dates).toEqual([])
+  })
 })
 
 describe('calculateDates — monthly', () => {
@@ -158,6 +179,28 @@ describe('calculateDates — monthly', () => {
     // March's first Monday (03-02) is before from → skipped
     // April's first Monday (04-06) is within window → included
     expect(dates).toEqual(['2026-04-06'])
+  })
+
+  it('monthly skips closure dates', () => {
+    const from = new Date('2026-03-01T00:00:00Z')
+    const to = new Date('2026-05-31T00:00:00Z')
+    const closures = new Set(['2026-04-06']) // First Monday of April
+
+    const dates = calculateDates('tpl-3', MONDAY, 'monthly', from, to, closures, new Set())
+
+    // First Monday of March = 03-02, April = 04-06 (closed), May = 05-04
+    expect(dates).toEqual(['2026-03-02', '2026-05-04'])
+    expect(dates).not.toContain('2026-04-06')
+  })
+
+  it('monthly generates Wednesday occurrences correctly', () => {
+    const from = new Date('2026-03-01T00:00:00Z')
+    const to = new Date('2026-05-31T00:00:00Z')
+
+    const dates = calculateDates('tpl-3', WEDNESDAY, 'monthly', from, to, new Set(), new Set())
+
+    // First Wednesday of March = 03-04, April = 04-01, May = 05-06
+    expect(dates).toEqual(['2026-03-04', '2026-04-01', '2026-05-06'])
   })
 })
 
@@ -210,9 +253,6 @@ describe('generateClassInstances', () => {
             if (table === 'class_templates') {
               return {
                 eq: vi.fn().mockReturnThis(),
-                then: undefined,
-                [Symbol.toStringTag]: 'Promise',
-                // Make the chain awaitable directly (no .single() or .maybeSingle())
                 ...makeAwaitable({ data: templates, error: null }),
               }
             }

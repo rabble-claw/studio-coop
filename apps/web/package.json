@@ -13,7 +13,8 @@
     "build:static": "NEXT_CONFIG_FILE=next.config.static.ts next build",
     "build:worker": "npx @opennextjs/cloudflare build",
     "preview:cf": "npx @opennextjs/cloudflare build && npx wrangler dev",
-    "deploy": "npx @opennextjs/cloudflare build && npx wrangler deploy"
+    "deploy": "npx @opennextjs/cloudflare build && npx wrangler deploy",
+    "ship": "npx @opennextjs/cloudflare build && npx wrangler deploy"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.2",

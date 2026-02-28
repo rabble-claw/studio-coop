@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
+import { planApi } from '@/lib/api-client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -28,45 +30,100 @@ const PLAN_TYPES = [
 ]
 
 export default function PlansPage() {
+  const [studioId, setStudioId] = useState<string | null>(null)
   const [plans, setPlans] = useState<Plan[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreate, setShowCreate] = useState(false)
+  const [editingPlan, setEditingPlan] = useState<string | null>(null)
   const [newPlan, setNewPlan] = useState({
     name: '', type: 'unlimited', price: '', interval: 'month',
     class_limit: '', validity_days: '',
   })
 
   useEffect(() => {
-    // Demo data for now — will connect to API
-    setPlans([
-      { id: '1', name: 'Unlimited Monthly', type: 'unlimited', price_cents: 22000, currency: 'NZD', interval: 'month', class_limit: null, validity_days: null, active: true, subscriber_count: 24 },
-      { id: '2', name: '10-Class Pack', type: 'class_pack', price_cents: 18000, currency: 'NZD', interval: 'once', class_limit: 10, validity_days: 90, active: true, subscriber_count: 18 },
-      { id: '3', name: 'Drop-in', type: 'drop_in', price_cents: 2800, currency: 'NZD', interval: 'once', class_limit: 1, validity_days: null, active: true, subscriber_count: 0 },
-      { id: '4', name: 'Intro: 3 Classes', type: 'intro', price_cents: 4500, currency: 'NZD', interval: 'once', class_limit: 3, validity_days: 14, active: true, subscriber_count: 6 },
-    ])
-    setLoading(false)
+    async function load() {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setLoading(false); return }
+
+      const { data: membership } = await supabase
+        .from('memberships')
+        .select('studio_id')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .limit(1)
+        .single()
+
+      if (!membership) { setLoading(false); return }
+      setStudioId(membership.studio_id)
+
+      try {
+        const result = await planApi.list(membership.studio_id) as { plans: Plan[] }
+        setPlans(result.plans ?? [])
+      } catch {
+        // API not available
+      }
+      setLoading(false)
+    }
+    load()
   }, [])
 
   function formatPrice(cents: number, currency: string) {
     return new Intl.NumberFormat('en-NZ', { style: 'currency', currency }).format(cents / 100)
   }
 
-  function handleCreate() {
-    const plan: Plan = {
-      id: Date.now().toString(),
-      name: newPlan.name,
-      type: newPlan.type as Plan['type'],
-      price_cents: Math.round(parseFloat(newPlan.price || '0') * 100),
-      currency: 'NZD',
-      interval: newPlan.interval as Plan['interval'],
-      class_limit: newPlan.class_limit ? parseInt(newPlan.class_limit) : null,
-      validity_days: newPlan.validity_days ? parseInt(newPlan.validity_days) : null,
-      active: true,
-      subscriber_count: 0,
+  async function handleCreate() {
+    if (!studioId) return
+    try {
+      const result = await planApi.create(studioId, {
+        name: newPlan.name,
+        type: newPlan.type,
+        price_cents: Math.round(parseFloat(newPlan.price || '0') * 100),
+        currency: 'NZD',
+        interval: newPlan.interval,
+        class_limit: newPlan.class_limit ? parseInt(newPlan.class_limit) : null,
+        validity_days: newPlan.validity_days ? parseInt(newPlan.validity_days) : null,
+      }) as { plan: Plan }
+      setPlans([...plans, result.plan])
+      setShowCreate(false)
+      setNewPlan({ name: '', type: 'unlimited', price: '', interval: 'month', class_limit: '', validity_days: '' })
+    } catch (e) {
+      alert(`Failed to create plan: ${e instanceof Error ? e.message : 'Unknown error'}`)
     }
-    setPlans([...plans, plan])
-    setShowCreate(false)
-    setNewPlan({ name: '', type: 'unlimited', price: '', interval: 'month', class_limit: '', validity_days: '' })
+  }
+
+  async function handleEdit(planId: string) {
+    if (!studioId) return
+    const plan = plans.find(p => p.id === planId)
+    if (!plan) return
+
+    if (editingPlan === planId) {
+      // Save
+      try {
+        const result = await planApi.update(studioId, planId, plan) as { plan: Plan }
+        setPlans(plans.map(p => p.id === planId ? result.plan : p))
+        setEditingPlan(null)
+      } catch (e) {
+        alert(`Failed to update: ${e instanceof Error ? e.message : 'Unknown error'}`)
+      }
+    } else {
+      setEditingPlan(planId)
+    }
+  }
+
+  async function handleDeactivate(planId: string) {
+    if (!studioId) return
+    if (!confirm('Are you sure you want to deactivate this plan?')) return
+    try {
+      await planApi.delete(studioId, planId)
+      setPlans(plans.map(p => p.id === planId ? { ...p, active: false } : p))
+    } catch (e) {
+      alert(`Failed to deactivate: ${e instanceof Error ? e.message : 'Unknown error'}`)
+    }
+  }
+
+  function updatePlanField(planId: string, field: keyof Plan, value: unknown) {
+    setPlans(plans.map(p => p.id === planId ? { ...p, [field]: value } : p))
   }
 
   if (loading) return <div className="py-20 text-center text-muted-foreground">Loading plans...</div>
@@ -87,20 +144,20 @@ export default function PlansPage() {
         <Card>
           <CardHeader><CardTitle>Create New Plan</CardTitle></CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="text-sm font-medium">Plan Name</label>
                 <Input value={newPlan.name} onChange={e => setNewPlan({...newPlan, name: e.target.value})} placeholder="e.g. Unlimited Monthly" />
               </div>
               <div>
                 <label className="text-sm font-medium">Type</label>
-                <select className="w-full border rounded-md px-3 py-2 text-sm" value={newPlan.type}
+                <select className="w-full border rounded-md px-3 py-2 text-sm min-h-[44px]" value={newPlan.type}
                   onChange={e => setNewPlan({...newPlan, type: e.target.value})}>
                   {PLAN_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                 </select>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="text-sm font-medium">Price (NZD)</label>
                 <Input type="number" step="0.01" value={newPlan.price} onChange={e => setNewPlan({...newPlan, price: e.target.value})} placeholder="0.00" />
@@ -116,7 +173,7 @@ export default function PlansPage() {
               </div>
               <div>
                 <label className="text-sm font-medium">Class Limit</label>
-                <Input type="number" value={newPlan.class_limit} onChange={e => setNewPlan({...newPlan, class_limit: e.target.value})} placeholder="∞" />
+                <Input type="number" value={newPlan.class_limit} onChange={e => setNewPlan({...newPlan, class_limit: e.target.value})} placeholder="Unlimited" />
               </div>
             </div>
             <Button onClick={handleCreate} disabled={!newPlan.name || !newPlan.price}>Create Plan</Button>
@@ -127,10 +184,14 @@ export default function PlansPage() {
       <div className="grid gap-4">
         {plans.map(plan => (
           <Card key={plan.id}>
-            <CardContent className="flex items-center justify-between py-4">
-              <div className="flex items-center gap-4">
-                <div>
-                  <div className="font-medium">{plan.name}</div>
+            <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-4">
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="min-w-0">
+                  {editingPlan === plan.id ? (
+                    <Input value={plan.name} onChange={e => updatePlanField(plan.id, 'name', e.target.value)} className="font-medium" />
+                  ) : (
+                    <div className="font-medium truncate">{plan.name}</div>
+                  )}
                   <div className="text-sm text-muted-foreground">
                     {formatPrice(plan.price_cents, plan.currency)}
                     {plan.interval !== 'once' && `/${plan.interval}`}
@@ -139,18 +200,32 @@ export default function PlansPage() {
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3 flex-wrap sm:flex-nowrap shrink-0">
                 <Badge variant={plan.active ? 'default' : 'secondary'}>
                   {plan.active ? 'Active' : 'Inactive'}
                 </Badge>
-                <span className="text-sm text-muted-foreground">
-                  {plan.subscriber_count} {plan.subscriber_count === 1 ? 'subscriber' : 'subscribers'}
+                <span className="text-sm text-muted-foreground whitespace-nowrap">
+                  {plan.subscriber_count ?? 0} {(plan.subscriber_count ?? 0) === 1 ? 'subscriber' : 'subscribers'}
                 </span>
-                <Button variant="outline" size="sm">Edit</Button>
+                <Button variant="outline" size="sm" className="min-h-[44px] touch-manipulation" onClick={() => handleEdit(plan.id)}>
+                  {editingPlan === plan.id ? 'Save' : 'Edit'}
+                </Button>
+                {plan.active && (
+                  <Button variant="outline" size="sm" className="min-h-[44px] touch-manipulation" onClick={() => handleDeactivate(plan.id)}>
+                    Deactivate
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
         ))}
+        {plans.length === 0 && (
+          <Card>
+            <CardContent className="py-12 text-center text-muted-foreground">
+              No plans yet. Create your first plan to start accepting members.
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   )

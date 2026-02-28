@@ -267,7 +267,7 @@ describe('POST /api/classes/:classId/checkin', () => {
 
     // Verify class_instances update was called
     const fromCalls = (mock.from as ReturnType<typeof vi.fn>).mock.calls
-    const classInstancesCalls = fromCalls.filter(([t]: [string]) => t === 'class_instances')
+    const classInstancesCalls = fromCalls.filter((call: unknown[]) => call[0] === 'class_instances')
     expect(classInstancesCalls.length).toBeGreaterThan(0)
   })
 

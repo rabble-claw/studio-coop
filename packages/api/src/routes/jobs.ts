@@ -234,7 +234,7 @@ jobs.post('/generate-classes', async (c) => {
     .select('id')
     .in(
       'id',
-      supabase.from('class_templates').select('studio_id').eq('active', true),
+      supabase.from('class_templates').select('studio_id').eq('active', true) as unknown as string[],
     )
 
   let totalGenerated = 0

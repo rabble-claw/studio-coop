@@ -1,7 +1,10 @@
 import { Tabs } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
+import { useStudioSwitcher, StudioSwitcherHeader } from '@/components/studio-switcher'
 
 export default function TabsLayout() {
+  const switcher = useStudioSwitcher()
+
   return (
     <Tabs
       screenOptions={{
@@ -17,6 +20,9 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: 'Home',
+          headerTitle: () => (
+            <StudioSwitcherHeader {...switcher} />
+          ),
           tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
         }}
       />
@@ -32,6 +38,9 @@ export default function TabsLayout() {
         name="schedule"
         options={{
           title: 'Schedule',
+          headerTitle: () => (
+            <StudioSwitcherHeader {...switcher} />
+          ),
           tabBarIcon: ({ color, size }) => <Ionicons name="calendar-outline" size={size} color={color} />,
         }}
       />

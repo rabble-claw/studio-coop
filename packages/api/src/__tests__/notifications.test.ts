@@ -20,11 +20,23 @@ function makeSupabaseMock(notifId = 'notif-1', insertError: Error | null = null)
         : { data: { id: notifId }, error: null },
     ),
   }
-  const fromResult = {
+  const notificationsResult = {
     insert: vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue(selectChain) }),
     update: vi.fn().mockReturnValue(updateChain),
   }
-  return { from: vi.fn().mockReturnValue(fromResult) }
+  // notification_preferences query chain (getUserPrefs)
+  const prefsResult = {
+    select: vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+      }),
+    }),
+  }
+  return {
+    from: vi.fn().mockImplementation((table: string) =>
+      table === 'notification_preferences' ? prefsResult : notificationsResult,
+    ),
+  }
 }
 
 const basePayload = {
@@ -45,13 +57,14 @@ describe('sendNotification', () => {
     await sendNotification({ ...basePayload, channels: ['in_app'] })
 
     expect(mock.from).toHaveBeenCalledWith('notifications')
-    const fromResult = mock.from.mock.results[0].value
+    // Results: [0]=notification_preferences, [1]=notifications insert, [2]=notifications update
+    const fromResult = mock.from.mock.results[1].value
     expect(fromResult.insert).toHaveBeenCalledWith(
       expect.objectContaining({ user_id: 'user-1', type: 'booking_confirmed' }),
     )
-    // sent_at update
-    expect(mock.from).toHaveBeenCalledTimes(2)
-    const updateResult = mock.from.mock.results[1].value
+    // sent_at update (prefs + insert + update = 3 calls)
+    expect(mock.from).toHaveBeenCalledTimes(3)
+    const updateResult = mock.from.mock.results[2].value
     expect(updateResult.update).toHaveBeenCalledWith(
       expect.objectContaining({ sent_at: expect.any(String) }),
     )
@@ -111,8 +124,8 @@ describe('sendNotification', () => {
       sendNotification({ ...basePayload, channels: ['push', 'in_app'] }),
     ).resolves.toBeUndefined()
 
-    // sent_at still updated
-    expect(mock.from).toHaveBeenCalledTimes(2)
+    // sent_at still updated (prefs + insert + update = 3 calls)
+    expect(mock.from).toHaveBeenCalledTimes(3)
   })
 
   it('passes data payload through to push', async () => {

@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import {
   View, Text, ScrollView, TouchableOpacity, Alert, RefreshControl,
   TextInput, Image,
 } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth-context'
+import { scheduleApi, bookingApi, feedApi } from '@/lib/api'
+import { supabase } from '@/lib/supabase'
 
 interface ClassDetail {
   id: string
@@ -15,22 +16,18 @@ interface ClassDetail {
   end_time: string
   status: string
   max_capacity: number
+  booking_count: number
   feed_enabled: boolean
   studio_id: string
-  template: { name: string; description: string | null } | null
-  teacher: { id: string; name: string } | null
+  notes: string | null
+  template: { id: string; name: string; description: string | null } | null
+  teacher: { id: string; name: string; avatar_url: string | null } | null
 }
 
 interface Booking {
   id: string
   status: string
   user: { id: string; name: string; avatar_url: string | null }
-}
-
-interface AttendanceRecord {
-  id: string
-  user_id: string
-  checked_in: boolean
 }
 
 interface Reaction {
@@ -49,7 +46,7 @@ interface FeedPost {
   reactions: Reaction[]
 }
 
-const REACTION_EMOJIS = ['❤️', '🔥', '👏']
+const REACTION_EMOJIS = ['\u2764\uFE0F', '\uD83D\uDD25', '\uD83D\uDC4F']
 
 function formatTime(time: string) {
   const [h, m] = time.split(':').map(Number)
@@ -77,22 +74,22 @@ function groupReactions(
 
 export default function ClassDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>()
-  const { user } = useAuth()
+  const { user, studioId } = useAuth()
   const router = useRouter()
   const [classData, setClassData] = useState<ClassDetail | null>(null)
   const [bookings, setBookings] = useState<Booking[]>([])
   const [feed, setFeed] = useState<FeedPost[]>([])
-  const [attendance, setAttendance] = useState<AttendanceRecord[]>([])
   const [myBooking, setMyBooking] = useState<Booking | null>(null)
   const [isStaff, setIsStaff] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState<'info' | 'roster' | 'feed' | 'checkin'>('info')
+  const [bookingLoading, setBookingLoading] = useState(false)
+  const [tab, setTab] = useState<'info' | 'roster' | 'feed'>('info')
 
   // Feed composer
   const [postText, setPostText] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  async function loadFeed(userId: string) {
+  const loadFeed = useCallback(async (userId: string) => {
     const { data: posts } = await supabase
       .from('feed_posts')
       .select('id, content, media_urls, post_type, created_at, user:users!feed_posts_user_id_fkey(id, name, avatar_url)')
@@ -117,119 +114,91 @@ export default function ClassDetailScreen() {
         media_urls: p.media_urls,
         post_type: p.post_type,
         created_at: p.created_at,
-        user: p.user as FeedPost['user'],
+        user: p.user as unknown as FeedPost['user'],
         reactions: reactionsByPost[p.id] ?? [],
       })),
     )
-  }
+  }, [id])
 
-  async function loadData() {
-    if (!user) return
+  const loadData = useCallback(async () => {
+    if (!user || !studioId) return
     setLoading(true)
 
-    const { data: cls } = await supabase
-      .from('class_instances')
-      .select('*, template:class_templates!class_instances_template_id_fkey(name, description), teacher:users!class_instances_teacher_id_fkey(id, name)')
-      .eq('id', id)
-      .single()
+    try {
+      // Load class detail
+      const cls = await scheduleApi.instanceDetail(studioId, id) as ClassDetail | null
+      if (!cls) { setLoading(false); return }
+      setClassData(cls)
 
-    if (!cls) return setLoading(false)
-    setClassData(cls)
+      // Load bookings from supabase (RLS protected)
+      const [{ data: bks }, { data: membership }] = await Promise.all([
+        supabase
+          .from('bookings')
+          .select('*, user:users!bookings_user_id_fkey(id, name, avatar_url)')
+          .eq('class_instance_id', id)
+          .in('status', ['booked', 'confirmed']),
+        supabase
+          .from('memberships')
+          .select('role')
+          .eq('studio_id', cls.studio_id)
+          .eq('user_id', user.id)
+          .single(),
+      ])
 
-    const [{ data: bks }, { data: att }, { data: membership }] = await Promise.all([
-      supabase
-        .from('bookings')
-        .select('*, user:users!bookings_user_id_fkey(id, name, avatar_url)')
-        .eq('class_instance_id', id)
-        .in('status', ['booked', 'confirmed']),
-      supabase
-        .from('attendance')
-        .select('id, user_id, checked_in')
-        .eq('class_instance_id', id),
-      supabase
-        .from('memberships')
-        .select('role')
-        .eq('studio_id', cls.studio_id)
-        .eq('user_id', user.id)
-        .single(),
-    ])
+      setBookings(bks ?? [])
+      setMyBooking((bks ?? []).find((b: Booking) => b.user.id === user.id) ?? null)
+      setIsStaff(['teacher', 'admin', 'owner'].includes(membership?.role ?? ''))
+      await loadFeed(user.id)
+    } catch (e) {
+      console.error('Failed to load class detail:', e)
+    } finally {
+      setLoading(false)
+    }
+  }, [id, user, studioId, loadFeed])
 
-    setBookings(bks ?? [])
-    setAttendance(att ?? [])
-    setMyBooking((bks ?? []).find((b: Booking) => b.user.id === user.id) ?? null)
-    setIsStaff(['teacher', 'admin', 'owner'].includes(membership?.role ?? ''))
-    await loadFeed(user.id)
-    setLoading(false)
-  }
-
-  useEffect(() => {
-    loadData()
-  }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { loadData() }, [loadData])
 
   async function handleBook() {
-    if (!user) return
-    const { error } = await supabase.from('bookings').insert({
-      class_instance_id: id,
-      user_id: user.id,
-      status: 'booked',
-    })
-    if (error) {
-      Alert.alert('Error', error.message)
-    } else {
+    if (!user || !studioId) return
+    setBookingLoading(true)
+    try {
+      await bookingApi.book(studioId, id)
+      Alert.alert('Booked!', 'You have been booked for this class.')
       loadData()
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to book class.')
+    } finally {
+      setBookingLoading(false)
     }
   }
 
   async function handleCancel() {
     if (!myBooking) return
-    await supabase.from('bookings').update({ status: 'cancelled', cancelled_at: new Date().toISOString() }).eq('id', myBooking.id)
-    loadData()
-  }
-
-  async function toggleCheckIn(userId: string) {
-    if (!user) return
-    const { data: existing } = await supabase
-      .from('attendance')
-      .select('*')
-      .eq('class_instance_id', id)
-      .eq('user_id', userId)
-      .single()
-
-    if (existing) {
-      await supabase.from('attendance').update({
-        checked_in: !existing.checked_in,
-        checked_in_at: new Date().toISOString(),
-        checked_in_by: user.id,
-      }).eq('id', existing.id)
-    } else {
-      await supabase.from('attendance').insert({
-        class_instance_id: id,
-        user_id: userId,
-        checked_in: true,
-        checked_in_at: new Date().toISOString(),
-        checked_in_by: user.id,
-      })
+    setBookingLoading(true)
+    try {
+      await bookingApi.cancel(myBooking.id)
+      Alert.alert('Cancelled', 'Your booking has been cancelled.')
+      loadData()
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to cancel booking.')
+    } finally {
+      setBookingLoading(false)
     }
-    loadData()
   }
 
   async function submitPost() {
-    if (!postText.trim() || !user || !classData) return
+    if (!postText.trim() || !user || !classData || !studioId) return
     setSubmitting(true)
 
-    const { error } = await supabase.from('feed_posts').insert({
-      class_instance_id: id,
-      user_id: user.id,
-      content: postText.trim(),
-      media_urls: [],
-      post_type: 'post',
-    })
-
-    if (error) {
-      Alert.alert('Error', 'Failed to post. Try again.')
-    } else {
+    try {
+      await feedApi.createPost(studioId, {
+        content: postText.trim(),
+        class_instance_id: id,
+      })
       setPostText('')
       await loadFeed(user.id)
+    } catch (e) {
+      Alert.alert('Error', 'Failed to post. Try again.')
     }
     setSubmitting(false)
   }
@@ -274,7 +243,6 @@ export default function ClassDetailScreen() {
     'info',
     'roster',
     ...(classData.feed_enabled ? ['feed'] : []),
-    ...(isStaff ? ['checkin'] : []),
   ] as const
 
   return (
@@ -309,12 +277,24 @@ export default function ClassDetailScreen() {
           {classData.status === 'scheduled' && (
             <View className="mt-4">
               {myBooking ? (
-                <TouchableOpacity className="bg-red-50 border border-red-200 rounded-xl py-3 items-center" onPress={handleCancel}>
-                  <Text className="text-red-600 font-semibold">Cancel Booking</Text>
+                <TouchableOpacity
+                  className="bg-red-50 border border-red-200 rounded-xl py-3 items-center"
+                  onPress={handleCancel}
+                  disabled={bookingLoading}
+                >
+                  <Text className="text-red-600 font-semibold">
+                    {bookingLoading ? 'Cancelling...' : 'Cancel Booking'}
+                  </Text>
                 </TouchableOpacity>
               ) : bookings.length < classData.max_capacity ? (
-                <TouchableOpacity className="bg-primary rounded-xl py-3 items-center" onPress={handleBook}>
-                  <Text className="text-white font-semibold">Book This Class</Text>
+                <TouchableOpacity
+                  className="bg-primary rounded-xl py-3 items-center"
+                  onPress={handleBook}
+                  disabled={bookingLoading}
+                >
+                  <Text className="text-white font-semibold">
+                    {bookingLoading ? 'Booking...' : 'Book This Class'}
+                  </Text>
                 </TouchableOpacity>
               ) : (
                 <View className="bg-secondary rounded-xl py-3 items-center">
@@ -322,6 +302,16 @@ export default function ClassDetailScreen() {
                 </View>
               )}
             </View>
+          )}
+
+          {/* Check-in button for staff */}
+          {isStaff && (
+            <TouchableOpacity
+              className="mt-3 bg-secondary rounded-xl py-3 items-center"
+              onPress={() => router.push({ pathname: '/(tabs)/class/[id]/checkin', params: { id } })}
+            >
+              <Text className="text-foreground font-semibold">Open Check-in</Text>
+            </TouchableOpacity>
           )}
         </View>
 
@@ -334,7 +324,7 @@ export default function ClassDetailScreen() {
               onPress={() => setTab(t as typeof tab)}
             >
               <Text className={`text-sm font-medium ${tab === t ? 'text-foreground' : 'text-muted'}`}>
-                {t === 'checkin' ? 'Check-in' : t.charAt(0).toUpperCase() + t.slice(1)}
+                {t.charAt(0).toUpperCase() + t.slice(1)}
               </Text>
             </TouchableOpacity>
           ))}
@@ -469,36 +459,6 @@ export default function ClassDetailScreen() {
                   </View>
                 ))
               )}
-            </View>
-          )}
-
-          {tab === 'checkin' && isStaff && (
-            <View>
-              <Text className="text-lg font-semibold text-foreground mb-1">Check-in</Text>
-              <Text className="text-muted text-sm mb-4">Tap to toggle attendance</Text>
-              <View className="flex-row flex-wrap gap-3">
-                {bookings.map((b) => {
-                  const isCheckedIn = attendance.find((a) => a.user_id === b.user.id)?.checked_in
-                  return (
-                    <TouchableOpacity
-                      key={b.id}
-                      className="items-center w-20"
-                      onPress={() => toggleCheckIn(b.user.id)}
-                      activeOpacity={0.7}
-                    >
-                      <View className={`w-16 h-16 rounded-2xl items-center justify-center border-2 ${isCheckedIn ? 'bg-green-50 border-green-500' : 'bg-secondary border-border'}`}>
-                        <Text className="text-xl font-bold">
-                          {b.user.name.split(' ').map((n) => n[0]).join('').toUpperCase()}
-                        </Text>
-                      </View>
-                      <Text className="text-xs font-medium text-foreground mt-1 text-center" numberOfLines={1}>
-                        {b.user.name.split(' ')[0]}
-                      </Text>
-                      {isCheckedIn && <Text className="text-[10px] text-green-600 font-medium">Present</Text>}
-                    </TouchableOpacity>
-                  )
-                })}
-              </View>
             </View>
           )}
         </View>

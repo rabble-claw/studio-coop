@@ -1,7 +1,9 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
 
 const NAV_ITEMS = [
   { href: '/', label: 'Overview', icon: '\u{1F4CA}' },
@@ -12,6 +14,21 @@ const NAV_ITEMS = [
 
 export default function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const router = useRouter()
+  const [userEmail, setUserEmail] = useState<string | null>(null)
+
+  useEffect(() => {
+    async function getUser() {
+      const { data: { user } } = await supabase.auth.getUser()
+      setUserEmail(user?.email ?? null)
+    }
+    getUser()
+  }, [])
+
+  async function handleSignOut() {
+    await supabase.auth.signOut()
+    router.push('/login')
+  }
 
   function isActive(href: string) {
     if (href === '/') return pathname === '/'
@@ -21,7 +38,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   return (
     <div className="flex min-h-screen">
       {/* Sidebar */}
-      <aside className="w-64 shrink-0 border-r border-[var(--border)] bg-[var(--card)]">
+      <aside className="w-64 shrink-0 border-r border-[var(--border)] bg-[var(--card)] flex flex-col">
         <div className="flex h-16 items-center gap-2 border-b border-[var(--border)] px-6">
           <span className="text-xl font-extrabold tracking-tight">Studio Co-op</span>
         </div>
@@ -44,7 +61,13 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         <div className="mt-auto border-t border-[var(--border)] p-4">
           <div className="rounded-lg bg-[var(--muted)] p-3">
             <p className="text-xs font-medium text-[var(--muted-foreground)]">Platform Admin</p>
-            <p className="text-sm font-semibold">admin@studio.coop</p>
+            <p className="text-sm font-semibold truncate">{userEmail ?? '...'}</p>
+            <button
+              onClick={handleSignOut}
+              className="mt-2 w-full rounded-md bg-[var(--card)] px-3 py-1.5 text-xs font-medium text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors border border-[var(--border)]"
+            >
+              Sign out
+            </button>
           </div>
         </div>
       </aside>

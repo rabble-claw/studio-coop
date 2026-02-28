@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
-import { View, Text, TouchableOpacity, ScrollView, RefreshControl } from 'react-native'
+import { View, Text, TouchableOpacity, ScrollView, RefreshControl, Alert } from 'react-native'
 import { useAuth } from '@/lib/auth-context'
-import { profileApi } from '@/lib/api'
+import { profileApi, subscriptionApi } from '@/lib/api'
 
 interface Membership {
   id: string
@@ -17,6 +17,29 @@ interface AttendanceRecord {
   date: string
   class_name: string
   checked_in: boolean
+}
+
+interface ClassPass {
+  id: string
+  name: string
+  remaining: number
+  total: number
+  expires_at: string | null
+}
+
+interface CompCredit {
+  id: string
+  reason: string
+  remaining: number
+  expires_at: string | null
+}
+
+interface Subscription {
+  id: string
+  plan_name: string
+  status: string
+  current_period_end: string
+  cancel_at_period_end: boolean
 }
 
 interface ProfileData {
@@ -35,6 +58,9 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<ProfileData | null>(null)
   const [memberships, setMemberships] = useState<Membership[]>([])
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([])
+  const [classPasses, setClassPasses] = useState<ClassPass[]>([])
+  const [comps, setComps] = useState<CompCredit[]>([])
+  const [subscription, setSubscription] = useState<Subscription | null>(null)
 
   const loadProfile = useCallback(async () => {
     setLoading(true)
@@ -48,8 +74,16 @@ export default function ProfileScreen() {
       if (membershipsData) setMemberships(membershipsData)
 
       if (studioId) {
-        const attendanceData = await profileApi.attendance(studioId).catch(() => []) as AttendanceRecord[]
-        if (attendanceData) setAttendance(attendanceData)
+        const [attendanceData, passesData, compsData, subData] = await Promise.all([
+          profileApi.attendance(studioId).catch(() => []) as Promise<AttendanceRecord[]>,
+          profileApi.classPasses(studioId).catch(() => []) as Promise<ClassPass[]>,
+          profileApi.comps(studioId).catch(() => []) as Promise<CompCredit[]>,
+          subscriptionApi.mine(studioId).catch(() => null) as Promise<Subscription | null>,
+        ])
+        setAttendance(attendanceData ?? [])
+        setClassPasses(passesData ?? [])
+        setComps(compsData ?? [])
+        setSubscription(subData)
       }
     } catch (e) {
       console.error('Failed to load profile:', e)
@@ -59,6 +93,29 @@ export default function ProfileScreen() {
   }, [studioId])
 
   useEffect(() => { loadProfile() }, [loadProfile])
+
+  async function handleCancelSubscription() {
+    if (!subscription) return
+    Alert.alert(
+      'Cancel Subscription',
+      'Your subscription will remain active until the end of the current billing period.',
+      [
+        { text: 'Keep Subscription', style: 'cancel' },
+        {
+          text: 'Cancel',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await subscriptionApi.cancel(subscription.id)
+              loadProfile()
+            } catch (e: any) {
+              Alert.alert('Error', e.message || 'Failed to cancel subscription.')
+            }
+          },
+        },
+      ],
+    )
+  }
 
   const displayName = profile?.name || user?.email || 'Member'
   const stats = {
@@ -92,7 +149,7 @@ export default function ProfileScreen() {
         {[
           { label: 'Total Classes', value: stats.totalClasses.toString() },
           { label: 'This Month', value: stats.thisMonth.toString() },
-          { label: 'Streak', value: `${stats.streak} 🔥` },
+          { label: 'Streak', value: stats.streak.toString() },
         ].map((s, i) => (
           <View key={s.label} className={`flex-1 items-center ${i < 2 ? 'border-r border-border' : ''}`}>
             <Text className="text-foreground text-xl font-bold">{s.value}</Text>
@@ -118,11 +175,73 @@ export default function ProfileScreen() {
 
       {tab === 'memberships' && (
         <View className="gap-3">
-          {memberships.length === 0 && !loading && (
-            <View className="items-center py-8">
-              <Text className="text-muted text-sm">No active memberships</Text>
+          {/* Active Subscription */}
+          {subscription && (
+            <View className="bg-card rounded-2xl border border-border p-4">
+              <View className="flex-row justify-between items-start mb-2">
+                <View>
+                  <Text className="text-foreground font-semibold">Subscription</Text>
+                  <Text className="text-muted text-sm">{subscription.plan_name}</Text>
+                </View>
+                <View className={`rounded-full px-2 py-0.5 ${subscription.status === 'active' ? 'bg-green-100' : 'bg-secondary'}`}>
+                  <Text className={`text-xs font-medium ${subscription.status === 'active' ? 'text-green-700' : 'text-muted'}`}>
+                    {subscription.cancel_at_period_end ? 'Cancelling' : subscription.status}
+                  </Text>
+                </View>
+              </View>
+              <Text className="text-muted text-xs">
+                {subscription.cancel_at_period_end
+                  ? `Active until ${new Date(subscription.current_period_end).toLocaleDateString()}`
+                  : `Renews ${new Date(subscription.current_period_end).toLocaleDateString()}`}
+              </Text>
+              {!subscription.cancel_at_period_end && subscription.status === 'active' && (
+                <TouchableOpacity className="mt-3" onPress={handleCancelSubscription}>
+                  <Text className="text-red-500 text-sm font-medium">Cancel Subscription</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
+
+          {/* Class Passes */}
+          {classPasses.map(p => (
+            <View key={p.id} className="bg-card rounded-2xl border border-border p-4">
+              <View className="flex-row justify-between items-start">
+                <View>
+                  <Text className="text-foreground font-semibold">{p.name}</Text>
+                  <Text className="text-muted text-sm">Class Pack</Text>
+                </View>
+              </View>
+              <View className="mt-2 flex-row items-center">
+                <View className="flex-1 h-2 bg-secondary rounded-full overflow-hidden">
+                  <View className="h-full bg-primary rounded-full" style={{ width: `${Math.min((p.remaining / p.total) * 100, 100)}%` }} />
+                </View>
+                <Text className="text-muted text-xs ml-2">{p.remaining}/{p.total} left</Text>
+              </View>
+              {p.expires_at && (
+                <Text className="text-muted text-xs mt-1">Expires {new Date(p.expires_at).toLocaleDateString()}</Text>
+              )}
+            </View>
+          ))}
+
+          {/* Comp Credits */}
+          {comps.map(c => (
+            <View key={c.id} className="bg-card rounded-2xl border border-border p-4">
+              <View className="flex-row justify-between items-start">
+                <View>
+                  <Text className="text-foreground font-semibold">Comp Credit</Text>
+                  <Text className="text-muted text-sm">{c.reason}</Text>
+                </View>
+                <View className="bg-blue-100 rounded-full px-2 py-0.5">
+                  <Text className="text-xs text-blue-700 font-medium">{c.remaining} left</Text>
+                </View>
+              </View>
+              {c.expires_at && (
+                <Text className="text-muted text-xs mt-1">Expires {new Date(c.expires_at).toLocaleDateString()}</Text>
+              )}
+            </View>
+          ))}
+
+          {/* Other Memberships */}
           {memberships.map(m => (
             <View key={m.id} className="bg-card rounded-2xl border border-border p-4">
               <View className="flex-row justify-between items-start">
@@ -149,6 +268,12 @@ export default function ProfileScreen() {
               )}
             </View>
           ))}
+
+          {!subscription && classPasses.length === 0 && comps.length === 0 && memberships.length === 0 && !loading && (
+            <View className="items-center py-8">
+              <Text className="text-muted text-sm">No active memberships</Text>
+            </View>
+          )}
         </View>
       )}
 
@@ -167,7 +292,11 @@ export default function ProfileScreen() {
                   {new Date(a.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                 </Text>
               </View>
-              <Text className="text-sm">{a.checked_in ? '✅' : '❌'}</Text>
+              <View className={`rounded-full px-2 py-0.5 ${a.checked_in ? 'bg-green-100' : 'bg-red-50'}`}>
+                <Text className={`text-xs font-medium ${a.checked_in ? 'text-green-700' : 'text-red-600'}`}>
+                  {a.checked_in ? 'Present' : 'Absent'}
+                </Text>
+              </View>
             </View>
           ))}
         </View>
