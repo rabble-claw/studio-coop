@@ -52,18 +52,9 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Hero image — dashboard screenshot as main, studio photo as accent */}
-          <div className="relative hidden lg:block">
-            {/* Studio photo — background accent, top-right */}
-            <div className="absolute -top-4 -right-4 w-[55%] h-[70%] rounded-2xl overflow-hidden">
-              <img
-                src="/empire/fitness.jpg"
-                alt="Studio members at Empire Aerial Arts"
-                className="w-full h-full object-cover"
-              />
-            </div>
-            {/* Dashboard screenshot — main foreground */}
-            <div className="relative z-10 rounded-xl shadow-2xl border border-border/50 overflow-hidden bg-white">
+          {/* Dashboard screenshot */}
+          <div className="hidden lg:block">
+            <div className="rounded-xl shadow-2xl border border-border/50 overflow-hidden bg-white">
               <img
                 src="/assets/dashboard-screenshot.png"
                 alt="Studio Co-op dashboard showing schedule, community feed, and member stats"
