@@ -1,16 +1,33 @@
 'use client'
 
-import { use } from 'react'
+import { use, useState } from 'react'
 import { getDemoMemberById, getDemoClassesForMember, getDemoMemberBadges, getDemoMemberStats } from '@/lib/demo-data'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import { formatTime, formatDate, getRoleBadgeColor } from '@/lib/utils'
 import Link from 'next/link'
+
+interface CompClass {
+  id: string
+  count: number
+  reason: string
+  grantedLabel: string
+  status: 'used' | 'available'
+}
 
 export default function DemoMemberDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const member = getDemoMemberById(id)
+
+  const [compClasses, setCompClasses] = useState<CompClass[]>([
+    { id: 'comp-1', count: 1, reason: 'Holiday gift', grantedLabel: 'Granted Dec 2025', status: 'used' },
+    { id: 'comp-2', count: 1, reason: 'Welcome bonus', grantedLabel: 'Granted on signup', status: 'available' },
+  ])
+  const [showCompForm, setShowCompForm] = useState(false)
+  const [compCount, setCompCount] = useState(1)
+  const [compReason, setCompReason] = useState('')
 
   if (!member) {
     return (
@@ -34,6 +51,26 @@ export default function DemoMemberDetailPage({ params }: { params: Promise<{ id:
       case 'cancelled': return 'bg-red-100 text-red-800'
       default: return 'bg-gray-100 text-gray-700'
     }
+  }
+
+  function handleGrantComp() {
+    if (compCount < 1 || !compReason.trim()) return
+
+    const now = new Date()
+    const monthYear = now.toLocaleDateString('en-NZ', { month: 'short', year: 'numeric' })
+
+    const newComp: CompClass = {
+      id: `comp-${Date.now()}`,
+      count: compCount,
+      reason: compReason.trim(),
+      grantedLabel: `Granted ${monthYear}`,
+      status: 'available',
+    }
+
+    setCompClasses((prev) => [...prev, newComp])
+    setCompCount(1)
+    setCompReason('')
+    setShowCompForm(false)
   }
 
   return (
@@ -161,26 +198,68 @@ export default function DemoMemberDetailPage({ params }: { params: Promise<{ id:
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            <div className="flex items-center justify-between border-b pb-3">
-              <div>
-                <p className="text-sm font-medium">1 comp class &mdash; Holiday gift</p>
-                <p className="text-xs text-muted-foreground">Granted Dec 2025</p>
+            {compClasses.map((comp) => (
+              <div key={comp.id} className="flex items-center justify-between border-b pb-3 last:border-0 last:pb-0">
+                <div>
+                  <p className="text-sm font-medium">
+                    {comp.count} comp {comp.count === 1 ? 'class' : 'classes'} &mdash; {comp.reason}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{comp.grantedLabel}</p>
+                </div>
+                <Badge className={comp.status === 'used' ? 'bg-gray-100 text-gray-700' : 'bg-green-100 text-green-800'}>
+                  {comp.status}
+                </Badge>
               </div>
-              <Badge className="bg-gray-100 text-gray-700">used</Badge>
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">1 comp class &mdash; Welcome bonus</p>
-                <p className="text-xs text-muted-foreground">Granted on signup</p>
-              </div>
-              <Badge className="bg-green-100 text-green-800">available</Badge>
-            </div>
+            ))}
           </div>
           <div className="mt-4">
-            <Button disabled>Grant Comp Class</Button>
+            <Button onClick={() => setShowCompForm(true)}>Grant Comp Class</Button>
           </div>
         </CardContent>
       </Card>
+
+      {showCompForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setShowCompForm(false)}
+          />
+          <div className="relative bg-background rounded-lg shadow-lg p-6 w-full max-w-md space-y-4">
+            <h2 className="text-lg font-semibold">Grant Comp Class</h2>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm font-medium block mb-1">Number of classes</label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={compCount}
+                  onChange={(e) => setCompCount(Math.max(1, parseInt(e.target.value) || 1))}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium block mb-1">Reason</label>
+                <Input
+                  type="text"
+                  placeholder="e.g. Holiday gift"
+                  value={compReason}
+                  onChange={(e) => setCompReason(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setShowCompForm(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleGrantComp}>
+                Grant
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

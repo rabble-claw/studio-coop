@@ -1,6 +1,6 @@
 'use client'
 
-import { use } from 'react'
+import { use, useState } from 'react'
 import Link from 'next/link'
 import {
   getDemoClassById,
@@ -9,6 +9,7 @@ import {
   getDemoClassFeedPosts,
   getDemoMemberById,
   type DemoClass,
+  type DemoAttendance,
 } from '@/lib/demo-data'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -27,6 +28,16 @@ function getStatusBadgeColor(status: string) {
     default:
       return 'bg-gray-100 text-gray-700'
   }
+}
+
+type ClassFeedPost = {
+  id: string
+  class_id: string
+  author: string
+  content: string
+  created_at: string
+  media_urls: string[]
+  reactions: Array<{ emoji: string; count: number }>
 }
 
 export default function DemoClassDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -48,10 +59,80 @@ export default function DemoClassDetailPage({ params }: { params: Promise<{ id: 
     )
   }
 
-  const bookings = getDemoBookingsForClass(id)
-  const attendance = getDemoAttendanceForClass(id)
-  const feedPosts = getDemoClassFeedPosts(id)
+  return <ClassDetailContent cls={cls} classId={id} />
+}
+
+function ClassDetailContent({ cls, classId }: { cls: DemoClass; classId: string }) {
+  const bookings = getDemoBookingsForClass(classId)
+  const initialAttendance = getDemoAttendanceForClass(classId)
+  const initialFeedPosts = getDemoClassFeedPosts(classId)
   const fillPercent = (cls.booked_count / cls.max_capacity) * 100
+
+  // Attendance state: map of member_id -> checked_in
+  const [attendanceState, setAttendanceState] = useState<Record<string, boolean>>(() => {
+    const map: Record<string, boolean> = {}
+    for (const a of initialAttendance) {
+      map[a.member_id] = a.checked_in
+    }
+    return map
+  })
+
+  // Feed state
+  const [feedPosts, setFeedPosts] = useState<ClassFeedPost[]>(initialFeedPosts)
+  const [newPostContent, setNewPostContent] = useState('')
+
+  // Reactions state: track which reactions the user has toggled
+  // Key: "postId-emoji", value: true if user has reacted
+  const [userReactions, setUserReactions] = useState<Record<string, boolean>>({})
+
+  function toggleCheckIn(memberId: string) {
+    setAttendanceState((prev) => ({
+      ...prev,
+      [memberId]: !prev[memberId],
+    }))
+  }
+
+  function handlePostSubmit() {
+    const content = newPostContent.trim()
+    if (!content) return
+    const newPost: ClassFeedPost = {
+      id: `cfp-new-${Date.now()}`,
+      class_id: classId,
+      author: 'You',
+      content,
+      created_at: new Date().toISOString(),
+      media_urls: [],
+      reactions: [],
+    }
+    setFeedPosts((prev) => [newPost, ...prev])
+    setNewPostContent('')
+  }
+
+  function toggleReaction(postId: string, emoji: string) {
+    const key = `${postId}-${emoji}`
+    const alreadyReacted = userReactions[key] ?? false
+
+    setUserReactions((prev) => ({
+      ...prev,
+      [key]: !alreadyReacted,
+    }))
+
+    setFeedPosts((prev) =>
+      prev.map((post) => {
+        if (post.id !== postId) return post
+        return {
+          ...post,
+          reactions: post.reactions.map((r) => {
+            if (r.emoji !== emoji) return r
+            return { ...r, count: alreadyReacted ? r.count - 1 : r.count + 1 }
+          }),
+        }
+      })
+    )
+  }
+
+  const nonCancelledBookings = bookings.filter((b) => b.status !== 'cancelled')
+  const walkIns = initialAttendance.filter((a) => a.walk_in)
 
   return (
     <div className="space-y-6">
@@ -150,76 +231,82 @@ export default function DemoClassDetailPage({ params }: { params: Promise<{ id: 
               <CardTitle className="text-lg">Check-in</CardTitle>
             </CardHeader>
             <CardContent>
-              {(() => {
-                const nonCancelledBookings = bookings.filter((b) => b.status !== 'cancelled')
-                const attendanceMap = new Map(attendance.map((a) => [a.member_id, a]))
-                const walkIns = attendance.filter((a) => a.walk_in)
-
-                if (nonCancelledBookings.length === 0 && walkIns.length === 0) {
-                  return <p className="text-sm text-muted-foreground">No attendees for this class</p>
-                }
-
-                return (
-                  <div className="space-y-6">
-                    <div className="grid grid-cols-4 sm:grid-cols-6 gap-4">
-                      {nonCancelledBookings.map((booking) => {
-                        const att = attendanceMap.get(booking.member_id)
-                        const isCheckedIn = att?.checked_in ?? false
-                        return (
-                          <div key={booking.id} className="flex flex-col items-center gap-1">
-                            <div
-                              className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold relative ${
-                                isCheckedIn
-                                  ? 'bg-green-100 text-green-700 ring-2 ring-green-500'
-                                  : 'bg-gray-100 text-gray-500 ring-2 ring-gray-300'
-                              }`}
-                            >
-                              {booking.member?.name?.[0] ?? '?'}
-                              {isCheckedIn && (
-                                <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center text-white text-[10px]">
-                                  &#10003;
-                                </span>
-                              )}
-                            </div>
-                            <span className="text-xs text-muted-foreground text-center truncate w-full">
-                              {booking.member?.name ?? 'Unknown'}
-                            </span>
+              {nonCancelledBookings.length === 0 && walkIns.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No attendees for this class</p>
+              ) : (
+                <div className="space-y-6">
+                  <div className="grid grid-cols-4 sm:grid-cols-6 gap-4">
+                    {nonCancelledBookings.map((booking) => {
+                      const isCheckedIn = attendanceState[booking.member_id] ?? false
+                      return (
+                        <button
+                          key={booking.id}
+                          className="flex flex-col items-center gap-1 cursor-pointer"
+                          onClick={() => toggleCheckIn(booking.member_id)}
+                          title={isCheckedIn ? `Undo check-in for ${booking.member?.name ?? 'Unknown'}` : `Check in ${booking.member?.name ?? 'Unknown'}`}
+                        >
+                          <div
+                            className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold relative transition-all ${
+                              isCheckedIn
+                                ? 'bg-green-100 text-green-700 ring-2 ring-green-500'
+                                : 'bg-gray-100 text-gray-500 ring-2 ring-gray-300 hover:ring-green-300'
+                            }`}
+                          >
+                            {booking.member?.name?.[0] ?? '?'}
+                            {isCheckedIn && (
+                              <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center text-white text-[10px]">
+                                &#10003;
+                              </span>
+                            )}
                           </div>
-                        )
-                      })}
-                    </div>
+                          <span className="text-xs text-muted-foreground text-center truncate w-full">
+                            {booking.member?.name ?? 'Unknown'}
+                          </span>
+                        </button>
+                      )
+                    })}
+                  </div>
 
-                    {walkIns.length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-medium text-muted-foreground mb-3">Walk-ins</h4>
-                        <div className="grid grid-cols-4 sm:grid-cols-6 gap-4">
-                          {walkIns.map((att) => {
-                            const member = getDemoMemberById(att.member_id)
-                            const memberName = member?.name ?? 'Walk-in'
-                            return (
-                              <div key={att.id} className="flex flex-col items-center gap-1">
-                                <div className="w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold bg-green-100 text-green-700 ring-2 ring-green-500 relative">
-                                  {memberName[0]}
+                  {walkIns.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-medium text-muted-foreground mb-3">Walk-ins</h4>
+                      <div className="grid grid-cols-4 sm:grid-cols-6 gap-4">
+                        {walkIns.map((att) => {
+                          const member = getDemoMemberById(att.member_id)
+                          const memberName = member?.name ?? 'Walk-in'
+                          const isCheckedIn = attendanceState[att.member_id] ?? att.checked_in
+                          return (
+                            <button
+                              key={att.id}
+                              className="flex flex-col items-center gap-1 cursor-pointer"
+                              onClick={() => toggleCheckIn(att.member_id)}
+                              title={isCheckedIn ? `Undo check-in for ${memberName}` : `Check in ${memberName}`}
+                            >
+                              <div
+                                className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold relative transition-all ${
+                                  isCheckedIn
+                                    ? 'bg-green-100 text-green-700 ring-2 ring-green-500'
+                                    : 'bg-gray-100 text-gray-500 ring-2 ring-gray-300 hover:ring-green-300'
+                                }`}
+                              >
+                                {memberName[0]}
+                                {isCheckedIn && (
                                   <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center text-white text-[10px]">
                                     &#10003;
                                   </span>
-                                </div>
-                                <span className="text-xs text-muted-foreground text-center truncate w-full">
-                                  {memberName}
-                                </span>
+                                )}
                               </div>
-                            )
-                          })}
-                        </div>
+                              <span className="text-xs text-muted-foreground text-center truncate w-full">
+                                {memberName}
+                              </span>
+                            </button>
+                          )
+                        })}
                       </div>
-                    )}
-
-                    <p className="text-xs text-muted-foreground italic">
-                      Check-in is disabled in demo mode
-                    </p>
-                  </div>
-                )
-              })()}
+                    </div>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -232,9 +319,29 @@ export default function DemoClassDetailPage({ params }: { params: Promise<{ id: 
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {/* Disabled input placeholder */}
-                <div className="rounded-lg border px-3 py-2 text-sm text-muted-foreground bg-muted/50 cursor-not-allowed">
-                  Write a post...
+                {/* Post composer */}
+                <div className="space-y-2">
+                  <textarea
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+                    rows={2}
+                    placeholder="Write a post..."
+                    value={newPostContent}
+                    onChange={(e) => setNewPostContent(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                        handlePostSubmit()
+                      }
+                    }}
+                  />
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      onClick={handlePostSubmit}
+                      disabled={!newPostContent.trim()}
+                    >
+                      Post
+                    </Button>
+                  </div>
                 </div>
 
                 {feedPosts.length === 0 ? (
@@ -263,14 +370,23 @@ export default function DemoClassDetailPage({ params }: { params: Promise<{ id: 
                             </div>
                           )}
                           <div className="flex gap-2">
-                            {post.reactions.map((reaction, idx) => (
-                              <span
-                                key={idx}
-                                className="text-xs px-2 py-0.5 rounded-full bg-muted"
-                              >
-                                {reaction.emoji} {reaction.count}
-                              </span>
-                            ))}
+                            {post.reactions.map((reaction, idx) => {
+                              const reactionKey = `${post.id}-${reaction.emoji}`
+                              const hasReacted = userReactions[reactionKey] ?? false
+                              return (
+                                <button
+                                  key={idx}
+                                  onClick={() => toggleReaction(post.id, reaction.emoji)}
+                                  className={`text-xs px-2 py-0.5 rounded-full transition-colors cursor-pointer ${
+                                    hasReacted
+                                      ? 'bg-primary/20 ring-1 ring-primary/40'
+                                      : 'bg-muted hover:bg-muted/80'
+                                  }`}
+                                >
+                                  {reaction.emoji} {reaction.count}
+                                </button>
+                              )
+                            })}
                           </div>
                         </div>
                       </div>

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { demoNotifications, notificationTypeIcons, getDemoUnreadCount } from '@/lib/demo-data'
+import { demoNotifications, notificationTypeIcons, DemoNotification } from '@/lib/demo-data'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 
@@ -19,11 +19,30 @@ function timeAgo(dateStr: string) {
 
 export default function DemoNotificationsPage() {
   const [filter, setFilter] = useState<FilterMode>('all')
-  const unreadCount = getDemoUnreadCount()
+  const [notifications, setNotifications] = useState<DemoNotification[]>(demoNotifications)
+
+  const unreadCount = notifications.filter((n) => n.read_at === null).length
 
   const filtered = filter === 'unread'
-    ? demoNotifications.filter((n) => n.read_at === null)
-    : demoNotifications
+    ? notifications.filter((n) => n.read_at === null)
+    : notifications
+
+  function handleMarkAllRead() {
+    const now = new Date().toISOString()
+    setNotifications((prev) =>
+      prev.map((n) => (n.read_at === null ? { ...n, read_at: now } : n))
+    )
+  }
+
+  function handleMarkRead(id: string) {
+    setNotifications((prev) =>
+      prev.map((n) =>
+        n.id === id && n.read_at === null
+          ? { ...n, read_at: new Date().toISOString() }
+          : n
+      )
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -32,7 +51,12 @@ export default function DemoNotificationsPage() {
           <h1 className="text-2xl font-bold">Notifications</h1>
           <p className="text-muted-foreground">{unreadCount} unread</p>
         </div>
-        <Button variant="outline" size="sm" disabled>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={unreadCount === 0}
+          onClick={handleMarkAllRead}
+        >
           Mark all read
         </Button>
       </div>
@@ -71,7 +95,8 @@ export default function DemoNotificationsPage() {
           filtered.map((notif) => (
             <Card
               key={notif.id}
-              className={notif.read_at === null ? 'border-primary/30 bg-primary/5' : ''}
+              className={`${notif.read_at === null ? 'border-primary/30 bg-primary/5 cursor-pointer hover:bg-primary/10 transition-colors' : ''}`}
+              onClick={() => notif.read_at === null && handleMarkRead(notif.id)}
             >
               <CardContent className="py-4">
                 <div className="flex items-start gap-3">

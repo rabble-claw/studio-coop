@@ -1,47 +1,68 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { demoStudio } from '@/lib/demo-data'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 
-function FormField({ label, value, textarea }: { label: string; value: string; textarea?: boolean }) {
+function FormField({
+  label,
+  value,
+  onChange,
+  textarea,
+}: {
+  label: string
+  value: string
+  onChange: (val: string) => void
+  textarea?: boolean
+}) {
   return (
     <div className="space-y-1">
       <label className="text-sm font-medium text-muted-foreground">{label}</label>
       {textarea ? (
         <textarea
-          disabled
           value={value}
+          onChange={(e) => onChange(e.target.value)}
           rows={3}
-          className="w-full rounded-lg border bg-muted/50 px-3 py-2 text-sm disabled:opacity-70"
+          className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
         />
       ) : (
         <input
-          disabled
           value={value}
-          className="w-full rounded-lg border bg-muted/50 px-3 py-2 text-sm disabled:opacity-70"
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
         />
       )}
     </div>
   )
 }
 
-function ToggleRow({ label, checked }: { label: string; checked: boolean }) {
+function ToggleRow({
+  label,
+  checked,
+  onToggle,
+}: {
+  label: string
+  checked: boolean
+  onToggle: () => void
+}) {
   return (
     <div className="flex items-center justify-between py-3">
       <span className="text-sm font-medium">{label}</span>
-      <div
-        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+      <button
+        type="button"
+        onClick={onToggle}
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${
           checked ? 'bg-primary' : 'bg-muted'
-        } opacity-70`}
+        }`}
       >
         <span
           className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
             checked ? 'translate-x-6' : 'translate-x-1'
           }`}
         />
-      </div>
+      </button>
     </div>
   )
 }
@@ -56,12 +77,56 @@ function StatusBadge({ label, variant }: { label: string; variant: 'green' | 'ye
 export default function DemoSettingsPage() {
   const s = demoStudio
 
+  // General tab state
+  const [studioName, setStudioName] = useState(s.name)
+  const [slug, setSlug] = useState(s.slug)
+  const [description, setDescription] = useState(s.description)
+  const [discipline, setDiscipline] = useState(s.discipline)
+  const [timezone, setTimezone] = useState(s.timezone)
+  const [address, setAddress] = useState(s.settings.address)
+  const [contactEmail, setContactEmail] = useState(s.settings.contactEmail)
+  const [website, setWebsite] = useState(s.settings.website)
+  const [brandColor, setBrandColor] = useState(s.settings.brandColor)
+
+  // Notification toggles
+  const [emailOnBooking, setEmailOnBooking] = useState(true)
+  const [emailOnCancellation, setEmailOnCancellation] = useState(true)
+  const [weeklySummary, setWeeklySummary] = useState(true)
+  const [dailyReminder, setDailyReminder] = useState(false)
+
+  // Cancellation policy state
+  const [cancellationWindow, setCancellationWindow] = useState('24 hours')
+  const [lateCancelFee, setLateCancelFee] = useState('$5.00 NZD')
+  const [noShowFee, setNoShowFee] = useState('$10.00 NZD')
+  const [waitlistAutoPromote, setWaitlistAutoPromote] = useState(true)
+
+  // Save feedback
+  const [saveMessage, setSaveMessage] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (saveMessage) {
+      const timer = setTimeout(() => setSaveMessage(null), 2000)
+      return () => clearTimeout(timer)
+    }
+  }, [saveMessage])
+
+  function handleSave(label: string) {
+    setSaveMessage(`${label} saved!`)
+  }
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Settings</h1>
         <p className="text-muted-foreground">Studio configuration</p>
       </div>
+
+      {/* Save feedback toast */}
+      {saveMessage && (
+        <div className="fixed top-4 right-4 z-50 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium animate-in fade-in slide-in-from-top-2">
+          {saveMessage}
+        </div>
+      )}
 
       <Tabs defaultValue="general">
         <TabsList>
@@ -79,35 +144,35 @@ export default function DemoSettingsPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
-                <FormField label="Studio Name" value={s.name} />
-                <FormField label="Slug" value={s.slug} />
+                <FormField label="Studio Name" value={studioName} onChange={setStudioName} />
+                <FormField label="Slug" value={slug} onChange={setSlug} />
               </div>
-              <FormField label="Description" value={s.description} textarea />
+              <FormField label="Description" value={description} onChange={setDescription} textarea />
               <div className="grid gap-4 sm:grid-cols-2">
-                <FormField label="Discipline" value={s.discipline} />
-                <FormField label="Timezone" value={s.timezone} />
+                <FormField label="Discipline" value={discipline} onChange={setDiscipline} />
+                <FormField label="Timezone" value={timezone} onChange={setTimezone} />
               </div>
-              <FormField label="Address" value={s.settings.address} />
+              <FormField label="Address" value={address} onChange={setAddress} />
               <div className="grid gap-4 sm:grid-cols-2">
-                <FormField label="Contact Email" value={s.settings.contactEmail} />
-                <FormField label="Website" value={s.settings.website} />
+                <FormField label="Contact Email" value={contactEmail} onChange={setContactEmail} />
+                <FormField label="Website" value={website} onChange={setWebsite} />
               </div>
               <div className="space-y-1">
                 <label className="text-sm font-medium text-muted-foreground">Brand Color</label>
                 <div className="flex items-center gap-3">
                   <div
                     className="h-8 w-8 rounded-md border"
-                    style={{ backgroundColor: s.settings.brandColor }}
+                    style={{ backgroundColor: brandColor }}
                   />
                   <input
-                    disabled
-                    value={s.settings.brandColor}
-                    className="w-32 rounded-lg border bg-muted/50 px-3 py-2 text-sm disabled:opacity-70"
+                    value={brandColor}
+                    onChange={(e) => setBrandColor(e.target.value)}
+                    className="w-32 rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
                   />
                 </div>
               </div>
               <div className="pt-2">
-                <Button disabled>Save Changes</Button>
+                <Button onClick={() => handleSave('Settings')}>Save Changes</Button>
               </div>
             </CardContent>
           </Card>
@@ -120,10 +185,13 @@ export default function DemoSettingsPage() {
               <CardTitle>Notification Preferences</CardTitle>
             </CardHeader>
             <CardContent className="divide-y">
-              <ToggleRow label="Email on new booking" checked={true} />
-              <ToggleRow label="Email on cancellation" checked={true} />
-              <ToggleRow label="Weekly summary email" checked={true} />
-              <ToggleRow label="Daily schedule reminder" checked={false} />
+              <ToggleRow label="Email on new booking" checked={emailOnBooking} onToggle={() => setEmailOnBooking((v) => !v)} />
+              <ToggleRow label="Email on cancellation" checked={emailOnCancellation} onToggle={() => setEmailOnCancellation((v) => !v)} />
+              <ToggleRow label="Weekly summary email" checked={weeklySummary} onToggle={() => setWeeklySummary((v) => !v)} />
+              <ToggleRow label="Daily schedule reminder" checked={dailyReminder} onToggle={() => setDailyReminder((v) => !v)} />
+              <div className="pt-4">
+                <Button onClick={() => handleSave('Notification preferences')}>Save Changes</Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -136,26 +204,26 @@ export default function DemoSettingsPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
-                <FormField label="Cancellation window" value="24 hours" />
-                <FormField label="Late cancellation fee" value="$5.00 NZD" />
+                <FormField label="Cancellation window" value={cancellationWindow} onChange={setCancellationWindow} />
+                <FormField label="Late cancellation fee" value={lateCancelFee} onChange={setLateCancelFee} />
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
-                <FormField label="No-show fee" value="$10.00 NZD" />
+                <FormField label="No-show fee" value={noShowFee} onChange={setNoShowFee} />
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-muted-foreground">Allow waitlist auto-promote</label>
                   <div className="flex items-center gap-2 py-2">
                     <input
                       type="checkbox"
-                      checked
-                      disabled
-                      className="h-4 w-4 rounded border-gray-300"
+                      checked={waitlistAutoPromote}
+                      onChange={() => setWaitlistAutoPromote((v) => !v)}
+                      className="h-4 w-4 rounded border-gray-300 cursor-pointer"
                     />
                     <span className="text-sm text-muted-foreground">Automatically promote from waitlist on cancellation</span>
                   </div>
                 </div>
               </div>
               <div className="pt-2">
-                <Button disabled>Save Policy</Button>
+                <Button onClick={() => handleSave('Cancellation policy')}>Save Policy</Button>
               </div>
             </CardContent>
           </Card>
