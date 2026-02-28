@@ -95,6 +95,15 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="purchase"
+        options={{
+          title: 'Membership',
+          tabBarIcon: ({ color, size }) => <Ionicons name="card-outline" size={size} color={color} />,
+          href: null, // Hidden from tab bar, navigated to from profile
+          headerShown: false,
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',

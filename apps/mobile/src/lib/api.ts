@@ -79,6 +79,38 @@ export const feedApi = {
   react: (studioId: string, postId: string, emoji: string) => api.post(`/api/studios/${studioId}/feed/${postId}/react`, { emoji }),
 }
 
+// Upload
+export const uploadApi = {
+  uploadImage: async (studioId: string, classId: string, uri: string, mimeType: string): Promise<{ url: string }> => {
+    const token = await getToken()
+    const formData = new FormData()
+    const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg'
+    formData.append('file', {
+      uri,
+      name: `photo.${ext}`,
+      type: mimeType,
+    } as unknown as Blob)
+    formData.append('studioId', studioId)
+    formData.append('classId', classId)
+
+    const headers: Record<string, string> = {}
+    if (token) headers['Authorization'] = `Bearer ${token}`
+
+    const res = await fetch(`${API_URL}/api/upload`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    })
+
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ message: res.statusText }))
+      throw new ApiError(res.status, error.message || res.statusText)
+    }
+
+    return res.json()
+  },
+}
+
 // Profile
 export const profileApi = {
   get: () => api.get('/api/me/profile'),
@@ -106,6 +138,29 @@ export const notificationApi = {
   registerPush: (token: string) => api.post('/api/me/push-token', { token, platform: Platform.OS }),
   preferences: () => api.get('/api/me/notification-preferences'),
   updatePreferences: (data: unknown) => api.put('/api/me/notification-preferences', data),
+}
+
+// Payments / Stripe
+export const paymentApi = {
+  /** List available plans for a studio (public) */
+  listPlans: (studioId: string) =>
+    api.get<{ plans: Array<{ id: string; name: string; description: string | null; type: string; price_cents: number; currency: string; interval: string; class_limit: number | null; validity_days: number | null; stripe_price_id: string | null; active: boolean; sort_order: number }> }>(`/api/studios/${studioId}/plans`),
+
+  /** Purchase a class pack — returns clientSecret for PaymentSheet */
+  purchaseClassPack: (studioId: string, planId: string) =>
+    api.post<{ clientSecret: string }>(`/api/studios/${studioId}/plans/${planId}/purchase`),
+
+  /** Subscribe to a plan — returns checkoutUrl for web redirect */
+  subscribe: (studioId: string, planId: string, body?: { couponCode?: string; successUrl?: string; cancelUrl?: string }) =>
+    api.post<{ checkoutUrl: string }>(`/api/studios/${studioId}/plans/${planId}/subscribe`, body),
+
+  /** Drop-in payment for a specific class */
+  dropIn: (studioId: string, classId: string) =>
+    api.post<{ clientSecret: string; amount: number; currency: string }>(`/api/studios/${studioId}/classes/${classId}/drop-in`),
+
+  /** Get current subscription + class passes for a studio */
+  mySubscription: (studioId: string) =>
+    api.get<{ subscription: unknown | null; classPasses: unknown[] }>(`/api/studios/${studioId}/my-subscription`),
 }
 
 // Studios

@@ -1,8 +1,11 @@
 import '../../global.css'
 import { Slot, useRouter, useSegments } from 'expo-router'
 import { useEffect } from 'react'
+import { StripeProvider } from '@stripe/stripe-react-native'
 import { AuthProvider, useAuth } from '@/lib/auth-context'
 import { setupNotificationListeners } from '@/lib/push'
+
+const STRIPE_PUBLISHABLE_KEY = process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? ''
 
 function AuthGate() {
   const { session, loading, studioId, studioLoaded } = useAuth()
@@ -45,8 +48,13 @@ function AuthGate() {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <AuthGate />
-    </AuthProvider>
+    <StripeProvider
+      publishableKey={STRIPE_PUBLISHABLE_KEY}
+      merchantIdentifier="merchant.coop.studio.app"
+    >
+      <AuthProvider>
+        <AuthGate />
+      </AuthProvider>
+    </StripeProvider>
   )
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { View, Text, TouchableOpacity, ScrollView, RefreshControl, Alert } from 'react-native'
+import { useRouter } from 'expo-router'
 import { useAuth } from '@/lib/auth-context'
 import { profileApi, subscriptionApi } from '@/lib/api'
 
@@ -53,6 +54,7 @@ interface ProfileData {
 
 export default function ProfileScreen() {
   const { user, studioId, signOut } = useAuth()
+  const router = useRouter()
   const [tab, setTab] = useState<'memberships' | 'attendance' | 'settings'>('memberships')
   const [loading, setLoading] = useState(true)
   const [profile, setProfile] = useState<ProfileData | null>(null)
@@ -274,6 +276,14 @@ export default function ProfileScreen() {
               <Text className="text-muted text-sm">No active memberships</Text>
             </View>
           )}
+
+          {/* Buy a plan / class pack */}
+          <TouchableOpacity
+            className="bg-primary rounded-2xl py-4 items-center mt-2"
+            onPress={() => router.push('/(tabs)/purchase')}
+          >
+            <Text className="text-white font-bold text-base">Browse Plans & Packs</Text>
+          </TouchableOpacity>
         </View>
       )}
 

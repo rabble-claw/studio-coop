@@ -12,10 +12,13 @@ interface HealthCheck {
 }
 
 interface FeatureFlag {
+  id: string
   name: string
-  label: string
-  description: string
+  description: string | null
   enabled: boolean
+  scope: 'global' | 'studio' | 'plan_tier'
+  studio_id: string | null
+  plan_tier: string | null
 }
 
 interface DeploymentItem {
@@ -28,18 +31,14 @@ interface GrowthPoint {
   count: number
 }
 
-const INITIAL_FLAGS: FeatureFlag[] = [
-  { name: 'community_feed', label: 'Community Feed', description: 'Social feed for studio communities', enabled: true },
-  { name: 'private_bookings', label: 'Private Bookings', description: '1-on-1 session booking system', enabled: true },
-  { name: 'class_packages', label: 'Class Packages', description: 'Multi-class punch cards and bundles', enabled: true },
-  { name: 'multi_studio_network', label: 'Multi-Studio Network', description: 'Cross-studio membership sharing', enabled: false },
-  { name: 'ai_website_builder', label: 'AI Website Builder', description: 'AI-powered studio website generation', enabled: false },
-  { name: 'local_payment_rails', label: 'Local Payment Rails (PIX/UPI)', description: 'Regional payment methods for emerging markets', enabled: false },
-  { name: 'marketplace', label: 'Studio Marketplace', description: 'Public directory of all platform studios', enabled: false },
-]
+const SCOPE_COLORS: Record<string, string> = {
+  global: 'bg-blue-500/20 text-blue-300',
+  studio: 'bg-purple-500/20 text-purple-300',
+  plan_tier: 'bg-amber-500/20 text-amber-300',
+}
 
 export default function SystemPage() {
-  const [flags, setFlags] = useState(INITIAL_FLAGS)
+  const [flags, setFlags] = useState<FeatureFlag[]>([])
   const [healthChecks, setHealthChecks] = useState<HealthCheck[]>([])
   const [deploymentInfo, setDeploymentInfo] = useState<DeploymentItem[]>([])
   const [studioGrowth, setStudioGrowth] = useState<GrowthPoint[]>([])
@@ -141,6 +140,18 @@ export default function SystemPage() {
         { label: 'Git SHA', value: process.env.NEXT_PUBLIC_GIT_SHA ?? 'dev' },
       ])
 
+      // Fetch feature flags from DB
+      try {
+        const { data: dbFlags } = await supabase
+          .from('feature_flags')
+          .select('*')
+          .order('name')
+          .order('scope')
+        if (dbFlags) setFlags(dbFlags as FeatureFlag[])
+      } catch {
+        // Feature flags table may not exist yet
+      }
+
       // Fetch growth data
       try {
         const [studiosRes, membersRes] = await Promise.all([
@@ -194,10 +205,29 @@ export default function SystemPage() {
     runHealthChecks()
   }, [])
 
-  function toggleFlag(name: string) {
+  async function toggleFlag(id: string) {
+    const flag = flags.find((f) => f.id === id)
+    if (!flag) return
+
+    const newEnabled = !flag.enabled
+
+    // Optimistic update
     setFlags((prev) =>
-      prev.map((f) => (f.name === name ? { ...f, enabled: !f.enabled } : f))
+      prev.map((f) => (f.id === id ? { ...f, enabled: newEnabled } : f))
     )
+
+    // Persist to DB
+    const { error } = await supabase
+      .from('feature_flags')
+      .update({ enabled: newEnabled, updated_at: new Date().toISOString() })
+      .eq('id', id)
+
+    if (error) {
+      // Revert on failure
+      setFlags((prev) =>
+        prev.map((f) => (f.id === id ? { ...f, enabled: !newEnabled } : f))
+      )
+    }
   }
 
   if (loading) {
@@ -301,31 +331,40 @@ export default function SystemPage() {
       {/* Feature Flags */}
       <div className="mb-6 rounded-xl border border-[var(--border)] bg-[var(--card)] p-6">
         <h3 className="mb-4 text-lg font-bold">Feature Flags</h3>
-        <div className="flex flex-col divide-y divide-[var(--border)]">
-          {flags.map((f) => (
-            <div key={f.name} className="flex items-center justify-between py-4 first:pt-0 last:pb-0">
-              <div>
-                <p className="font-medium">{f.label}</p>
-                <p className="text-sm text-[var(--muted-foreground)]">{f.description}</p>
-                <p className="mt-0.5 font-mono text-xs text-[var(--muted-foreground)]">{f.name}</p>
-              </div>
-              <button
-                onClick={() => toggleFlag(f.name)}
-                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors ${
-                  f.enabled ? 'bg-emerald-600' : 'bg-zinc-700'
-                }`}
-                role="switch"
-                aria-checked={f.enabled}
-              >
-                <span
-                  className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
-                    f.enabled ? 'translate-x-6' : 'translate-x-1'
+        {flags.length === 0 ? (
+          <p className="text-sm text-[var(--muted-foreground)]">No feature flags configured. Run migration 012 to seed defaults.</p>
+        ) : (
+          <div className="flex flex-col divide-y divide-[var(--border)]">
+            {flags.map((f) => (
+              <div key={f.id} className="flex items-center justify-between py-4 first:pt-0 last:pb-0">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium">{f.name.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}</p>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${SCOPE_COLORS[f.scope] ?? 'bg-zinc-700 text-zinc-300'}`}>
+                      {f.scope === 'plan_tier' ? `tier: ${f.plan_tier}` : f.scope}
+                    </span>
+                  </div>
+                  <p className="text-sm text-[var(--muted-foreground)]">{f.description ?? ''}</p>
+                  <p className="mt-0.5 font-mono text-xs text-[var(--muted-foreground)]">{f.name}</p>
+                </div>
+                <button
+                  onClick={() => toggleFlag(f.id)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full transition-colors ${
+                    f.enabled ? 'bg-emerald-600' : 'bg-zinc-700'
                   }`}
-                />
-              </button>
-            </div>
-          ))}
-        </div>
+                  role="switch"
+                  aria-checked={f.enabled}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                      f.enabled ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Deployment Info */}

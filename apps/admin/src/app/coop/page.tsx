@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import AdminShell from '@/components/admin-shell'
 import { supabase } from '@/lib/supabase'
 
@@ -14,63 +14,170 @@ interface CoopMember {
   votingEligible: boolean
 }
 
-const BOARD_MEMBERS = [
-  { name: 'Sarah Chen', role: 'Chair', studio: 'Empire Aerial Arts', term: 'Jan 2026 - Dec 2026' },
-  { name: 'Mike Reeves', role: 'Treasurer', studio: 'CrossFit Cuba St', term: 'Jan 2026 - Dec 2026' },
-  { name: 'Priya Sharma', role: 'Secretary', studio: 'Wellington Yoga Collective', term: 'Jul 2025 - Jun 2026' },
-]
-
-interface MeetingMinute {
+interface BoardMember {
   id: string
-  title: string
-  date: string
-  summary: string
+  user_id: string
+  studio_id: string | null
+  role: string
+  term_start: string
+  term_end: string | null
+  status: string
+  user_name: string
+  studio_name: string | null
 }
 
 interface Proposal {
   id: string
   title: string
   description: string
-  status: 'open' | 'voting' | 'passed' | 'rejected'
-  submitted_by: string
-  submitted_at: string
+  status: string
+  category: string | null
+  proposed_by: string
+  proposer_name: string
+  vote_start: string | null
+  vote_end: string | null
+  quorum_required: number
+  pass_threshold: number
+  created_at: string
 }
 
-const RECENT_VOTES = [
-  { id: 'v1', title: 'Adopt multi-studio network feature', status: 'passed', yea: 6, nay: 1, abstain: 1, date: '2026-02-15' },
-  { id: 'v2', title: 'Increase platform fee from 8% to 10%', status: 'rejected', yea: 2, nay: 5, abstain: 1, date: '2026-01-28' },
-  { id: 'v3', title: 'Approve Q1 dividend distribution', status: 'passed', yea: 7, nay: 0, abstain: 1, date: '2026-01-15' },
-]
+interface Meeting {
+  id: string
+  title: string
+  meeting_date: string
+  location: string | null
+  minutes_text: string | null
+  status: string
+  recorder_name: string | null
+}
 
-const MEETING_MINUTES: MeetingMinute[] = [
-  { id: 'm1', title: 'February Board Meeting', date: '2026-02-20', summary: 'Reviewed Q4 financials, approved network feature launch, discussed new pricing tiers.' },
-  { id: 'm2', title: 'January Board Meeting', date: '2026-01-18', summary: 'Elected new board members, approved Q1 budget, set 2026 strategic priorities.' },
-  { id: 'm3', title: 'December General Assembly', date: '2025-12-15', summary: 'Annual review, dividend vote, bylaw amendments for network membership.' },
-]
-
-const PROPOSALS: Proposal[] = [
-  { id: 'p1', title: 'Add marketplace discovery feature', description: 'Create a public directory where potential students can discover co-op studios.', status: 'open', submitted_by: 'Wellington Yoga Collective', submitted_at: '2026-02-25' },
-  { id: 'p2', title: 'Reduce minimum membership period for voting', description: 'Lower voting eligibility from 12 months to 6 months to increase participation.', status: 'voting', submitted_by: 'CrossFit Cuba St', submitted_at: '2026-02-10' },
-  { id: 'p3', title: 'Implement local payment rails (PIX/UPI)', description: 'Support regional payment methods for studios in Brazil and India.', status: 'open', submitted_by: 'Empire Aerial Arts', submitted_at: '2026-02-05' },
-]
+interface VoteResult {
+  proposal_id: string
+  tally: { yes: number; no: number; abstain: number }
+  total_votes: number
+  quorum_met: boolean
+  yes_percent: number
+  passed: boolean
+}
 
 export default function CoopPage() {
   const [coopMembers, setCoopMembers] = useState<CoopMember[]>([])
   const [totalStudios, setTotalStudios] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [showNewMinute, setShowNewMinute] = useState(false)
-  const [newMinuteTitle, setNewMinuteTitle] = useState('')
-  const [newMinuteSummary, setNewMinuteSummary] = useState('')
-  const [minutes, setMinutes] = useState(MEETING_MINUTES)
-  const [proposals, setProposals] = useState(PROPOSALS)
+
+  // Board
+  const [boardMembers, setBoardMembers] = useState<BoardMember[]>([])
+
+  // Proposals
+  const [proposals, setProposals] = useState<Proposal[]>([])
   const [showNewProposal, setShowNewProposal] = useState(false)
   const [newProposalTitle, setNewProposalTitle] = useState('')
   const [newProposalDesc, setNewProposalDesc] = useState('')
+  const [newProposalCategory, setNewProposalCategory] = useState('other')
+  const [voteResults, setVoteResults] = useState<Record<string, VoteResult>>({})
+
+  // Meetings
+  const [meetings, setMeetings] = useState<Meeting[]>([])
+  const [showNewMeeting, setShowNewMeeting] = useState(false)
+  const [newMeetingTitle, setNewMeetingTitle] = useState('')
+  const [newMeetingDate, setNewMeetingDate] = useState('')
+  const [newMeetingLocation, setNewMeetingLocation] = useState('')
+  const [newMeetingSummary, setNewMeetingSummary] = useState('')
+
+  const loadGovernanceData = useCallback(async () => {
+    try {
+      // Load board members from DB
+      const { data: boardData } = await supabase
+        .from('board_members')
+        .select('*, user:users(id, name, email), studio:studios(id, name)')
+        .eq('status', 'active')
+        .order('role')
+
+      const board: BoardMember[] = (boardData ?? []).map((m: any) => {
+        const user = m.user as any
+        const studio = m.studio as any
+        return {
+          id: m.id,
+          user_id: m.user_id,
+          studio_id: m.studio_id,
+          role: m.role,
+          term_start: m.term_start,
+          term_end: m.term_end,
+          status: m.status,
+          user_name: user?.name ?? 'Unknown',
+          studio_name: studio?.name ?? null,
+        }
+      })
+      setBoardMembers(board)
+
+      // Load proposals from DB
+      const { data: proposalData } = await supabase
+        .from('proposals')
+        .select('*, proposer:users!proposed_by(id, name)')
+        .order('created_at', { ascending: false })
+
+      const props: Proposal[] = (proposalData ?? []).map((p: any) => {
+        const proposer = p.proposer as any
+        return {
+          ...p,
+          proposer_name: proposer?.name ?? 'Unknown',
+          proposer: undefined,
+        }
+      })
+      setProposals(props)
+
+      // Load vote results for closed/open proposals
+      const proposalIds = props.filter(p => ['open', 'passed', 'failed'].includes(p.status)).map(p => p.id)
+      const results: Record<string, VoteResult> = {}
+      for (const pid of proposalIds) {
+        const { data: votes } = await supabase
+          .from('votes')
+          .select('vote')
+          .eq('proposal_id', pid)
+
+        const tally = { yes: 0, no: 0, abstain: 0 }
+        for (const v of votes ?? []) {
+          if (v.vote === 'yes') tally.yes++
+          else if (v.vote === 'no') tally.no++
+          else if (v.vote === 'abstain') tally.abstain++
+        }
+        const total = tally.yes + tally.no + tally.abstain
+        const yesPercent = (tally.yes + tally.no) > 0 ? Math.round((tally.yes / (tally.yes + tally.no)) * 1000) / 10 : 0
+        results[pid] = {
+          proposal_id: pid,
+          tally,
+          total_votes: total,
+          quorum_met: false,
+          yes_percent: yesPercent,
+          passed: false,
+        }
+      }
+      setVoteResults(results)
+
+      // Load meetings from DB
+      const { data: meetingData } = await supabase
+        .from('meetings')
+        .select('*, recorder:users!recorded_by(id, name)')
+        .order('meeting_date', { ascending: false })
+        .limit(10)
+
+      const mtgs: Meeting[] = (meetingData ?? []).map((m: any) => {
+        const recorder = m.recorder as any
+        return {
+          ...m,
+          recorder_name: recorder?.name ?? null,
+          recorder: undefined,
+        }
+      })
+      setMeetings(mtgs)
+    } catch (err) {
+      console.error('Failed to load governance data:', err)
+    }
+  }, [])
 
   useEffect(() => {
     async function loadCoopData() {
       try {
-        // Fetch co-op eligible studios (tier = studio or pro)
         const [coopStudiosRes, totalStudiosRes] = await Promise.all([
           supabase
             .from('studios')
@@ -87,23 +194,21 @@ export default function CoopPage() {
         if (!coopStudiosRes.data || coopStudiosRes.data.length === 0) {
           setCoopMembers([])
           setLoading(false)
+          loadGovernanceData()
           return
         }
 
-        // Fetch payments for these studios (platform fees = equity basis)
         const studioIds = coopStudiosRes.data.map((s) => s.id)
         const { data: paymentsData } = await supabase
           .from('payments')
           .select('studio_id, amount_cents')
           .in('studio_id', studioIds)
 
-        // Calculate per-studio totals
         const paymentMap: Record<string, number> = {}
         paymentsData?.forEach((p) => {
           paymentMap[p.studio_id] = (paymentMap[p.studio_id] ?? 0) + (p.amount_cents ?? 0)
         })
 
-        // Calculate total platform fees across all co-op members (10% of revenue)
         const totalPlatformFees = Object.values(paymentMap).reduce((sum, v) => sum + Math.round(v * 0.1), 0)
 
         const now = new Date()
@@ -111,7 +216,7 @@ export default function CoopPage() {
           const createdAt = new Date(s.created_at)
           const months = Math.max(1, Math.floor((now.getTime() - createdAt.getTime()) / (30.44 * 24 * 60 * 60 * 1000)))
           const studioRevenue = paymentMap[s.id] ?? 0
-          const platformFee = Math.round(studioRevenue * 0.1) // 10% platform fee
+          const platformFee = Math.round(studioRevenue * 0.1)
           const equityPercent = totalPlatformFees > 0
             ? Math.round((platformFee / totalPlatformFees) * 1000) / 10
             : 0
@@ -121,13 +226,14 @@ export default function CoopPage() {
             name: s.name,
             joined: s.created_at,
             months,
-            totalPaid: Math.round(platformFee / 100), // Convert cents to dollars
+            totalPaid: Math.round(platformFee / 100),
             equityPercent,
             votingEligible: months >= 12,
           }
         })
 
         setCoopMembers(members)
+        await loadGovernanceData()
       } catch (err) {
         console.error('Failed to load co-op data:', err)
       } finally {
@@ -136,7 +242,77 @@ export default function CoopPage() {
     }
 
     loadCoopData()
-  }, [])
+  }, [loadGovernanceData])
+
+  const handleCreateProposal = async () => {
+    if (!newProposalTitle.trim()) return
+    try {
+      const { data, error } = await supabase
+        .from('proposals')
+        .insert({
+          title: newProposalTitle.trim(),
+          description: newProposalDesc.trim(),
+          proposed_by: '00000000-0000-0000-0000-000000000000', // admin placeholder
+          category: newProposalCategory,
+          status: 'draft',
+        })
+        .select('*')
+        .single()
+
+      if (!error && data) {
+        setProposals([{ ...data, proposer_name: 'Admin' }, ...proposals])
+      }
+    } catch (err) {
+      console.error('Failed to create proposal:', err)
+    }
+    setNewProposalTitle('')
+    setNewProposalDesc('')
+    setNewProposalCategory('other')
+    setShowNewProposal(false)
+  }
+
+  const handleCreateMeeting = async () => {
+    if (!newMeetingTitle.trim() || !newMeetingDate) return
+    try {
+      const { data, error } = await supabase
+        .from('meetings')
+        .insert({
+          title: newMeetingTitle.trim(),
+          meeting_date: newMeetingDate,
+          location: newMeetingLocation.trim() || null,
+          minutes_text: newMeetingSummary.trim() || null,
+          status: 'scheduled',
+        })
+        .select('*')
+        .single()
+
+      if (!error && data) {
+        setMeetings([{ ...data, recorder_name: null }, ...meetings])
+      }
+    } catch (err) {
+      console.error('Failed to create meeting:', err)
+    }
+    setNewMeetingTitle('')
+    setNewMeetingDate('')
+    setNewMeetingLocation('')
+    setNewMeetingSummary('')
+    setShowNewMeeting(false)
+  }
+
+  const handleUpdateProposalStatus = async (id: string, newStatus: string) => {
+    const updates: Record<string, unknown> = { status: newStatus, updated_at: new Date().toISOString() }
+    if (newStatus === 'open') {
+      updates.vote_start = new Date().toISOString()
+    }
+    const { error } = await supabase
+      .from('proposals')
+      .update(updates)
+      .eq('id', id)
+
+    if (!error) {
+      setProposals(proposals.map(p => p.id === id ? { ...p, status: newStatus } : p))
+    }
+  }
 
   const votingMembers = coopMembers.filter((m) => m.votingEligible).length
   const totalEquity = coopMembers.reduce((sum, m) => sum + m.totalPaid, 0)
@@ -180,25 +356,33 @@ export default function CoopPage() {
           <p className="mt-1 text-xs text-[var(--muted-foreground)]">Cumulative platform fees</p>
         </div>
         <div className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-6">
-          <p className="text-sm text-[var(--muted-foreground)]">Next Election</p>
-          <p className="mt-1 text-3xl font-extrabold">Q3</p>
-          <p className="mt-1 text-xs text-[var(--muted-foreground)]">Board of directors</p>
+          <p className="text-sm text-[var(--muted-foreground)]">Board Members</p>
+          <p className="mt-1 text-3xl font-extrabold">{boardMembers.length}</p>
+          <p className="mt-1 text-xs text-[var(--muted-foreground)]">Active board seats</p>
         </div>
       </div>
 
       {/* Board of Directors */}
       <div className="mb-6 rounded-xl border border-[var(--border)] bg-[var(--card)] p-6">
         <h3 className="mb-4 text-lg font-bold">Board of Directors</h3>
-        <div className="grid grid-cols-3 gap-4">
-          {BOARD_MEMBERS.map((b) => (
-            <div key={b.name} className="rounded-lg border border-[var(--border)] bg-[var(--muted)] p-4">
-              <p className="font-semibold">{b.name}</p>
-              <p className="text-sm text-[var(--primary)]">{b.role}</p>
-              <p className="mt-2 text-xs text-[var(--muted-foreground)]">{b.studio}</p>
-              <p className="text-xs text-[var(--muted-foreground)]">Term: {b.term}</p>
-            </div>
-          ))}
-        </div>
+        {boardMembers.length > 0 ? (
+          <div className="grid grid-cols-3 gap-4">
+            {boardMembers.map((b) => (
+              <div key={b.id} className="rounded-lg border border-[var(--border)] bg-[var(--muted)] p-4">
+                <p className="font-semibold">{b.user_name}</p>
+                <p className="text-sm text-[var(--primary)] capitalize">{b.role}</p>
+                {b.studio_name && (
+                  <p className="mt-2 text-xs text-[var(--muted-foreground)]">{b.studio_name}</p>
+                )}
+                <p className="text-xs text-[var(--muted-foreground)]">
+                  Term: {new Date(b.term_start).toLocaleDateString()} - {b.term_end ? new Date(b.term_end).toLocaleDateString() : 'Present'}
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-[var(--muted-foreground)]">No board members elected yet. Board members are managed via the governance API.</p>
+        )}
       </div>
 
       {/* Equity Tracker */}
@@ -261,47 +445,10 @@ export default function CoopPage() {
         </table>
       </div>
 
-      {/* Recent Votes */}
-      <div className="mb-6 rounded-xl border border-[var(--border)] bg-[var(--card)]">
-        <div className="border-b border-[var(--border)] px-6 py-4">
-          <h3 className="text-lg font-bold">Recent Votes</h3>
-        </div>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-[var(--border)]">
-              <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">Proposal</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">Result</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">Yea</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">Nay</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">Abstain</th>
-              <th className="px-6 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">Date</th>
-            </tr>
-          </thead>
-          <tbody>
-            {RECENT_VOTES.map((v) => (
-              <tr key={v.id} className="border-b border-[var(--border)] last:border-0">
-                <td className="px-6 py-3 font-medium">{v.title}</td>
-                <td className="px-6 py-3">
-                  <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                    v.status === 'passed' ? 'bg-emerald-950 text-emerald-400' : 'bg-red-950 text-red-400'
-                  }`}>
-                    {v.status}
-                  </span>
-                </td>
-                <td className="px-6 py-3 text-emerald-400">{v.yea}</td>
-                <td className="px-6 py-3 text-red-400">{v.nay}</td>
-                <td className="px-6 py-3 text-[var(--muted-foreground)]">{v.abstain}</td>
-                <td className="px-6 py-3 text-[var(--muted-foreground)]">{v.date}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Member Proposals */}
+      {/* Proposals & Votes */}
       <div className="mb-6 rounded-xl border border-[var(--border)] bg-[var(--card)] p-6">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-bold">Member Proposals</h3>
+          <h3 className="text-lg font-bold">Proposals & Votes</h3>
           <button
             onClick={() => setShowNewProposal(true)}
             className="rounded-lg bg-[var(--primary)] px-4 py-2 text-xs font-semibold text-white hover:opacity-90 transition-opacity"
@@ -330,25 +477,24 @@ export default function CoopPage() {
                 placeholder="Describe your proposal"
               />
             </div>
+            <div className="mb-3">
+              <label className="text-sm font-medium">Category</label>
+              <select
+                className="mt-1 w-full rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm"
+                value={newProposalCategory}
+                onChange={(e) => setNewProposalCategory(e.target.value)}
+              >
+                <option value="policy">Policy</option>
+                <option value="financial">Financial</option>
+                <option value="membership">Membership</option>
+                <option value="technical">Technical</option>
+                <option value="amendment">Amendment</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
             <div className="flex gap-2">
               <button
-                onClick={() => {
-                  if (!newProposalTitle.trim()) return
-                  setProposals([
-                    {
-                      id: `p-${Date.now()}`,
-                      title: newProposalTitle.trim(),
-                      description: newProposalDesc.trim(),
-                      status: 'open',
-                      submitted_by: 'Admin',
-                      submitted_at: new Date().toISOString().slice(0, 10),
-                    },
-                    ...proposals,
-                  ])
-                  setNewProposalTitle('')
-                  setNewProposalDesc('')
-                  setShowNewProposal(false)
-                }}
+                onClick={handleCreateProposal}
                 className="rounded-lg bg-[var(--primary)] px-3 py-1.5 text-xs font-semibold text-white"
               >
                 Submit
@@ -363,29 +509,92 @@ export default function CoopPage() {
           </div>
         )}
 
-        <div className="flex flex-col divide-y divide-[var(--border)]">
-          {proposals.map((p) => (
-            <div key={p.id} className="py-4 first:pt-0 last:pb-0">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="font-medium">{p.title}</p>
-                  <p className="mt-1 text-sm text-[var(--muted-foreground)]">{p.description}</p>
-                  <p className="mt-2 text-xs text-[var(--muted-foreground)]">
-                    Submitted by {p.submitted_by} on {p.submitted_at}
-                  </p>
-                </div>
-                <span className={`shrink-0 inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                  p.status === 'open' ? 'bg-blue-950 text-blue-400' :
-                  p.status === 'voting' ? 'bg-yellow-950 text-yellow-400' :
-                  p.status === 'passed' ? 'bg-emerald-950 text-emerald-400' :
-                  'bg-red-950 text-red-400'
-                }`}>
-                  {p.status}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
+        {proposals.length > 0 ? (
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-[var(--border)]">
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">Proposal</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">Category</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">Votes</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-[var(--muted-foreground)]">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {proposals.map((p) => {
+                const result = voteResults[p.id]
+                return (
+                  <tr key={p.id} className="border-b border-[var(--border)] last:border-0">
+                    <td className="px-4 py-3">
+                      <p className="font-medium">{p.title}</p>
+                      <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">
+                        by {p.proposer_name} on {new Date(p.created_at).toLocaleDateString()}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3">
+                      {p.category && (
+                        <span className="inline-block rounded-full bg-[var(--muted)] px-2 py-0.5 text-xs capitalize">
+                          {p.category}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                        p.status === 'open' ? 'bg-blue-950 text-blue-400' :
+                        p.status === 'draft' ? 'bg-zinc-800 text-zinc-400' :
+                        p.status === 'passed' ? 'bg-emerald-950 text-emerald-400' :
+                        p.status === 'failed' ? 'bg-red-950 text-red-400' :
+                        p.status === 'withdrawn' ? 'bg-yellow-950 text-yellow-400' :
+                        'bg-zinc-800 text-zinc-400'
+                      }`}>
+                        {p.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-xs">
+                      {result ? (
+                        <span>
+                          <span className="text-emerald-400">{result.tally.yes}Y</span>{' / '}
+                          <span className="text-red-400">{result.tally.no}N</span>{' / '}
+                          <span className="text-[var(--muted-foreground)]">{result.tally.abstain}A</span>
+                        </span>
+                      ) : (
+                        <span className="text-[var(--muted-foreground)]">--</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {p.status === 'draft' && (
+                        <button
+                          onClick={() => handleUpdateProposalStatus(p.id, 'open')}
+                          className="rounded bg-blue-950 px-2 py-1 text-xs text-blue-400 hover:bg-blue-900"
+                        >
+                          Open Voting
+                        </button>
+                      )}
+                      {p.status === 'open' && (
+                        <div className="flex gap-1">
+                          <button
+                            onClick={() => handleUpdateProposalStatus(p.id, 'passed')}
+                            className="rounded bg-emerald-950 px-2 py-1 text-xs text-emerald-400 hover:bg-emerald-900"
+                          >
+                            Pass
+                          </button>
+                          <button
+                            onClick={() => handleUpdateProposalStatus(p.id, 'failed')}
+                            className="rounded bg-red-950 px-2 py-1 text-xs text-red-400 hover:bg-red-900"
+                          >
+                            Fail
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        ) : (
+          <p className="text-sm text-[var(--muted-foreground)]">No proposals yet.</p>
+        )}
       </div>
 
       {/* Meeting Minutes */}
@@ -393,56 +602,60 @@ export default function CoopPage() {
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-bold">Meeting Minutes</h3>
           <button
-            onClick={() => setShowNewMinute(true)}
+            onClick={() => setShowNewMeeting(true)}
             className="rounded-lg bg-[var(--muted)] px-3 py-1.5 text-xs font-medium hover:bg-zinc-700 transition-colors"
           >
-            Add Minutes
+            Add Meeting
           </button>
         </div>
 
-        {showNewMinute && (
+        {showNewMeeting && (
           <div className="mb-4 rounded-lg border border-[var(--border)] bg-[var(--muted)] p-4">
             <div className="mb-3">
               <label className="text-sm font-medium">Title</label>
               <input
                 className="mt-1 w-full rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm"
-                value={newMinuteTitle}
-                onChange={(e) => setNewMinuteTitle(e.target.value)}
+                value={newMeetingTitle}
+                onChange={(e) => setNewMeetingTitle(e.target.value)}
                 placeholder="e.g. March Board Meeting"
               />
             </div>
             <div className="mb-3">
-              <label className="text-sm font-medium">Summary</label>
+              <label className="text-sm font-medium">Date</label>
+              <input
+                type="datetime-local"
+                className="mt-1 w-full rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm"
+                value={newMeetingDate}
+                onChange={(e) => setNewMeetingDate(e.target.value)}
+              />
+            </div>
+            <div className="mb-3">
+              <label className="text-sm font-medium">Location</label>
+              <input
+                className="mt-1 w-full rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm"
+                value={newMeetingLocation}
+                onChange={(e) => setNewMeetingLocation(e.target.value)}
+                placeholder="e.g. Video call / Office"
+              />
+            </div>
+            <div className="mb-3">
+              <label className="text-sm font-medium">Summary / Minutes</label>
               <textarea
                 className="mt-1 w-full rounded-md border border-[var(--border)] bg-[var(--card)] px-3 py-2 text-sm min-h-[80px]"
-                value={newMinuteSummary}
-                onChange={(e) => setNewMinuteSummary(e.target.value)}
-                placeholder="Key decisions and discussion points"
+                value={newMeetingSummary}
+                onChange={(e) => setNewMeetingSummary(e.target.value)}
+                placeholder="Key decisions and discussion points (Markdown supported)"
               />
             </div>
             <div className="flex gap-2">
               <button
-                onClick={() => {
-                  if (!newMinuteTitle.trim()) return
-                  setMinutes([
-                    {
-                      id: `m-${Date.now()}`,
-                      title: newMinuteTitle.trim(),
-                      date: new Date().toISOString().slice(0, 10),
-                      summary: newMinuteSummary.trim(),
-                    },
-                    ...minutes,
-                  ])
-                  setNewMinuteTitle('')
-                  setNewMinuteSummary('')
-                  setShowNewMinute(false)
-                }}
+                onClick={handleCreateMeeting}
                 className="rounded-lg bg-[var(--primary)] px-3 py-1.5 text-xs font-semibold text-white"
               >
                 Save
               </button>
               <button
-                onClick={() => setShowNewMinute(false)}
+                onClick={() => setShowNewMeeting(false)}
                 className="rounded-lg bg-[var(--muted)] px-3 py-1.5 text-xs font-medium hover:bg-zinc-700 transition-colors"
               >
                 Cancel
@@ -452,17 +665,37 @@ export default function CoopPage() {
         )}
 
         <div className="flex flex-col divide-y divide-[var(--border)]">
-          {minutes.map((m) => (
+          {meetings.map((m) => (
             <div key={m.id} className="py-4 first:pt-0 last:pb-0">
               <div className="flex items-start justify-between">
                 <div>
-                  <p className="font-medium">{m.title}</p>
-                  <p className="mt-1 text-sm text-[var(--muted-foreground)]">{m.summary}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium">{m.title}</p>
+                    <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${
+                      m.status === 'completed' ? 'bg-emerald-950 text-emerald-400' :
+                      m.status === 'scheduled' ? 'bg-blue-950 text-blue-400' :
+                      m.status === 'cancelled' ? 'bg-red-950 text-red-400' :
+                      'bg-yellow-950 text-yellow-400'
+                    }`}>
+                      {m.status}
+                    </span>
+                  </div>
+                  {m.minutes_text && (
+                    <p className="mt-1 text-sm text-[var(--muted-foreground)]">{m.minutes_text}</p>
+                  )}
+                  {m.location && (
+                    <p className="mt-1 text-xs text-[var(--muted-foreground)]">Location: {m.location}</p>
+                  )}
                 </div>
-                <span className="shrink-0 text-xs text-[var(--muted-foreground)]">{m.date}</span>
+                <span className="shrink-0 text-xs text-[var(--muted-foreground)]">
+                  {new Date(m.meeting_date).toLocaleDateString()}
+                </span>
               </div>
             </div>
           ))}
+          {meetings.length === 0 && (
+            <p className="py-4 text-sm text-[var(--muted-foreground)]">No meetings recorded yet.</p>
+          )}
         </div>
       </div>
     </AdminShell>

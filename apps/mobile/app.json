@@ -23,7 +23,27 @@
     },
     "plugins": [
       "expo-router",
-      "expo-notifications"
+      "expo-notifications",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Studio Co-op to access your photos to share in the feed.",
+          "cameraPermission": "Allow Studio Co-op to use your camera to take photos for the feed."
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Studio Co-op to use your camera to take photos for the feed."
+        }
+      ],
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.coop.studio.app",
+          "enableGooglePay": true
+        }
+      ]
     ]
   }
 }

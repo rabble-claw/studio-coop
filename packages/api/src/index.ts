@@ -25,6 +25,8 @@ import { upload } from './routes/upload'
 import networks from './routes/networks'
 import migration from './routes/migration'
 import { stripeRoutes } from './routes/stripe'
+import featureFlags from './routes/feature-flags'
+import governance from './routes/governance'
 import { getConfig } from './lib/config'
 
 // Validate environment configuration at startup — fail fast in production
@@ -96,6 +98,9 @@ app.route('/api/studios', networks)
 app.route('/api/networks', networks)
 app.route('/api/studios', migration)
 app.route('/api/studios', stripeRoutes)
+app.route('/api/admin', featureFlags)
+app.route('/api/studios', featureFlags)
+app.route('/api/governance', governance)
 
 export default app
 export { app }

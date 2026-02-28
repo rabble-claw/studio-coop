@@ -1,12 +1,13 @@
 import { useEffect, useState, useCallback } from 'react'
 import {
   View, Text, ScrollView, TouchableOpacity, Alert, RefreshControl,
-  TextInput, Image,
+  TextInput, Image, ActivityIndicator,
 } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useAuth } from '@/lib/auth-context'
-import { api, scheduleApi, bookingApi, feedApi } from '@/lib/api'
+import { api, scheduleApi, bookingApi, feedApi, paymentApi } from '@/lib/api'
+import { usePaymentSheet } from '@/lib/use-payment-sheet'
 
 interface ClassDetail {
   id: string
@@ -65,6 +66,15 @@ export default function ClassDetailScreen() {
   const [loading, setLoading] = useState(true)
   const [bookingLoading, setBookingLoading] = useState(false)
   const [tab, setTab] = useState<'info' | 'roster' | 'feed'>('info')
+
+  // Drop-in payment
+  const [dropInLoading, setDropInLoading] = useState(false)
+  const { openPaymentSheet } = usePaymentSheet({
+    onSuccess: () => {
+      Alert.alert('Payment Complete', 'Your drop-in is confirmed. You are booked for this class.')
+      loadData()
+    },
+  })
 
   // Feed composer
   const [postText, setPostText] = useState('')
@@ -130,6 +140,41 @@ export default function ClassDetailScreen() {
       Alert.alert('Error', e.message || 'Failed to cancel booking.')
     } finally {
       setBookingLoading(false)
+    }
+  }
+
+  async function handleDropIn() {
+    if (!user || !studioId) return
+    setDropInLoading(true)
+    try {
+      const { clientSecret, amount, currency } = await paymentApi.dropIn(studioId, id)
+      const priceLabel = new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: currency.toUpperCase(),
+      }).format(amount / 100)
+
+      Alert.alert(
+        'Drop-in Payment',
+        `This class requires a ${priceLabel} drop-in fee. Continue to payment?`,
+        [
+          { text: 'Cancel', style: 'cancel', onPress: () => setDropInLoading(false) },
+          {
+            text: 'Pay',
+            onPress: async () => {
+              await openPaymentSheet(clientSecret, 'Studio Co-op')
+              setDropInLoading(false)
+            },
+          },
+        ],
+      )
+    } catch (e: any) {
+      // If the error indicates no drop-in plan, fall back to regular booking
+      if (e.message?.includes('drop-in plan')) {
+        handleBook()
+      } else {
+        Alert.alert('Error', e.message || 'Could not start drop-in payment')
+      }
+      setDropInLoading(false)
     }
   }
 
@@ -232,15 +277,28 @@ export default function ClassDetailScreen() {
                   </Text>
                 </TouchableOpacity>
               ) : bookings.length < classData.max_capacity ? (
-                <TouchableOpacity
-                  className="bg-primary rounded-xl py-3 items-center"
-                  onPress={handleBook}
-                  disabled={bookingLoading}
-                >
-                  <Text className="text-white font-semibold">
-                    {bookingLoading ? 'Booking...' : 'Book This Class'}
-                  </Text>
-                </TouchableOpacity>
+                <View className="gap-2">
+                  <TouchableOpacity
+                    className="bg-primary rounded-xl py-3 items-center"
+                    onPress={handleBook}
+                    disabled={bookingLoading || dropInLoading}
+                  >
+                    <Text className="text-white font-semibold">
+                      {bookingLoading ? 'Booking...' : 'Book This Class'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    className="bg-card border border-primary rounded-xl py-3 items-center flex-row justify-center"
+                    onPress={handleDropIn}
+                    disabled={bookingLoading || dropInLoading}
+                  >
+                    {dropInLoading ? (
+                      <ActivityIndicator color="#e85d4a" size="small" />
+                    ) : (
+                      <Text className="text-primary font-semibold">Drop-in (Pay Per Class)</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
               ) : (
                 <TouchableOpacity
                   className="bg-yellow-50 border border-yellow-200 rounded-xl py-3 items-center"
