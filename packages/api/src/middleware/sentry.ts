@@ -13,12 +13,12 @@ export async function sentryMiddleware(c: Context, next: Next) {
     request: c.req.raw,
   })
 
-  const user = c.get('user') as { id: string; email: string } | undefined
+  const user = (c as any).get('user') as { id: string; email: string } | undefined
   if (user) {
     sentry.setUser({ id: user.id, email: user.email })
   }
 
-  c.set('sentry', sentry)
+  ;(c as any).set('sentry', sentry)
 
   try {
     await next()

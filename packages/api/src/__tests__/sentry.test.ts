@@ -47,7 +47,7 @@ describe('sentryMiddleware', () => {
     const app = new Hono()
     app.use('*', sentryMiddleware)
     app.onError((err, c) => {
-      const sentry = c.get('sentry')
+      const sentry = (c as any).get('sentry')
       if (sentry) {
         sentry.captureException(err)
       }
@@ -69,7 +69,7 @@ describe('sentryMiddleware', () => {
 
     const app = new Hono()
     app.use('*', async (c, next) => {
-      c.set('user', { id: 'user-1', email: 'test@example.com' })
+      ;(c as any).set('user', { id: 'user-1', email: 'test@example.com' })
       await next()
     })
     app.use('*', sentryMiddleware)
@@ -97,7 +97,7 @@ describe('sentryMiddleware', () => {
     const app = new Hono()
     app.use('*', sentryMiddleware)
     app.get('/test', (c) => {
-      hasSentry = !!c.get('sentry')
+      hasSentry = !!(c as any).get('sentry')
       return c.json({ ok: true })
     })
 

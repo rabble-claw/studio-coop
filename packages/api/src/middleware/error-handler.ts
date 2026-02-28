@@ -5,7 +5,7 @@ export const errorHandler: ErrorHandler = (err, c) => {
   // Report unexpected errors to Sentry (skip expected AppErrors)
   if (!(err instanceof AppError)) {
     try {
-      const sentry = c.get('sentry')
+      const sentry = (c as any).get('sentry') as { captureException: (e: unknown) => void } | undefined
       if (sentry) {
         sentry.captureException(err)
       }
