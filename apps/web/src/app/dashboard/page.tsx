@@ -66,7 +66,7 @@ export default function DashboardPage() {
 
       if (!membership?.studios) { setLoading(false); return }
 
-      const s = membership.studios as Record<string, unknown>
+      const s = membership.studios as unknown as Record<string, unknown>
       const studioId = s.id as string
       const todayStr = new Date().toISOString().split('T')[0]
 

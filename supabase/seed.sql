@@ -71,7 +71,7 @@ insert into public.users (id, email, name, avatar_url) values
 -- ============================================================
 -- STUDIO
 -- ============================================================
-insert into public.studios (id, name, slug, discipline, description, timezone, currency, settings, tier) values
+insert into public.studios (id, name, slug, discipline, description, timezone, currency, settings, tier, country_code, region, city, address, latitude, longitude) values
   ('bb000000-0000-0000-0000-000000000001',
    'Empire Aerial Arts',
    'empire-aerial-arts',
@@ -80,7 +80,8 @@ insert into public.studios (id, name, slug, discipline, description, timezone, c
    'Pacific/Auckland',
    'NZD',
    '{"cancellationWindowHours": 6, "defaultMaxCapacity": 10, "confirmationReminderHours": [24, 2], "feedEnabled": true, "waitlistEnabled": true, "spotSelectionEnabled": false}',
-   'studio');
+   'studio',
+   'NZ', 'Wellington', 'Wellington', 'Level 1, 110 Cuba Street, Te Aro, Wellington 6011', -41.2917, 174.7766);
 
 -- ============================================================
 -- MEMBERSHIPS

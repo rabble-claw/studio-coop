@@ -114,7 +114,7 @@ export default function ClassDetailPage() {
 
     setFeed(
       (posts ?? []).map((p) => {
-        const u = p.user as { id: string; name: string; avatar_url: string | null }
+        const u = p.user as unknown as { id: string; name: string; avatar_url: string | null }
         return {
           id: p.id,
           content: p.content,

@@ -84,8 +84,8 @@ export default function FeedPage() {
         post_type: p.post_type,
         created_at: p.created_at,
         class_instance_id: p.class_instance_id,
-        user: p.user as FeedPost['user'],
-        class_instance: p.class_instance as FeedPost['class_instance'],
+        user: p.user as unknown as FeedPost['user'],
+        class_instance: p.class_instance as unknown as FeedPost['class_instance'],
         reactions: reactionsByPost[p.id] ?? [],
       })),
     )

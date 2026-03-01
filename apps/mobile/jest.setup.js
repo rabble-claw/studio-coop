@@ -20,6 +20,15 @@ jest.mock('expo-device', () => ({
   isDevice: true,
 }))
 
+// Mock expo-location
+jest.mock('expo-location', () => ({
+  requestForegroundPermissionsAsync: jest.fn().mockResolvedValue({ status: 'granted' }),
+  getCurrentPositionAsync: jest.fn().mockResolvedValue({
+    coords: { latitude: -41.2917, longitude: 174.7766 },
+  }),
+  Accuracy: { Balanced: 3 },
+}))
+
 // Mock expo-constants
 jest.mock('expo-constants', () => ({
   expoConfig: {

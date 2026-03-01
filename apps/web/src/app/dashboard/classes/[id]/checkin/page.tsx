@@ -73,7 +73,11 @@ export default function CheckinPage() {
       .single()
 
     if (!cls) { setLoading(false); return }
-    setClassInfo(cls)
+    setClassInfo({
+      ...cls,
+      template: cls.template as unknown as ClassInfo['template'],
+      teacher: cls.teacher as unknown as ClassInfo['teacher'],
+    })
 
     // Verify staff role
     const { data: membership } = await supabase

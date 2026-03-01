@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import messages from '@/messages/en.json'
 
+// The messages JSON has mixed nesting depths — some values are strings,
+// some are nested objects. Use a recursive type to avoid TS cast errors.
+type MessageTree = { [key: string]: string | MessageTree }
+const msgs = messages as unknown as MessageTree
+
 const EXPECTED_NAMESPACES = [
   'common',
   'auth',
@@ -22,7 +27,7 @@ describe('i18n locale file', () => {
   it('should have all expected namespaces', () => {
     for (const ns of EXPECTED_NAMESPACES) {
       expect(messages).toHaveProperty(ns)
-      expect(typeof (messages as Record<string, unknown>)[ns]).toBe('object')
+      expect(typeof (msgs as Record<string, unknown>)[ns]).toBe('object')
     }
   })
 
@@ -37,7 +42,7 @@ describe('i18n locale file', () => {
         }
       }
     }
-    checkValues(messages as Record<string, unknown>)
+    checkValues(msgs as Record<string, unknown>)
   })
 
   it('should only contain string values at leaf nodes', () => {
@@ -51,18 +56,18 @@ describe('i18n locale file', () => {
         }
       }
     }
-    checkLeaves(messages as Record<string, unknown>)
+    checkLeaves(msgs as Record<string, unknown>)
   })
 
   it('should have non-empty namespaces', () => {
     for (const ns of EXPECTED_NAMESPACES) {
-      const nsObj = (messages as Record<string, Record<string, unknown>>)[ns]
+      const nsObj = (msgs as Record<string, Record<string, unknown>>)[ns]
       expect(Object.keys(nsObj).length, `Namespace "${ns}" is empty`).toBeGreaterThan(0)
     }
   })
 
   it('should have required common keys', () => {
-    const common = (messages as Record<string, Record<string, string>>).common
+    const common = (msgs as Record<string, MessageTree>).common
     expect(common).toHaveProperty('loading')
     expect(common).toHaveProperty('cancel')
     expect(common).toHaveProperty('save')
@@ -73,7 +78,7 @@ describe('i18n locale file', () => {
   })
 
   it('should have required auth keys', () => {
-    const auth = (messages as Record<string, Record<string, string>>).auth
+    const auth = (msgs as Record<string, MessageTree>).auth
     expect(auth).toHaveProperty('signIn')
     expect(auth).toHaveProperty('signUp')
     expect(auth).toHaveProperty('signOut')
@@ -81,7 +86,7 @@ describe('i18n locale file', () => {
   })
 
   it('should have required dashboard keys', () => {
-    const dashboard = (messages as Record<string, Record<string, string>>).dashboard
+    const dashboard = (msgs as Record<string, MessageTree>).dashboard
     expect(dashboard).toHaveProperty('title')
     expect(dashboard).toHaveProperty('members')
     expect(dashboard).toHaveProperty('upcomingClasses')
@@ -97,7 +102,7 @@ describe('i18n locale file', () => {
   })
 
   it('should have nav labels matching dashboard-shell navItems', () => {
-    const nav = (messages as Record<string, Record<string, Record<string, string>>>).common.nav
+    const nav = (msgs as Record<string, MessageTree>).common.nav
     expect(nav).toBeDefined()
     const expectedNavKeys = [
       'overview',
@@ -119,9 +124,9 @@ describe('i18n locale file', () => {
 
   it('should have interpolation-ready strings', () => {
     // Strings with {variable} interpolation should exist
-    const schedule = (messages as Record<string, Record<string, string>>).schedule
+    const schedule = (msgs as Record<string, MessageTree>).schedule
     expect(schedule.spotsLeft).toContain('{count}')
-    const members = (messages as Record<string, Record<string, string>>).members
+    const members = (msgs as Record<string, MessageTree>).members
     expect(members.totalMembers).toContain('{count}')
   })
 
@@ -136,7 +141,7 @@ describe('i18n locale file', () => {
       }
       return count
     }
-    const total = countKeys(messages as Record<string, unknown>)
+    const total = countKeys(msgs as Record<string, unknown>)
     expect(total).toBeGreaterThan(100)
     expect(total).toBeLessThan(1000)
   })

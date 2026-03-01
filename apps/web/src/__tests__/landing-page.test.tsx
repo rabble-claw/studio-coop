@@ -42,14 +42,14 @@ describe('LandingPage', () => {
     render(<LandingPage />)
     const startFreeLinks = screen.getAllByRole('link', { name: /start free/i })
     expect(startFreeLinks.length).toBeGreaterThanOrEqual(1)
-    expect(startFreeLinks[0]).toHaveAttribute('href', '/login')
+    expect(startFreeLinks[0]).toHaveAttribute('href', '/login?mode=signup')
   })
 
-  it('shows the Empire Aerial Arts demo link', () => {
+  it('shows the demo link', () => {
     render(<LandingPage />)
-    const demoLinks = screen.getAllByRole('link', { name: /see empire aerial arts/i })
+    const demoLinks = screen.getAllByRole('link', { name: /see the demo/i })
     expect(demoLinks.length).toBeGreaterThanOrEqual(1)
-    expect(demoLinks[0]).toHaveAttribute('href', '/empire-aerial-arts')
+    expect(demoLinks[0]).toHaveAttribute('href', '/demo')
   })
 
   it('shows "How it works" section', () => {

@@ -14,15 +14,26 @@ const DISCIPLINES = [
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 
+const COUNTRIES = [
+  { code: 'NZ', name: 'New Zealand' },
+  { code: 'US', name: 'United States' },
+  { code: 'AU', name: 'Australia' },
+  { code: 'GB', name: 'United Kingdom' },
+  { code: 'CA', name: 'Canada' },
+  { code: 'OTHER', name: 'Other' },
+]
+
 type Step = 'info' | 'stripe' | 'schedule' | 'done'
 
 export default function SetupWizardPage() {
   const router = useRouter()
   const [step, setStep] = useState<Step>('info')
   const [loading, setLoading] = useState(false)
+  const [geoLoading, setGeoLoading] = useState(false)
   const [studioData, setStudioData] = useState({
     name: '', slug: '', discipline: 'aerial', description: '',
-    address: '', city: '', country: 'NZ', timezone: 'Pacific/Auckland',
+    address: '', city: '', country: 'NZ', region: '', timezone: 'Pacific/Auckland',
+    latitude: '' as string | number, longitude: '' as string | number,
   })
   const [templateData, setTemplateData] = useState({
     name: '', day: 'monday', startTime: '18:00', endTime: '19:00', maxCapacity: 12,
@@ -30,10 +41,37 @@ export default function SetupWizardPage() {
 
   const [createdStudioId, setCreatedStudioId] = useState<string | null>(null)
 
+  function handleUseMyLocation() {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser.')
+      return
+    }
+    setGeoLoading(true)
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setGeoLoading(false)
+        setStudioData({
+          ...studioData,
+          latitude: parseFloat(position.coords.latitude.toFixed(6)),
+          longitude: parseFloat(position.coords.longitude.toFixed(6)),
+        })
+      },
+      () => {
+        setGeoLoading(false)
+        alert('Unable to get your location. Please check your browser permissions.')
+      }
+    )
+  }
+
   async function createStudio() {
     setLoading(true)
     try {
-      const result = await api.post<{ studio: { id: string } }>('/studios', studioData)
+      const payload = {
+        ...studioData,
+        latitude: studioData.latitude !== '' ? Number(studioData.latitude) : undefined,
+        longitude: studioData.longitude !== '' ? Number(studioData.longitude) : undefined,
+      }
+      const result = await api.post<{ studio: { id: string } }>('/studios', payload)
       setCreatedStudioId(result.studio.id)
       setStep('stripe')
     } catch (e) {
@@ -126,12 +164,37 @@ export default function SetupWizardPage() {
                 <Input value={studioData.city} onChange={e => setStudioData({...studioData, city: e.target.value})} placeholder="Wellington" />
               </div>
               <div>
-                <label className="text-sm font-medium">Country</label>
-                <Input value={studioData.country} onChange={e => setStudioData({...studioData, country: e.target.value})} placeholder="NZ" />
+                <label className="text-sm font-medium">Region / State</label>
+                <Input value={studioData.region} onChange={e => setStudioData({...studioData, region: e.target.value})} placeholder="Wellington" />
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Country</label>
+              <select className="w-full border rounded-md px-3 py-2 text-sm" value={studioData.country}
+                onChange={e => setStudioData({...studioData, country: e.target.value})}>
+                {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium">Location Coordinates</label>
+                <Button type="button" variant="outline" size="sm" onClick={handleUseMyLocation} disabled={geoLoading}>
+                  {geoLoading ? 'Locating...' : 'Use My Location'}
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs text-muted-foreground">Latitude</label>
+                  <Input type="number" step="any" value={studioData.latitude} onChange={e => setStudioData({...studioData, latitude: e.target.value})} placeholder="-41.2865" />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Longitude</label>
+                  <Input type="number" step="any" value={studioData.longitude} onChange={e => setStudioData({...studioData, longitude: e.target.value})} placeholder="174.7762" />
+                </div>
               </div>
             </div>
             <Button className="w-full" onClick={createStudio} disabled={!studioData.name || loading}>
-              {loading ? 'Creating...' : 'Create Studio →'}
+              {loading ? 'Creating...' : 'Create Studio \u{2192}'}
             </Button>
           </CardContent>
         </Card>
@@ -146,7 +209,7 @@ export default function SetupWizardPage() {
             <p className="text-muted-foreground">Connect your Stripe account to accept payments from members. You can skip this and set it up later.</p>
             <div className="flex gap-3">
               <Button onClick={connectStripe} disabled={loading}>
-                {loading ? 'Connecting...' : '💳 Connect Stripe'}
+                {loading ? 'Connecting...' : '\u{1F4B3}\u0020Connect Stripe'}
               </Button>
               <Button variant="outline" onClick={() => setStep('schedule')}>Skip for now</Button>
             </div>
@@ -188,7 +251,7 @@ export default function SetupWizardPage() {
             </div>
             <div className="flex gap-3">
               <Button onClick={createFirstTemplate} disabled={!templateData.name || loading}>
-                {loading ? 'Creating...' : '📅 Create Class'}
+                {loading ? 'Creating...' : '\u{1F4C5}\u0020Create Class'}
               </Button>
               <Button variant="outline" onClick={() => setStep('done')}>Skip</Button>
             </div>
@@ -199,18 +262,18 @@ export default function SetupWizardPage() {
       {step === 'done' && (
         <Card>
           <CardHeader>
-            <CardTitle>🎉 You&apos;re all set!</CardTitle>
+            <CardTitle>{'\u{1F389}'} You&apos;re all set!</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-muted-foreground">Your studio is ready. Here&apos;s what to do next:</p>
             <div className="space-y-2">
-              <div className="flex items-center gap-2 text-sm">✅ Studio created</div>
-              <div className="flex items-center gap-2 text-sm">→ Invite your members</div>
-              <div className="flex items-center gap-2 text-sm">→ Set up your class schedule</div>
-              <div className="flex items-center gap-2 text-sm">→ Create membership plans</div>
-              <div className="flex items-center gap-2 text-sm">→ Share your studio page</div>
+              <div className="flex items-center gap-2 text-sm">{'\u2705'} Studio created</div>
+              <div className="flex items-center gap-2 text-sm">{'\u2192'} Invite your members</div>
+              <div className="flex items-center gap-2 text-sm">{'\u2192'} Set up your class schedule</div>
+              <div className="flex items-center gap-2 text-sm">{'\u2192'} Create membership plans</div>
+              <div className="flex items-center gap-2 text-sm">{'\u2192'} Share your studio page</div>
             </div>
-            <Button className="w-full" onClick={() => router.push('/dashboard')}>Go to Dashboard →</Button>
+            <Button className="w-full" onClick={() => router.push('/dashboard')}>Go to Dashboard \u2192</Button>
           </CardContent>
         </Card>
       )}

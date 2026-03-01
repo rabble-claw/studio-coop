@@ -7,6 +7,9 @@ module.exports = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
     '\\.(css)$': '<rootDir>/jest.setup.js',
+    // Override jest-expo preset which incorrectly maps react to @types/react in pnpm monorepos
+    '^react$': require.resolve('react'),
+    '^react/(.*)$': require.resolve('react') + '/../$1',
   },
   testMatch: ['**/__tests__/**/*.(test|spec).(ts|tsx|js|jsx)'],
 }

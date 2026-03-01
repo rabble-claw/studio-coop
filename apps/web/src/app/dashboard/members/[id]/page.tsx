@@ -140,7 +140,10 @@ export default function MemberDetailPage() {
         .eq('studio_id', membership.studio_id)
         .order('created_at', { ascending: false })
 
-      setCompGrants(grants ?? [])
+      setCompGrants((grants ?? []).map((g) => ({
+        ...g,
+        granted_by_user: g.granted_by_user as unknown as CompGrant['granted_by_user'],
+      })))
 
       // Fetch attendance history
       const { data: attendanceData } = await supabase

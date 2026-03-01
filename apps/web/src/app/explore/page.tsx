@@ -18,7 +18,11 @@ type StudioRow = {
   discipline: string
   description: string | null
   logo_url: string | null
-  settings: Record<string, unknown> | null
+  country_code: string | null
+  region: string | null
+  city: string | null
+  latitude: number | null
+  longitude: number | null
 }
 
 const DISCIPLINE_META: Record<string, { emoji: string; color: string; bg: string }> = {
@@ -35,19 +39,25 @@ function getDisciplineMeta(discipline: string) {
   return DISCIPLINE_META[discipline.toLowerCase()] ?? { emoji: '\u{2B50}', color: '#7c3aed', bg: '#f3e8ff' }
 }
 
-async function getStudios(searchParams: { q?: string; discipline?: string; city?: string }) {
+async function getStudios(searchParams: { q?: string; discipline?: string; city?: string; country?: string; region?: string }) {
   const { createClient } = await import('@/lib/supabase/server')
   const supabase = await createClient()
 
   let query = supabase
     .from('studios')
-    .select('id, name, slug, discipline, description, logo_url, settings')
+    .select('id, name, slug, discipline, description, logo_url, country_code, region, city, address, latitude, longitude')
 
   if (searchParams.discipline) {
     query = query.eq('discipline', searchParams.discipline)
   }
   if (searchParams.city) {
-    query = query.ilike('settings->>city', `%${searchParams.city}%`)
+    query = query.ilike('city', `%${searchParams.city}%`)
+  }
+  if (searchParams.country) {
+    query = query.eq('country_code', searchParams.country)
+  }
+  if (searchParams.region) {
+    query = query.eq('region', searchParams.region)
   }
   if (searchParams.q) {
     query = query.or(
@@ -93,33 +103,57 @@ async function getStudios(searchParams: { q?: string; discipline?: string; city?
       discipline: s.discipline,
       description: s.description,
       logo_url: s.logo_url,
-      city: ((s.settings ?? {}) as Record<string, unknown>).city as string | null ?? null,
+      city: s.city ?? null,
+      country_code: s.country_code ?? null,
+      region: s.region ?? null,
       member_count: memberCountMap[s.id] ?? 0,
       upcoming_class_count: classCountMap[s.id] ?? 0,
     }))
     .sort((a, b) => b.member_count - a.member_count)
 }
 
-async function getCities() {
+type LocationGroup = {
+  country_code: string
+  regions: string[]
+  cities: string[]
+}
+
+async function getLocations(): Promise<LocationGroup[]> {
   const { createClient } = await import('@/lib/supabase/server')
   const supabase = await createClient()
-  const { data: studios } = await supabase.from('studios').select('settings')
-  const citySet = new Set<string>()
+  const { data: studios } = await supabase.from('studios').select('country_code, region, city')
+
+  const countryMap = new Map<string, { regions: Set<string>; cities: Set<string> }>()
+
   for (const s of studios ?? []) {
-    const settings = (s.settings ?? {}) as Record<string, unknown>
-    const city = settings.city as string | undefined
-    if (city) citySet.add(city)
+    const cc = (s as Record<string, unknown>).country_code as string | null
+    if (!cc) continue
+    if (!countryMap.has(cc)) {
+      countryMap.set(cc, { regions: new Set(), cities: new Set() })
+    }
+    const entry = countryMap.get(cc)!
+    const region = (s as Record<string, unknown>).region as string | null
+    const city = (s as Record<string, unknown>).city as string | null
+    if (region) entry.regions.add(region)
+    if (city) entry.cities.add(city)
   }
-  return Array.from(citySet).sort()
+
+  return Array.from(countryMap.entries())
+    .map(([country_code, { regions, cities }]) => ({
+      country_code,
+      regions: Array.from(regions).sort(),
+      cities: Array.from(cities).sort(),
+    }))
+    .sort((a, b) => a.country_code.localeCompare(b.country_code))
 }
 
 export default async function ExplorePage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; discipline?: string; city?: string }>
+  searchParams: Promise<{ q?: string; discipline?: string; city?: string; country?: string; region?: string }>
 }) {
   const params = await searchParams
-  const [studios, cities] = await Promise.all([getStudios(params), getCities()])
+  const [studios, locations] = await Promise.all([getStudios(params), getLocations()])
 
   return (
     <div className="min-h-screen bg-background">
@@ -151,7 +185,9 @@ export default async function ExplorePage({
           currentSearch={params.q ?? ''}
           currentDiscipline={params.discipline ?? ''}
           currentCity={params.city ?? ''}
-          cities={cities}
+          currentCountry={params.country ?? ''}
+          currentRegion={params.region ?? ''}
+          locations={locations}
         />
       </section>
 
@@ -160,8 +196,10 @@ export default async function ExplorePage({
         <div className="max-w-6xl mx-auto px-6 pb-4">
           <p className="text-sm text-muted-foreground">
             {studios.length} studio{studios.length !== 1 ? 's' : ''}
-            {params.discipline ? ` · ${params.discipline}` : ''}
-            {params.city ? ` · ${params.city}` : ''}
+            {params.discipline ? ` \u00B7 ${params.discipline}` : ''}
+            {params.country ? ` \u00B7 ${params.country}` : ''}
+            {params.region ? ` \u00B7 ${params.region}` : ''}
+            {params.city ? ` \u00B7 ${params.city}` : ''}
           </p>
         </div>
       )}
@@ -172,7 +210,7 @@ export default async function ExplorePage({
           <div className="text-center py-20">
             <div className="text-4xl mb-4">{'\u{1F3AA}'}</div>
             <p className="text-muted-foreground text-lg">
-              {params.q || params.discipline || params.city
+              {params.q || params.discipline || params.city || params.country || params.region
                 ? 'No studios found matching your search.'
                 : 'No studios available yet. Check back soon!'}
             </p>
@@ -211,7 +249,9 @@ export default async function ExplorePage({
                         </h3>
                         <p className="text-xs text-muted-foreground capitalize">
                           {studio.discipline}
-                          {studio.city ? ` · ${studio.city}` : ''}
+                          {studio.city ? ` \u00B7 ${studio.city}` : ''}
+                          {studio.region ? `, ${studio.region}` : ''}
+                          {studio.country_code ? ` (${studio.country_code})` : ''}
                         </p>
                       </div>
                     </div>

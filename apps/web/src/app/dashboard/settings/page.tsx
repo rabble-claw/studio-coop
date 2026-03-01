@@ -9,16 +9,27 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
+const COUNTRIES = [
+  { code: 'NZ', name: 'New Zealand' },
+  { code: 'US', name: 'United States' },
+  { code: 'AU', name: 'Australia' },
+  { code: 'GB', name: 'United Kingdom' },
+  { code: 'CA', name: 'Canada' },
+  { code: 'OTHER', name: 'Other' },
+]
+
 export default function SettingsPage() {
   const router = useRouter()
   const [studioId, setStudioId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [geoLoading, setGeoLoading] = useState(false)
 
   const [studio, setStudio] = useState({
     name: '', slug: '', description: '',
-    address: '', city: '', country: '',
+    address: '', city: '', country: '', region: '',
     timezone: 'Pacific/Auckland', phone: '', email: '', website: '',
+    latitude: '' as string | number, longitude: '' as string | number,
   })
 
   const [notifications, setNotifications] = useState({
@@ -38,6 +49,28 @@ export default function SettingsPage() {
 
   const [stripeStatus, setStripeStatus] = useState<{ connected: boolean; accountId?: string; dashboardUrl?: string }>({ connected: false })
   const [stripeLoading, setStripeLoading] = useState(false)
+
+  function handleUseMyLocation() {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser.')
+      return
+    }
+    setGeoLoading(true)
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setGeoLoading(false)
+        setStudio({
+          ...studio,
+          latitude: parseFloat(position.coords.latitude.toFixed(6)),
+          longitude: parseFloat(position.coords.longitude.toFixed(6)),
+        })
+      },
+      () => {
+        setGeoLoading(false)
+        alert('Unable to get your location. Please check your browser permissions.')
+      }
+    )
+  }
 
   useEffect(() => {
     async function load() {
@@ -62,8 +95,10 @@ export default function SettingsPage() {
         setStudio({
           name: g.name ?? '', slug: g.slug ?? '', description: g.description ?? '',
           address: g.address ?? '', city: g.city ?? '', country: g.country ?? '',
+          region: g.region ?? '',
           timezone: g.timezone ?? 'Pacific/Auckland', phone: g.phone ?? '',
           email: g.email ?? '', website: g.website ?? '',
+          latitude: g.latitude ?? '', longitude: g.longitude ?? '',
         })
         const n = settings.notifications as Record<string, unknown>
         setNotifications(prev => ({ ...prev, ...n }))
@@ -89,7 +124,12 @@ export default function SettingsPage() {
     setSaving(true)
     setSaveMessage('')
     try {
-      await studioApi.updateGeneral(studioId, studio)
+      const payload = {
+        ...studio,
+        latitude: studio.latitude !== '' ? Number(studio.latitude) : undefined,
+        longitude: studio.longitude !== '' ? Number(studio.longitude) : undefined,
+      }
+      await studioApi.updateGeneral(studioId, payload)
       setSaveMessage('Settings saved!')
     } catch (e) {
       setSaveMessage(`Error: ${e instanceof Error ? e.message : 'Failed to save'}`)
@@ -185,7 +225,7 @@ export default function SettingsPage() {
                   <Input id="studio-phone" value={studio.phone} onChange={e => setStudio({...studio, phone: e.target.value})} />
                 </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="studio-address" className="text-sm font-medium">Address</label>
                   <Input id="studio-address" value={studio.address} onChange={e => setStudio({...studio, address: e.target.value})} />
@@ -194,9 +234,41 @@ export default function SettingsPage() {
                   <label htmlFor="studio-city" className="text-sm font-medium">City</label>
                   <Input id="studio-city" value={studio.city} onChange={e => setStudio({...studio, city: e.target.value})} />
                 </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label htmlFor="studio-region" className="text-sm font-medium">Region / State</label>
+                  <Input id="studio-region" value={studio.region} onChange={e => setStudio({...studio, region: e.target.value})} placeholder="e.g. Wellington, California" />
+                </div>
+                <div>
+                  <label htmlFor="studio-country" className="text-sm font-medium">Country</label>
+                  <select id="studio-country" className="w-full border rounded-md px-3 py-2 text-sm h-10" value={studio.country}
+                    onChange={e => setStudio({...studio, country: e.target.value})}>
+                    <option value="">Select country...</option>
+                    {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
+                  </select>
+                </div>
                 <div>
                   <label htmlFor="studio-timezone" className="text-sm font-medium">Timezone</label>
                   <Input id="studio-timezone" value={studio.timezone} onChange={e => setStudio({...studio, timezone: e.target.value})} />
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm font-medium">Location Coordinates</label>
+                  <Button type="button" variant="outline" size="sm" onClick={handleUseMyLocation} disabled={geoLoading}>
+                    {geoLoading ? 'Locating...' : 'Use My Location'}
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="studio-latitude" className="text-xs text-muted-foreground">Latitude</label>
+                    <Input id="studio-latitude" type="number" step="any" value={studio.latitude} onChange={e => setStudio({...studio, latitude: e.target.value})} placeholder="-41.2865" />
+                  </div>
+                  <div>
+                    <label htmlFor="studio-longitude" className="text-xs text-muted-foreground">Longitude</label>
+                    <Input id="studio-longitude" type="number" step="any" value={studio.longitude} onChange={e => setStudio({...studio, longitude: e.target.value})} placeholder="174.7762" />
+                  </div>
                 </div>
               </div>
               <Button onClick={handleSaveGeneral} disabled={saving}>{saving ? 'Saving...' : 'Save Changes'}</Button>

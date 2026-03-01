@@ -42,7 +42,7 @@ studioSettings.get('/:studioId/settings', authMiddleware, requireMember, async (
 
   const { data: studio } = await supabase
     .from('studios')
-    .select('id, name, slug, description, settings')
+    .select('id, name, slug, description, settings, country_code, region, city, address, latitude, longitude')
     .eq('id', studioId)
     .single()
 
@@ -56,9 +56,13 @@ studioSettings.get('/:studioId/settings', authMiddleware, requireMember, async (
       name: studio.name,
       slug: studio.slug,
       description: studio.description,
-      address: settings.address ?? '',
-      city: settings.city ?? '',
-      country: settings.country ?? '',
+      address: studio.address ?? (settings.address as string) ?? '',
+      city: studio.city ?? (settings.city as string) ?? '',
+      country: studio.country_code ?? (settings.country as string) ?? '',
+      country_code: studio.country_code ?? '',
+      region: studio.region ?? '',
+      latitude: studio.latitude ?? null,
+      longitude: studio.longitude ?? null,
       timezone: settings.timezone ?? 'Pacific/Auckland',
       phone: settings.phone ?? '',
       email: settings.email ?? '',
@@ -101,9 +105,32 @@ studioSettings.put('/:studioId/settings/general', authMiddleware, requireOwner, 
   if (typeof body.slug === 'string') studioUpdates.slug = body.slug
   if (typeof body.description === 'string') studioUpdates.description = body.description
 
-  // Update settings JSONB for contact/location fields
+  // Write location fields to dedicated columns (no longer in settings JSONB)
+  if (typeof body.address === 'string') studioUpdates.address = body.address
+  if (typeof body.city === 'string') studioUpdates.city = body.city
+  if (typeof body.region === 'string') studioUpdates.region = body.region
+
+  // Accept 'country' as an alias for 'country_code'
+  if (typeof body.country_code === 'string') studioUpdates.country_code = body.country_code
+  else if (typeof body.country === 'string') studioUpdates.country_code = body.country
+
+  // Validate and write latitude/longitude
+  if (typeof body.latitude === 'number') {
+    if (body.latitude < -90 || body.latitude > 90) {
+      return c.json({ error: 'latitude must be between -90 and 90' }, 400)
+    }
+    studioUpdates.latitude = body.latitude
+  }
+  if (typeof body.longitude === 'number') {
+    if (body.longitude < -180 || body.longitude > 180) {
+      return c.json({ error: 'longitude must be between -180 and 180' }, 400)
+    }
+    studioUpdates.longitude = body.longitude
+  }
+
+  // Update settings JSONB for contact fields only (timezone, phone, email, website)
   const newSettings = { ...currentSettings }
-  for (const key of ['address', 'city', 'country', 'timezone', 'phone', 'email', 'website']) {
+  for (const key of ['timezone', 'phone', 'email', 'website']) {
     if (typeof body[key] === 'string') {
       newSettings[key] = body[key]
     }
