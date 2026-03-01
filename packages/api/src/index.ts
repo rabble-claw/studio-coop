@@ -31,15 +31,13 @@ import governance from './routes/governance'
 import discover from './routes/discover'
 import { getConfig } from './lib/config'
 
-// Validate environment configuration at startup — fail fast in production
+// Validate environment configuration at startup (best-effort).
+// In Cloudflare Workers, secrets are only available via the `env` binding at
+// request time, NOT through `process.env`, so this will always warn in Workers.
 try {
   getConfig()
 } catch (e) {
-  const msg = (e as Error).message
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error(`Startup aborted: ${msg}`)
-  }
-  console.warn('Environment config validation warning:', msg)
+  console.warn('Environment config validation warning:', (e as Error).message)
 }
 
 const app = new Hono()
