@@ -12,7 +12,17 @@ vi.mock('../middleware/auth', () => ({
   }),
 }))
 vi.mock('../middleware/studio-access', () => ({
+  requireMember: vi.fn(async (c: any, next: any) => {
+    c.set('studioId', c.req.param('studioId'))
+    c.set('memberRole', 'admin')
+    await next()
+  }),
   requireStaff: vi.fn(async (c: any, next: any) => {
+    c.set('studioId', c.req.param('studioId'))
+    c.set('memberRole', 'admin')
+    await next()
+  }),
+  requireAdmin: vi.fn(async (c: any, next: any) => {
     c.set('studioId', c.req.param('studioId'))
     c.set('memberRole', 'admin')
     await next()
