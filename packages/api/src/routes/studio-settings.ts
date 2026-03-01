@@ -32,6 +32,14 @@ const DEFAULT_CANCELLATION_POLICY = {
   allow_self_cancel: true,
 }
 
+// Default waitlist settings
+const DEFAULT_WAITLIST_SETTINGS = {
+  autoPromote: true,
+  confirmationMinutes: 60,
+  maxSize: 0,
+  notifyPosition: true,
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /:studioId/settings — full settings (any member)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -75,6 +83,10 @@ studioSettings.get('/:studioId/settings', authMiddleware, requireMember, async (
     cancellation: {
       ...DEFAULT_CANCELLATION_POLICY,
       ...((settings.cancellation ?? {}) as Record<string, unknown>),
+    },
+    waitlist: {
+      ...DEFAULT_WAITLIST_SETTINGS,
+      ...((settings.waitlist ?? {}) as Record<string, unknown>),
     },
   })
 })
@@ -266,6 +278,54 @@ studioSettings.put('/:studioId/settings/notifications', authMiddleware, requireO
   if (error) throw new Error(error.message)
 
   return c.json({ studioId, notifications: updated })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PUT /:studioId/settings/waitlist — update waitlist settings (owner only)
+// ─────────────────────────────────────────────────────────────────────────────
+
+studioSettings.put('/:studioId/settings/waitlist', authMiddleware, requireOwner, async (c) => {
+  const studioId = c.get('studioId' as never) as string
+  const supabase = createServiceClient()
+
+  const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
+
+  const { data: studio } = await supabase
+    .from('studios')
+    .select('settings')
+    .eq('id', studioId)
+    .single()
+
+  if (!studio) throw notFound('Studio')
+
+  const currentSettings = (studio.settings ?? {}) as Record<string, unknown>
+  const currentWaitlist = {
+    ...DEFAULT_WAITLIST_SETTINGS,
+    ...((currentSettings.waitlist ?? {}) as Record<string, unknown>),
+  }
+
+  // Only allow known keys
+  const updated: Record<string, unknown> = { ...currentWaitlist }
+  if (typeof body.autoPromote === 'boolean') updated.autoPromote = body.autoPromote
+  if (typeof body.confirmationMinutes === 'number' && [15, 30, 60, 120].includes(body.confirmationMinutes)) {
+    updated.confirmationMinutes = body.confirmationMinutes
+  }
+  if (typeof body.maxSize === 'number' && body.maxSize >= 0) updated.maxSize = body.maxSize
+  if (typeof body.notifyPosition === 'boolean') updated.notifyPosition = body.notifyPosition
+
+  const newSettings = {
+    ...currentSettings,
+    waitlist: updated,
+  }
+
+  const { error } = await supabase
+    .from('studios')
+    .update({ settings: newSettings })
+    .eq('id', studioId)
+
+  if (error) throw new Error(error.message)
+
+  return c.json({ studioId, waitlist: updated })
 })
 
 export { studioSettings }

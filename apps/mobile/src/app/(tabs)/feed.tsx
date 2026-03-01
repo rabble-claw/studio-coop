@@ -61,6 +61,7 @@ export default function FeedScreen() {
     } finally {
       setLoading(false)
     }
+  // Note: studioId is used as classId context for feed
   }, [studioId])
 
   useEffect(() => { loadFeed() }, [loadFeed])
@@ -168,7 +169,7 @@ export default function FeedScreen() {
   async function handleReact(postId: string, emoji: string) {
     if (!studioId) return
     try {
-      await feedApi.react(studioId, postId, emoji)
+      await feedApi.react(postId, emoji)
       setPosts(posts.map(p => {
         if (p.id !== postId) return p
         const reactions = p.reactions.map(r =>

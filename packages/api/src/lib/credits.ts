@@ -127,10 +127,7 @@ export async function deductCredit(creditCheck: CreditCheck): Promise<void> {
 
   switch (creditCheck.source) {
     case 'comp_class': {
-      await supabase
-        .from('comp_classes')
-        .update({ remaining_classes: creditCheck.remainingAfter })
-        .eq('id', creditCheck.sourceId!)
+      await supabase.rpc('deduct_comp_credit', { comp_id: creditCheck.sourceId! })
       break
     }
     case 'subscription_limited': {
@@ -139,10 +136,7 @@ export async function deductCredit(creditCheck: CreditCheck): Promise<void> {
       break
     }
     case 'class_pack': {
-      await supabase
-        .from('class_passes')
-        .update({ remaining_classes: creditCheck.remainingAfter })
-        .eq('id', creditCheck.sourceId!)
+      await supabase.rpc('deduct_class_pass_credit', { pass_id: creditCheck.sourceId! })
       break
     }
     case 'subscription_unlimited':

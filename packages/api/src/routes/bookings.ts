@@ -464,5 +464,56 @@ bookings.post(
   },
 )
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Studio-wide booking list for dashboard overview
+// GET /:studioId/bookings
+// ─────────────────────────────────────────────────────────────────────────────
+
+bookings.get('/:studioId/bookings', authMiddleware, requireStaff, async (c) => {
+  const studioId = c.req.param('studioId')
+  const supabase = createServiceClient()
+
+  const from = c.req.query('from')
+  const to = c.req.query('to')
+  const statusFilter = c.req.query('status')
+  const limit = parseInt(c.req.query('limit') ?? '50', 10)
+  const offset = parseInt(c.req.query('offset') ?? '0', 10)
+
+  // Get class instance IDs for this studio in the date range
+  let classQuery = supabase
+    .from('class_instances')
+    .select('id')
+    .eq('studio_id', studioId)
+
+  if (from) classQuery = classQuery.gte('date', from)
+  if (to) classQuery = classQuery.lte('date', to)
+
+  const { data: classInstances } = await classQuery
+  const classIds = (classInstances ?? []).map((ci: { id: string }) => ci.id)
+  if (classIds.length === 0) return c.json({ bookings: [], total: 0 })
+
+  let query = supabase
+    .from('bookings')
+    .select(`
+      id, status, booked_at, confirmed_at, cancelled_at, waitlist_position, credit_source,
+      member:users!bookings_user_id_fkey(id, name, email, avatar_url),
+      class_instance:class_instances!bookings_class_instance_id_fkey(
+        id, date, start_time, studio_id,
+        template:class_templates(name),
+        teacher:users!class_instances_teacher_id_fkey(name)
+      )
+    `, { count: 'exact' })
+    .in('class_instance_id', classIds)
+    .order('booked_at', { ascending: false })
+    .range(offset, offset + limit - 1)
+
+  if (statusFilter) query = query.eq('status', statusFilter)
+
+  const { data, count, error } = await query
+  if (error) throw error
+
+  return c.json({ bookings: data ?? [], total: count ?? 0 })
+})
+
 export { bookings }
 export default bookings

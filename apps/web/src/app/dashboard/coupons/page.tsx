@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 
 interface Coupon {
   id: string
@@ -25,7 +26,7 @@ interface Coupon {
 
 function discountLabel(coupon: Coupon): string {
   if (coupon.type === 'percent_off') return `${coupon.value}% off`
-  if (coupon.type === 'amount_off') return `$${(coupon.value / 100).toFixed(2)} off`
+  if (coupon.type === 'amount_off') return `NZ$${(coupon.value / 100).toFixed(2)} off`
   return `${coupon.value} free class${coupon.value !== 1 ? 'es' : ''}`
 }
 
@@ -61,6 +62,7 @@ export default function CouponsPage() {
   const [newValidUntil, setNewValidUntil]   = useState('')
   const [creating, setCreating]             = useState(false)
   const [createError, setCreateError]       = useState<string | null>(null)
+  const [deactivateTarget, setDeactivateTarget] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -135,15 +137,14 @@ export default function CouponsPage() {
 
   async function handleDeactivate(couponId: string) {
     if (!studioId) return
-    if (!confirm('Deactivate this coupon? Members will no longer be able to use it.')) return
-
     try {
       await couponApi.delete(studioId, couponId)
       setCouponList((prev) =>
         prev.map((c) => c.id === couponId ? { ...c, active: false } : c),
       )
-    } catch {
-      // Deactivation failed silently
+    } catch (err) {
+      console.error('Failed to deactivate coupon:', err)
+      setError('Failed to deactivate coupon. Please try again.')
     }
   }
 
@@ -337,7 +338,7 @@ export default function CouponsPage() {
                         variant="ghost"
                         size="sm"
                         className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        onClick={() => handleDeactivate(coupon.id)}
+                        onClick={() => setDeactivateTarget(coupon.id)}
                         aria-label={`Deactivate coupon ${coupon.code}`}
                       >
                         Deactivate
@@ -350,6 +351,16 @@ export default function CouponsPage() {
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={deactivateTarget !== null}
+        onOpenChange={(open) => { if (!open) setDeactivateTarget(null) }}
+        title="Deactivate coupon"
+        description="Deactivate this coupon? Members will no longer be able to use it."
+        confirmLabel="Deactivate"
+        variant="danger"
+        onConfirm={() => { if (deactivateTarget) return handleDeactivate(deactivateTarget) }}
+      />
     </div>
   )
 }

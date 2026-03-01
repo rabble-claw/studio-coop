@@ -77,9 +77,9 @@ export default function ProfileScreen() {
 
       if (studioId) {
         const [attendanceData, passesData, compsData, subData] = await Promise.all([
-          profileApi.attendance(studioId).catch(() => []) as Promise<AttendanceRecord[]>,
+          profileApi.attendance().catch(() => []) as Promise<AttendanceRecord[]>,
           profileApi.classPasses(studioId).catch(() => []) as Promise<ClassPass[]>,
-          profileApi.comps(studioId).catch(() => []) as Promise<CompCredit[]>,
+          profileApi.comps().catch(() => []) as Promise<CompCredit[]>,
           subscriptionApi.mine(studioId).catch(() => null) as Promise<Subscription | null>,
         ])
         setAttendance(attendanceData ?? [])
@@ -314,11 +314,21 @@ export default function ProfileScreen() {
 
       {tab === 'settings' && (
         <View className="gap-3">
-          <TouchableOpacity className="bg-card rounded-xl border border-border p-4">
+          <TouchableOpacity
+            className="bg-card rounded-xl border border-border p-4"
+            onPress={() => {
+              Alert.alert('Notification Preferences', 'Coming soon. You can manage notification preferences from the web dashboard.')
+            }}
+          >
             <Text className="text-foreground font-medium">Notification Preferences</Text>
             <Text className="text-muted text-sm">Manage push and email notifications</Text>
           </TouchableOpacity>
-          <TouchableOpacity className="bg-card rounded-xl border border-border p-4">
+          <TouchableOpacity
+            className="bg-card rounded-xl border border-border p-4"
+            onPress={() => {
+              Alert.alert('Payment Methods', 'Coming soon. You can manage payment methods from the web dashboard.')
+            }}
+          >
             <Text className="text-foreground font-medium">Payment Methods</Text>
             <Text className="text-muted text-sm">Manage your saved cards</Text>
           </TouchableOpacity>

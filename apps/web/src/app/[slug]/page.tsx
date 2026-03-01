@@ -120,7 +120,7 @@ export default async function PublicStudioPage({ params }: { params: Promise<{ s
     ...(address ? { address: { '@type': 'PostalAddress', streetAddress: address } } : {}),
     ...(studio.logo_url ? { image: studio.logo_url } : {}),
     ...(studioEmail ? { email: studioEmail } : {}),
-    url: `https://studio.coop/${slug}`,
+    url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://studio.coop'}/${slug}`,
   }
 
   return (

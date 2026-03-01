@@ -41,6 +41,11 @@ vi.mock('../middleware/studio-access', () => ({
     c.set('memberRole', 'member')
     await next()
   }),
+  requireStaff: vi.fn(async (c: any, next: any) => {
+    c.set('studioId', c.req.param('studioId'))
+    c.set('memberRole', 'staff')
+    await next()
+  }),
 }))
 
 import { createServiceClient } from '../lib/supabase'
@@ -285,5 +290,54 @@ describe('DELETE /api/studios/:studioId/plans/:planId', () => {
       headers: { Authorization: 'Bearer test-token' },
     })
     expect(res.status).toBe(404)
+  })
+})
+
+describe('GET /api/studios/:studioId/plans/:planId/subscribers', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('returns 404 when plan not found', async () => {
+    const chain = {
+      from: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: null, error: null }),
+    }
+    vi.mocked(createServiceClient).mockReturnValue(chain as any)
+
+    const app = makeApp()
+    const res = await app.request(`/api/studios/${STUDIO_ID}/plans/${PLAN_ID}/subscribers`, {
+      headers: { Authorization: 'Bearer test-token' },
+    })
+    expect(res.status).toBe(404)
+  })
+
+  it('returns subscribers for a valid plan', async () => {
+    const plan = { id: PLAN_ID, name: 'Unlimited Monthly' }
+    const subscribers = [
+      { id: 'sub-1', status: 'active', created_at: '2026-01-01', member: { id: 'u1', name: 'Alice', email: 'a@e.com', avatar_url: null } },
+    ]
+
+    const chain = {
+      from: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      in: vi.fn().mockReturnThis(),
+      order: vi.fn().mockResolvedValue({ data: subscribers, error: null }),
+      single: vi.fn().mockResolvedValue({ data: plan, error: null }),
+    }
+    vi.mocked(createServiceClient).mockReturnValue(chain as any)
+
+    const app = makeApp()
+    const res = await app.request(`/api/studios/${STUDIO_ID}/plans/${PLAN_ID}/subscribers`, {
+      headers: { Authorization: 'Bearer test-token' },
+    })
+    expect(res.status).toBe(200)
+    const body = await res.json() as any
+    expect(body.plan.name).toBe('Unlimited Monthly')
+    expect(body.subscribers).toHaveLength(1)
+    expect(body.subscribers[0].member.name).toBe('Alice')
   })
 })

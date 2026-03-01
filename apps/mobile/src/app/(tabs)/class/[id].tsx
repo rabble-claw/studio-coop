@@ -81,14 +81,14 @@ export default function ClassDetailScreen() {
   const [submitting, setSubmitting] = useState(false)
 
   const loadFeed = useCallback(async (_userId?: string) => {
-    if (!studioId) return
+    if (!id) return
     try {
-      const data = await feedApi.getFeed(studioId, id) as FeedPost[]
+      const data = await feedApi.getFeed(id) as FeedPost[]
       setFeed(data ?? [])
     } catch (e) {
       console.error('Failed to load class feed:', e)
     }
-  }, [id, studioId])
+  }, [id])
 
   const loadData = useCallback(async () => {
     if (!user || !studioId) return
@@ -183,7 +183,7 @@ export default function ClassDetailScreen() {
     setSubmitting(true)
 
     try {
-      await feedApi.createPost(studioId, {
+      await feedApi.createPost(id, {
         content: postText.trim(),
         class_instance_id: id,
       })
@@ -196,9 +196,9 @@ export default function ClassDetailScreen() {
   }
 
   async function toggleReaction(postId: string, emoji: string) {
-    if (!user || !studioId) return
+    if (!user) return
     try {
-      await feedApi.react(studioId, postId, emoji)
+      await feedApi.react(postId, emoji)
       await loadFeed()
     } catch (e) {
       console.error('Failed to toggle reaction:', e)
@@ -206,9 +206,8 @@ export default function ClassDetailScreen() {
   }
 
   async function deletePost(postId: string) {
-    if (!studioId) return
     try {
-      await api.delete(`/api/studios/${studioId}/feed/${postId}`)
+      await api.delete(`/api/feed/${postId}`)
       await loadFeed()
     } catch (e) {
       console.error('Failed to delete post:', e)
@@ -354,19 +353,60 @@ export default function ClassDetailScreen() {
         {/* Tab content */}
         <View className="px-4 mt-4 pb-8">
           {tab === 'info' && (
-            <View>
-              <Text className="text-lg font-semibold text-foreground mb-2">Who&apos;s going</Text>
-              {bookings.map((b) => (
-                <View key={b.id} className="flex-row items-center py-2 border-b border-border">
-                  <View className="w-9 h-9 rounded-full bg-secondary items-center justify-center mr-3">
-                    <Text className="font-semibold text-sm">
-                      {b.user.name.split(' ').map((n) => n[0]).join('').toUpperCase()}
+            <View className="gap-4">
+              <Text className="text-lg font-semibold text-foreground">Class Details</Text>
+
+              {classData.template?.description && (
+                <View>
+                  <Text className="text-muted text-sm font-medium mb-1">Description</Text>
+                  <Text className="text-foreground">{classData.template.description}</Text>
+                </View>
+              )}
+
+              {classData.teacher && (
+                <View className="flex-row items-center">
+                  <View className="w-10 h-10 rounded-full bg-primary/10 items-center justify-center mr-3">
+                    <Text className="text-primary font-bold">
+                      {classData.teacher.name.split(' ').map((n) => n[0]).join('').toUpperCase()}
                     </Text>
                   </View>
-                  <Text className="text-foreground">{b.user.name}</Text>
+                  <View>
+                    <Text className="text-muted text-sm">Teacher</Text>
+                    <Text className="text-foreground font-medium">{classData.teacher.name}</Text>
+                  </View>
                 </View>
-              ))}
-              {bookings.length === 0 && <Text className="text-muted">No one booked yet</Text>}
+              )}
+
+              <View className="flex-row gap-4">
+                <View className="flex-1 bg-secondary rounded-xl p-3">
+                  <Text className="text-muted text-xs">Date</Text>
+                  <Text className="text-foreground font-medium text-sm">{dateStr}</Text>
+                </View>
+                <View className="flex-1 bg-secondary rounded-xl p-3">
+                  <Text className="text-muted text-xs">Time</Text>
+                  <Text className="text-foreground font-medium text-sm">
+                    {formatTime(classData.start_time)} - {formatTime(classData.end_time)}
+                  </Text>
+                </View>
+              </View>
+
+              <View className="flex-row gap-4">
+                <View className="flex-1 bg-secondary rounded-xl p-3">
+                  <Text className="text-muted text-xs">Capacity</Text>
+                  <Text className="text-foreground font-medium text-sm">{bookings.length}/{classData.max_capacity}</Text>
+                </View>
+                <View className="flex-1 bg-secondary rounded-xl p-3">
+                  <Text className="text-muted text-xs">Status</Text>
+                  <Text className="text-foreground font-medium text-sm capitalize">{classData.status}</Text>
+                </View>
+              </View>
+
+              {classData.notes && (
+                <View>
+                  <Text className="text-muted text-sm font-medium mb-1">Notes</Text>
+                  <Text className="text-foreground">{classData.notes}</Text>
+                </View>
+              )}
             </View>
           )}
 

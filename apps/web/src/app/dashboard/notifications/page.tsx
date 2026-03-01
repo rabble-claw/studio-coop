@@ -43,8 +43,9 @@ export default function NotificationsPage() {
     try {
       await notificationApi.markRead(id)
       setNotifications(notifications.map(n => n.id === id ? { ...n, read_at: new Date().toISOString() } : n))
-    } catch {
-      // Silently fail
+    } catch (err) {
+      console.error('Failed to mark notification as read:', err)
+      setError('Failed to mark notification as read. Please try again.')
     }
   }
 
@@ -52,8 +53,9 @@ export default function NotificationsPage() {
     try {
       await notificationApi.markAllRead()
       setNotifications(notifications.map(n => ({ ...n, read_at: n.read_at ?? new Date().toISOString() })))
-    } catch {
-      // Silently fail
+    } catch (err) {
+      console.error('Failed to mark notifications as read:', err)
+      setError('Failed to mark notifications as read. Please try again.')
     }
   }
 

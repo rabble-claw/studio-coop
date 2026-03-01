@@ -21,6 +21,8 @@ import studioSettings from './routes/studio-settings'
 import privateBookings from './routes/private-bookings'
 import reports from './routes/reports'
 import invitations from './routes/invitations'
+import memberRoutes from './routes/members'
+import templates from './routes/templates'
 import feed, { postFeed } from './routes/feed'
 import { upload } from './routes/upload'
 import networks from './routes/networks'
@@ -92,6 +94,8 @@ app.route('/api/jobs', jobs)
 app.route('/api/studios', studioSettings)
 app.route('/api/studios', privateBookings)
 app.route('/api/studios', reports)
+app.route('/api/studios', memberRoutes)
+app.route('/api/studios', templates)
 app.route('/api/studios', invitations)
 app.route('/api/classes', feed)
 app.route('/api/feed', postFeed)

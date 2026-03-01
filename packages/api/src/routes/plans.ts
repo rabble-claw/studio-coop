@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { createMembershipPlanSchema } from '@studio-coop/shared'
 import { authMiddleware } from '../middleware/auth'
-import { requireAdmin, requireMember } from '../middleware/studio-access'
+import { requireAdmin, requireMember, requireStaff } from '../middleware/studio-access'
 import { createServiceClient } from '../lib/supabase'
 import { notFound, badRequest, conflict } from '../lib/errors'
 import {
@@ -380,6 +380,43 @@ plans.get('/:studioId/my-subscription', authMiddleware, requireMember, async (c)
     subscription: subscription ?? null,
     classPasses: passes ?? [],
   })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Task A9: Staff view of plan subscribers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** GET /:studioId/plans/:planId/subscribers — staff view of plan subscribers */
+plans.get('/:studioId/plans/:planId/subscribers', authMiddleware, requireStaff, async (c) => {
+  const studioId = c.req.param('studioId')
+  const planId = c.req.param('planId')
+  const supabase = createServiceClient()
+
+  // Verify plan belongs to studio
+  const { data: plan } = await supabase
+    .from('membership_plans')
+    .select('id, name')
+    .eq('id', planId)
+    .eq('studio_id', studioId)
+    .single()
+
+  if (!plan) throw notFound('Plan')
+
+  const { data: subscribers, error } = await supabase
+    .from('subscriptions')
+    .select(`
+      id, status, current_period_start, current_period_end,
+      classes_used_this_period, created_at, cancelled_at,
+      member:users!subscriptions_user_id_fkey(id, name, email, avatar_url)
+    `)
+    .eq('plan_id', planId)
+    .eq('studio_id', studioId)
+    .in('status', ['active', 'past_due', 'paused'])
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+
+  return c.json({ plan, subscribers: subscribers ?? [] })
 })
 
 export { plans }

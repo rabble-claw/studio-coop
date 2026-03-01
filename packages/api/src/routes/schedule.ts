@@ -54,6 +54,61 @@ schedule.post('/:studioId/generate-classes', authMiddleware, requireOwner, async
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
+// A10/B4: Single class instance detail
+// GET /api/studios/:studioId/classes/:classId
+// ─────────────────────────────────────────────────────────────────────────────
+
+schedule.get('/:studioId/classes/:classId', authMiddleware, requireMember, async (c) => {
+  const studioId = c.get('studioId' as never) as string
+  const classId = c.req.param('classId')
+  const user = c.get('user' as never) as { id: string }
+  const supabase = createServiceClient()
+
+  const { data: instance } = await supabase
+    .from('class_instances')
+    .select(`
+      id, date, start_time, end_time, status, max_capacity, notes, feed_enabled,
+      template:class_templates(id, name, description, duration_min, location, recurrence),
+      teacher:users!class_instances_teacher_id_fkey(id, name, avatar_url),
+      studio:studios(id, name, slug, timezone)
+    `)
+    .eq('id', classId)
+    .eq('studio_id', studioId)
+    .single()
+
+  if (!instance) throw notFound('Class')
+
+  // Get booking count
+  const { count: bookingCount } = await supabase
+    .from('bookings')
+    .select('*', { count: 'exact', head: true })
+    .eq('class_instance_id', classId)
+    .in('status', ['booked', 'confirmed'])
+
+  // Check if user has a booking
+  const { data: userBooking } = await supabase
+    .from('bookings')
+    .select('id, status, waitlist_position')
+    .eq('class_instance_id', classId)
+    .eq('user_id', user.id)
+    .neq('status', 'cancelled')
+    .neq('status', 'no_show')
+    .maybeSingle()
+
+  // Normalize FK joins
+  const template = Array.isArray(instance.template) ? instance.template[0] : instance.template
+  const teacher = Array.isArray(instance.teacher) ? instance.teacher[0] : instance.teacher
+
+  return c.json({
+    ...instance,
+    template,
+    teacher,
+    booking_count: bookingCount ?? 0,
+    my_booking: userBooking ?? null,
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Task 3: Instance modification
 // PUT /api/studios/:studioId/classes/:classId
 // ─────────────────────────────────────────────────────────────────────────────

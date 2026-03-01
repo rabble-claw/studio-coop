@@ -67,16 +67,16 @@ export const bookingApi = {
 export const checkinApi = {
   getRoster: (classId: string) => api.get(`/api/classes/${classId}/roster`),
   checkin: (classId: string, userId: string) => api.post(`/api/classes/${classId}/checkin`, { user_id: userId }),
-  batchCheckin: (classId: string, userIds: string[]) => api.post(`/api/classes/${classId}/checkin/batch`, { user_ids: userIds }),
+  batchCheckin: (classId: string, attendees: Array<{ userId: string; checkedIn: boolean }>) => api.post(`/api/classes/${classId}/checkin`, { attendees }),
   addWalkin: (classId: string, email: string) => api.post(`/api/classes/${classId}/walkin`, { email }),
   completeClass: (classId: string) => api.post(`/api/classes/${classId}/complete`),
 }
 
 // Feed
 export const feedApi = {
-  getFeed: (studioId: string, instanceId?: string) => api.get(`/api/studios/${studioId}/feed${instanceId ? `?instance_id=${instanceId}` : ''}`),
-  createPost: (studioId: string, data: { content: string; class_instance_id?: string; media_urls?: string[] }) => api.post(`/api/studios/${studioId}/feed`, data),
-  react: (studioId: string, postId: string, emoji: string) => api.post(`/api/studios/${studioId}/feed/${postId}/react`, { emoji }),
+  getFeed: (classId: string) => api.get(`/api/classes/${classId}/feed`),
+  createPost: (classId: string, data: { content: string; class_instance_id?: string; media_urls?: string[] }) => api.post(`/api/classes/${classId}/feed`, data),
+  react: (postId: string, emoji: string) => api.post(`/api/feed/${postId}/react`, { emoji }),
 }
 
 // Upload
@@ -116,14 +116,14 @@ export const profileApi = {
   get: () => api.get('/api/me/profile'),
   update: (data: unknown) => api.put('/api/me/profile', data),
   memberships: () => api.get('/api/me/memberships'),
-  attendance: (studioId: string) => api.get(`/api/studios/${studioId}/me/attendance`),
+  attendance: () => api.get('/api/my/attendance'),
   classPasses: (studioId: string) => api.get(`/api/studios/${studioId}/me/passes`),
-  comps: (studioId: string) => api.get(`/api/studios/${studioId}/me/comps`),
+  comps: () => api.get('/api/my/comps'),
 }
 
 // Subscriptions
 export const subscriptionApi = {
-  mine: (studioId: string) => api.get(`/api/studios/${studioId}/me/subscription`),
+  mine: (studioId: string) => api.get(`/api/studios/${studioId}/my-subscription`),
   cancel: (subscriptionId: string) => api.post(`/api/subscriptions/${subscriptionId}/cancel`),
   pause: (subscriptionId: string, resumeDate?: string) => api.post(`/api/subscriptions/${subscriptionId}/pause`, resumeDate ? { resume_date: resumeDate } : undefined),
   resume: (subscriptionId: string) => api.post(`/api/subscriptions/${subscriptionId}/resume`),
@@ -135,9 +135,9 @@ export const notificationApi = {
   markRead: (id: string) => api.post(`/api/my/notifications/${id}/read`),
   markAllRead: () => api.post('/api/my/notifications/read-all'),
   unreadCount: () => api.get<{ count: number }>('/api/my/notifications/count'),
-  registerPush: (token: string) => api.post('/api/me/push-token', { token, platform: Platform.OS }),
-  preferences: () => api.get('/api/me/notification-preferences'),
-  updatePreferences: (data: unknown) => api.put('/api/me/notification-preferences', data),
+  registerPush: (token: string) => api.post('/api/my/push-token', { token, platform: Platform.OS }),
+  preferences: () => api.get('/api/my/notification-preferences'),
+  updatePreferences: (data: unknown) => api.put('/api/my/notification-preferences', data),
 }
 
 // Payments / Stripe

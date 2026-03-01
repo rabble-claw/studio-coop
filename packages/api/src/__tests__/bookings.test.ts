@@ -596,3 +596,72 @@ describe('GET /api/studios/:studioId/classes/:classId/bookings (staff)', () => {
     expect(body.cancelled).toHaveLength(1)
   })
 })
+
+// ─── GET /:studioId/bookings (studio-wide booking list) ─────────────────────
+
+describe('GET /api/studios/:studioId/bookings (studio-wide)', () => {
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it('returns empty when no class instances found', async () => {
+    const mock = {
+      from: vi.fn((table: string) => {
+        if (table === 'class_instances') {
+          const chain = makeAsyncChain({ data: [], error: null })
+          chain.gte = vi.fn().mockReturnThis()
+          chain.lte = vi.fn().mockReturnThis()
+          // Override then to return the data directly (for await without single)
+          chain.then = (res: any) => Promise.resolve({ data: [], error: null }).then(res)
+          return chain
+        }
+        return makeAsyncChain({ data: null, error: null })
+      }),
+    }
+    vi.mocked(createServiceClient).mockReturnValue(mock as any)
+
+    const app = makeApp()
+    const res = await app.request(
+      `/api/studios/${STUDIO_ID}/bookings`,
+      { headers: { Authorization: 'Bearer tok' } },
+    )
+    expect(res.status).toBe(200)
+    const body = await res.json() as any
+    expect(body.bookings).toEqual([])
+    expect(body.total).toBe(0)
+  })
+
+  it('returns bookings for studio class instances', async () => {
+    const mockBookings = [
+      { id: 'b1', status: 'booked', booked_at: '2026-03-01T10:00:00Z', member: { id: 'u1', name: 'Alice' }, class_instance: { id: 'ci1', date: '2026-03-01' } },
+    ]
+
+    const mock = {
+      from: vi.fn((table: string) => {
+        if (table === 'class_instances') {
+          const chain = makeAsyncChain({ data: [{ id: 'ci1' }, { id: 'ci2' }], error: null })
+          chain.gte = vi.fn().mockReturnThis()
+          chain.lte = vi.fn().mockReturnThis()
+          chain.then = (res: any) => Promise.resolve({ data: [{ id: 'ci1' }, { id: 'ci2' }], error: null }).then(res)
+          return chain
+        }
+        if (table === 'bookings') {
+          const chain = makeAsyncChain({ data: mockBookings, error: null, count: 1 })
+          chain.range = vi.fn().mockReturnThis()
+          chain.then = (res: any) => Promise.resolve({ data: mockBookings, count: 1, error: null }).then(res)
+          return chain
+        }
+        return makeAsyncChain({ data: null, error: null })
+      }),
+    }
+    vi.mocked(createServiceClient).mockReturnValue(mock as any)
+
+    const app = makeApp()
+    const res = await app.request(
+      `/api/studios/${STUDIO_ID}/bookings?from=2026-03-01&to=2026-03-31`,
+      { headers: { Authorization: 'Bearer tok' } },
+    )
+    expect(res.status).toBe(200)
+    const body = await res.json() as any
+    expect(body.bookings).toHaveLength(1)
+    expect(body.bookings[0].id).toBe('b1')
+  })
+})

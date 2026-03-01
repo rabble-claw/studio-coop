@@ -62,13 +62,22 @@ export default function MigratePage() {
   function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = async (evt) => {
-      const text = evt.target?.result as string
-      setCsvContent(text)
-      await uploadCSV(text)
+    try {
+      const reader = new FileReader()
+      reader.onerror = () => {
+        console.error('Failed to read CSV file:', reader.error)
+        setError('Failed to read file. Please check the file format and try again.')
+      }
+      reader.onload = async (evt) => {
+        const text = evt.target?.result as string
+        setCsvContent(text)
+        await uploadCSV(text)
+      }
+      reader.readAsText(file)
+    } catch (err) {
+      console.error('Failed to read CSV file:', err)
+      setError('Failed to read file. Please check the file format and try again.')
     }
-    reader.readAsText(file)
   }
 
   async function uploadCSV(csv: string) {

@@ -24,6 +24,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [geoLoading, setGeoLoading] = useState(false)
+  const [geoError, setGeoError] = useState<string | null>(null)
 
   const [studio, setStudio] = useState({
     name: '', slug: '', description: '',
@@ -37,6 +38,11 @@ export default function SettingsPage() {
     cancellation_notice: true, waitlist_available: true,
     class_cancelled: true, new_member_welcome: true,
     marketing_emails: false,
+    // API-backed settings (camelCase keys)
+    confirmationEnabled: true,
+    reengagementEnabled: true,
+    reengagementDays: 14,
+    feedNotifications: true,
   })
 
   const [cancellation, setCancellation] = useState({
@@ -52,10 +58,11 @@ export default function SettingsPage() {
 
   function handleUseMyLocation() {
     if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser.')
+      setGeoError('Geolocation is not supported by your browser.')
       return
     }
     setGeoLoading(true)
+    setGeoError(null)
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setGeoLoading(false)
@@ -67,7 +74,7 @@ export default function SettingsPage() {
       },
       () => {
         setGeoLoading(false)
-        alert('Unable to get your location. Please check your browser permissions.')
+        setGeoError('Unable to get your location. Please check your browser permissions.')
       }
     )
   }
@@ -260,6 +267,9 @@ export default function SettingsPage() {
                     {geoLoading ? 'Locating...' : 'Use My Location'}
                   </Button>
                 </div>
+                {geoError && (
+                  <p role="alert" className="text-sm text-red-600">{geoError}</p>
+                )}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="studio-latitude" className="text-xs text-muted-foreground">Latitude</label>
@@ -312,6 +322,59 @@ export default function SettingsPage() {
                     onChange={e => setNotifications({...notifications, reminder_hours: parseInt(e.target.value) || 2})} />
                 </div>
               )}
+
+              <div className="pt-4 border-t">
+                <h3 className="font-medium text-sm mb-3">Re-engagement & Feed</h3>
+              </div>
+
+              <div className="flex items-center justify-between py-2 border-b">
+                <div>
+                  <div className="font-medium text-sm" id="reengagement-label">&ldquo;We miss you&rdquo; messages</div>
+                  <div className="text-xs text-muted-foreground" id="reengagement-desc">Send re-engagement emails to inactive members</div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" className="sr-only peer"
+                    checked={notifications.reengagementEnabled}
+                    onChange={e => setNotifications({...notifications, reengagementEnabled: e.target.checked})}
+                    aria-labelledby="reengagement-label"
+                    aria-describedby="reengagement-desc"
+                    role="switch"
+                    aria-checked={notifications.reengagementEnabled} />
+                  <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                </label>
+              </div>
+              {notifications.reengagementEnabled && (
+                <div className="pl-4 border-l-2 border-primary/20">
+                  <label htmlFor="reengagement-days" className="text-sm font-medium">Days inactive before sending</label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Input id="reengagement-days" type="number" className="w-24" min={3} max={90}
+                      value={notifications.reengagementDays}
+                      onChange={e => setNotifications({...notifications, reengagementDays: parseInt(e.target.value) || 14})} />
+                    <span className="text-sm text-muted-foreground">days</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Members who haven&apos;t attended in {notifications.reengagementDays} days will receive a re-engagement message
+                  </p>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between py-2 border-b last:border-0">
+                <div>
+                  <div className="font-medium text-sm" id="feed-notif-label">Class feed notifications</div>
+                  <div className="text-xs text-muted-foreground" id="feed-notif-desc">Notify members when new posts appear in their class feeds</div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" className="sr-only peer"
+                    checked={notifications.feedNotifications}
+                    onChange={e => setNotifications({...notifications, feedNotifications: e.target.checked})}
+                    aria-labelledby="feed-notif-label"
+                    aria-describedby="feed-notif-desc"
+                    role="switch"
+                    aria-checked={notifications.feedNotifications} />
+                  <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                </label>
+              </div>
+
               <Button onClick={handleSaveNotifications} disabled={saving}>{saving ? 'Saving...' : 'Save Notification Settings'}</Button>
             </CardContent>
           </Card>
@@ -345,12 +408,12 @@ export default function SettingsPage() {
                 </label>
               </div>
               <div>
-                <label htmlFor="late-cancel-fee" className="text-sm font-medium">Late cancellation fee ($NZD)</label>
+                <label htmlFor="late-cancel-fee" className="text-sm font-medium">Late cancellation fee (NZ$)</label>
                 <Input id="late-cancel-fee" type="number" step="0.01" className="w-32 mt-1" value={cancellation.late_cancel_fee_cents / 100}
                   onChange={e => setCancellation({...cancellation, late_cancel_fee_cents: Math.round(parseFloat(e.target.value || '0') * 100)})} />
               </div>
               <div>
-                <label htmlFor="no-show-fee" className="text-sm font-medium">No-show fee ($NZD)</label>
+                <label htmlFor="no-show-fee" className="text-sm font-medium">No-show fee (NZ$)</label>
                 <Input id="no-show-fee" type="number" step="0.01" className="w-32 mt-1" value={cancellation.no_show_fee_cents / 100}
                   onChange={e => setCancellation({...cancellation, no_show_fee_cents: Math.round(parseFloat(e.target.value || '0') * 100)})} />
               </div>
@@ -392,7 +455,11 @@ export default function SettingsPage() {
                           try {
                             const result = await stripeApi.refreshLink(studioId)
                             if (result.url) window.open(result.url, '_blank')
-                          } catch { /* ignore */ }
+                          } catch (err) {
+                            console.error('Failed to generate Stripe refresh link:', err)
+                            setSaveMessage('Error: Failed to generate Stripe link. Please try again.')
+                            setTimeout(() => setSaveMessage(''), 3000)
+                          }
                           setStripeLoading(false)
                         }}
                       >

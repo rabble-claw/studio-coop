@@ -241,7 +241,7 @@ describe('POST /api/studios/:studioId/members/invite', () => {
     expect(body.userExists).toBe(false)
   })
 
-  it('handles Supabase auth invite failure gracefully', async () => {
+  it('returns 502 when Supabase auth invite fails', async () => {
     const mock = {
       from: vi.fn((table: string) => {
         if (table === 'studios') {
@@ -266,10 +266,9 @@ describe('POST /api/studios/:studioId/members/invite', () => {
       headers: { Authorization: 'Bearer tok', 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: 'newuser@example.com' }),
     })
-    // Should still return 201 with a note
-    expect(res.status).toBe(201)
+    expect(res.status).toBe(502)
     const body = await res.json() as any
-    expect(body.invited).toBe(true)
-    expect(body.note).toBeDefined()
+    expect(body.invited).toBe(false)
+    expect(body.error).toMatch(/Failed to invite user/i)
   })
 })

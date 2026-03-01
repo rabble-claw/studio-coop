@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { View, Text, TouchableOpacity, TextInput, Alert, ActivityIndicator, Linking } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
 import { SafeAreaView } from 'react-native-safe-area-context'
@@ -30,6 +30,29 @@ export default function SubscribeScreen() {
   const router = useRouter()
   const [couponCode, setCouponCode] = useState('')
   const [subscribing, setSubscribing] = useState(false)
+
+  // Handle Stripe checkout completion deep link
+  useEffect(() => {
+    function handleDeepLink(event: { url: string }) {
+      const url = event.url
+      if (url?.includes('status=success') || url?.includes('session_id=')) {
+        Alert.alert('Payment Successful', 'Your subscription has been activated.', [
+          { text: 'OK', onPress: () => router.back() },
+        ])
+      } else if (url?.includes('status=cancelled')) {
+        Alert.alert('Payment Cancelled', 'Your subscription was not completed.')
+      }
+    }
+
+    const subscription = Linking.addEventListener('url', handleDeepLink)
+
+    // Check if the app was opened via a deep link
+    Linking.getInitialURL().then((url) => {
+      if (url) handleDeepLink({ url })
+    })
+
+    return () => subscription.remove()
+  }, [router])
 
   async function handleSubscribe() {
     if (!studioId || !planId) return

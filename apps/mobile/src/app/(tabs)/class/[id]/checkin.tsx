@@ -126,16 +126,16 @@ export default function CheckinScreen() {
 
     try {
       const dirtyEntries = roster.filter((e) => e.dirty)
-      const toCheckin = dirtyEntries.filter((e) => e.checked_in).map((e) => e.user_id)
+      const attendees = dirtyEntries.map((e) => ({ userId: e.user_id, checkedIn: e.checked_in }))
 
-      if (toCheckin.length > 0) {
-        await checkinApi.batchCheckin(id, toCheckin)
+      if (attendees.length > 0) {
+        await checkinApi.batchCheckin(id, attendees)
       }
 
       setRoster((prev) => prev.map((e) => ({ ...e, dirty: false })))
 
       // Refresh to get updated status
-      if (classInfo?.status === 'scheduled' && toCheckin.length > 0) {
+      if (classInfo?.status === 'scheduled' && attendees.length > 0) {
         setClassInfo((prev) => prev ? { ...prev, status: 'in_progress' } : prev)
       }
     } catch (e: any) {

@@ -8,8 +8,9 @@
 
 import { Hono } from 'hono'
 import { authMiddleware } from '../middleware/auth'
-import { requireStaff } from '../middleware/studio-access'
+import { requireMember, requireStaff } from '../middleware/studio-access'
 import { createServiceClient } from '../lib/supabase'
+import { forbidden } from '../lib/errors'
 
 const reports = new Hono()
 
@@ -285,6 +286,97 @@ reports.get('/:studioId/reports/at-risk', authMiddleware, requireStaff, async (c
   })
 
   return c.json({ members: atRisk.slice(0, 20) })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /:studioId/reports/teacher/:teacherId — teacher-specific analytics
+// ─────────────────────────────────────────────────────────────────────────────
+
+reports.get('/:studioId/reports/teacher/:teacherId', authMiddleware, requireMember, async (c) => {
+  const studioId = c.req.param('studioId')
+  const teacherId = c.req.param('teacherId')
+  const user = c.get('user')
+  const memberRole = c.get('memberRole')
+
+  // Teachers can see their own stats; staff/admin/owner can see anyone's
+  if (user.id !== teacherId && !['admin', 'owner'].includes(memberRole)) {
+    throw forbidden('You can only view your own teaching stats')
+  }
+
+  const supabase = createServiceClient()
+  const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+
+  // Get all class instances taught by this teacher in last 90 days
+  const { data: classes } = await supabase
+    .from('class_instances')
+    .select('id, date, max_capacity, booked_count, template_id, template:class_templates(name)')
+    .eq('studio_id', studioId)
+    .eq('teacher_id', teacherId)
+    .gte('date', ninetyDaysAgo)
+    .not('status', 'eq', 'cancelled')
+    .order('date')
+
+  const allClasses = classes ?? []
+  const classesTaught = allClasses.length
+
+  // Overall averages
+  const totalAttendance = allClasses.reduce((s, c) => s + (c.booked_count ?? 0), 0)
+  const totalCapacity = allClasses.reduce((s, c) => s + (c.max_capacity ?? 0), 0)
+  const avgAttendance = classesTaught > 0 ? Math.round((totalAttendance / classesTaught) * 10) / 10 : 0
+  const avgFillRate = totalCapacity > 0 ? Math.round((totalAttendance / totalCapacity) * 100) / 100 : 0
+
+  // Weekly trend (Monday-based)
+  const weeks: Record<string, { classes: number; totalAttendance: number; totalCapacity: number }> = {}
+  for (const cls of allClasses) {
+    const d = new Date(cls.date)
+    const dayOfWeek = d.getDay()
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
+    const monday = new Date(d)
+    monday.setDate(d.getDate() + mondayOffset)
+    const weekKey = monday.toISOString().split('T')[0]
+
+    if (!weeks[weekKey]) weeks[weekKey] = { classes: 0, totalAttendance: 0, totalCapacity: 0 }
+    weeks[weekKey].classes += 1
+    weeks[weekKey].totalAttendance += cls.booked_count ?? 0
+    weeks[weekKey].totalCapacity += cls.max_capacity ?? 0
+  }
+
+  const weeklyTrend = Object.entries(weeks).map(([week, data]) => ({
+    week,
+    classes: data.classes,
+    avgAttendance: data.classes > 0 ? Math.round((data.totalAttendance / data.classes) * 10) / 10 : 0,
+    avgFillRate: data.totalCapacity > 0 ? Math.round((data.totalAttendance / data.totalCapacity) * 100) / 100 : 0,
+  }))
+
+  // Top classes by fill rate (grouped by template)
+  const templateMap: Record<string, { name: string; count: number; totalBooked: number; totalCapacity: number }> = {}
+  for (const cls of allClasses) {
+    const tid = cls.template_id as string
+    if (!tid) continue
+    const tpl = cls.template as unknown as { name: string } | null
+    if (!templateMap[tid]) templateMap[tid] = { name: tpl?.name ?? 'Unknown', count: 0, totalBooked: 0, totalCapacity: 0 }
+    templateMap[tid].count += 1
+    templateMap[tid].totalBooked += cls.booked_count ?? 0
+    templateMap[tid].totalCapacity += cls.max_capacity ?? 0
+  }
+
+  const topClasses = Object.values(templateMap)
+    .map(data => ({
+      name: data.name,
+      timesTaught: data.count,
+      avgAttendance: data.count > 0 ? Math.round((data.totalBooked / data.count) * 10) / 10 : 0,
+      fillRate: data.totalCapacity > 0 ? Math.round((data.totalBooked / data.totalCapacity) * 100) / 100 : 0,
+    }))
+    .sort((a, b) => b.fillRate - a.fillRate)
+    .slice(0, 10)
+
+  return c.json({
+    classesTaught,
+    avgAttendance,
+    avgFillRate,
+    weeklyTrend,
+    topClasses,
+  })
 })
 
 export { reports }

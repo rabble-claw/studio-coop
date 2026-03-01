@@ -61,6 +61,7 @@ interface VoteResult {
 }
 
 export default function CoopPage() {
+  const [userId, setUserId] = useState<string | null>(null)
   const [coopMembers, setCoopMembers] = useState<CoopMember[]>([])
   const [totalStudios, setTotalStudios] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -176,6 +177,12 @@ export default function CoopPage() {
   }, [])
 
   useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUserId(user?.id ?? null)
+    })
+  }, [])
+
+  useEffect(() => {
     async function loadCoopData() {
       try {
         const [coopStudiosRes, totalStudiosRes] = await Promise.all([
@@ -252,7 +259,7 @@ export default function CoopPage() {
         .insert({
           title: newProposalTitle.trim(),
           description: newProposalDesc.trim(),
-          proposed_by: '00000000-0000-0000-0000-000000000000', // admin placeholder
+          proposed_by: userId!,
           category: newProposalCategory,
           status: 'draft',
         })
@@ -451,7 +458,8 @@ export default function CoopPage() {
           <h3 className="text-lg font-bold">Proposals & Votes</h3>
           <button
             onClick={() => setShowNewProposal(true)}
-            className="rounded-lg bg-[var(--primary)] px-4 py-2 text-xs font-semibold text-white hover:opacity-90 transition-opacity"
+            className="rounded-lg bg-[var(--primary)] px-4 py-2 text-xs font-semibold text-white hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!userId}
           >
             New Proposal
           </button>

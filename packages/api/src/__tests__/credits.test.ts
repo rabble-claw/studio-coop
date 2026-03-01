@@ -238,18 +238,16 @@ describe('deductCredit', () => {
     expect(mock.from).not.toHaveBeenCalled()
   })
 
-  it('decrements remaining_classes for comp_class', async () => {
-    const updateMock = vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ error: null }),
-    })
+  it('calls atomic RPC for comp_class', async () => {
+    const rpcMock = vi.fn().mockResolvedValue({ data: 1, error: null })
     const mock = {
-      from: vi.fn().mockReturnValue({ update: updateMock }),
-      rpc: vi.fn().mockResolvedValue({ error: null }),
+      from: vi.fn(),
+      rpc: rpcMock,
     }
     vi.mocked(createServiceClient).mockReturnValue(mock as any)
 
     await deductCredit({ hasCredits: true, source: 'comp_class', sourceId: 'comp-1', remainingAfter: 1 })
-    expect(updateMock).toHaveBeenCalledWith({ remaining_classes: 1 })
+    expect(rpcMock).toHaveBeenCalledWith('deduct_comp_credit', { comp_id: 'comp-1' })
   })
 
   it('calls rpc increment for limited subscription', async () => {
@@ -261,18 +259,16 @@ describe('deductCredit', () => {
     expect(rpcMock).toHaveBeenCalledWith('increment_classes_used', { subscription_id: 'sub-1' })
   })
 
-  it('decrements remaining_classes for class_pack', async () => {
-    const updateMock = vi.fn().mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ error: null }),
-    })
+  it('calls atomic RPC for class_pack', async () => {
+    const rpcMock = vi.fn().mockResolvedValue({ data: 2, error: null })
     const mock = {
-      from: vi.fn().mockReturnValue({ update: updateMock }),
-      rpc: vi.fn().mockResolvedValue({ error: null }),
+      from: vi.fn(),
+      rpc: rpcMock,
     }
     vi.mocked(createServiceClient).mockReturnValue(mock as any)
 
     await deductCredit({ hasCredits: true, source: 'class_pack', sourceId: 'pass-1', remainingAfter: 2 })
-    expect(updateMock).toHaveBeenCalledWith({ remaining_classes: 2 })
+    expect(rpcMock).toHaveBeenCalledWith('deduct_class_pass_credit', { pass_id: 'pass-1' })
   })
 
   it('does nothing for unlimited subscription', async () => {

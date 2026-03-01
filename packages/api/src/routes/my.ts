@@ -445,5 +445,98 @@ my.get('/my/bookings', authMiddleware, async (c) => {
   return c.json({ bookings: upcoming })
 })
 
+// ─────────────────────────────────────────────────────────────────────────────
+// B1: Get own profile
+// GET /api/me/profile
+// ─────────────────────────────────────────────────────────────────────────────
+
+my.get('/me/profile', authMiddleware, async (c) => {
+  const user = c.get('user' as never) as { id: string }
+  const supabase = createServiceClient()
+
+  const { data: profile } = await supabase
+    .from('users')
+    .select('id, email, name, avatar_url, phone, created_at')
+    .eq('id', user.id)
+    .single()
+
+  if (!profile) throw notFound('User')
+
+  return c.json(profile)
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B2: Update own profile
+// PUT /api/me/profile
+// ─────────────────────────────────────────────────────────────────────────────
+
+my.put('/me/profile', authMiddleware, async (c) => {
+  const user = c.get('user' as never) as { id: string }
+  const supabase = createServiceClient()
+
+  const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
+
+  // Only allow specific fields
+  const updates: Record<string, unknown> = {}
+  if (body.name !== undefined) {
+    if (typeof body.name !== 'string' || body.name.trim().length === 0) {
+      throw badRequest('Name must be a non-empty string')
+    }
+    updates.name = body.name.trim()
+  }
+  if (body.phone !== undefined) updates.phone = body.phone
+  if (body.avatar_url !== undefined) updates.avatar_url = body.avatar_url
+
+  // Reject email updates
+  if (body.email !== undefined) {
+    throw badRequest('Email cannot be updated through this endpoint')
+  }
+
+  if (Object.keys(updates).length === 0) {
+    throw badRequest('No valid fields to update')
+  }
+
+  const { data: updated, error } = await supabase
+    .from('users')
+    .update(updates)
+    .eq('id', user.id)
+    .select('id, email, name, avatar_url, phone, created_at')
+    .single()
+
+  if (error) throw error
+
+  return c.json(updated)
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// B3: Get own memberships / studios
+// GET /api/me/memberships
+// GET /api/me/studios  (alias for mobile compatibility)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const membershipsHandler = async (c: any) => {
+  const user = c.get('user' as never) as { id: string }
+  const supabase = createServiceClient()
+
+  const { data: memberships, error } = await supabase
+    .from('memberships')
+    .select('id, studio_id, role, status, joined_at, studio:studios!memberships_studio_id_fkey(id, name, slug, discipline, logo_url, timezone)')
+    .eq('user_id', user.id)
+    .in('status', ['active', 'suspended'])
+
+  if (error) throw error
+
+  // Normalize FK joins
+  const normalized = (memberships ?? []).map((m: any) => ({
+    ...m,
+    studio: Array.isArray(m.studio) ? m.studio[0] : m.studio,
+  }))
+
+  return c.json({ memberships: normalized })
+}
+
+my.get('/me/memberships', authMiddleware, membershipsHandler)
+my.get('/me/studios', authMiddleware, membershipsHandler)
+
 export { my }
 export default my

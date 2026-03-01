@@ -30,6 +30,10 @@ vi.mock('../middleware/studio-access', () => ({
     c.set('studioId', c.req.param('studioId'))
     await next()
   }),
+  requireStaff: vi.fn(async (c: any, next: any) => {
+    c.set('studioId', c.req.param('studioId'))
+    await next()
+  }),
 }))
 
 import { createServiceClient } from '../lib/supabase'
