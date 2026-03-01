@@ -1,7 +1,7 @@
 'use client'
 
 import { use, useState } from 'react'
-import { getDemoMemberById, getDemoClassesForMember, getDemoMemberBadges, getDemoMemberStats } from '@/lib/demo-data'
+import { getDemoMemberById, getDemoClassesForMember, getDemoMemberBadges, getDemoMemberStats, getDemoMemberSkills, getDemoAchievementsForMember, type DemoMemberSkill, type DemoAchievement } from '@/lib/demo-data'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -58,6 +58,15 @@ export default function DemoMemberDetailPage({ params }: { params: Promise<{ id:
   const classBookings = getDemoClassesForMember(id)
   const memberBadges = getDemoMemberBadges(id)
   const memberStats = getDemoMemberStats(id)
+  const memberAchievements = getDemoAchievementsForMember(id)
+  const initialSkills = getDemoMemberSkills(id)
+  const [memberSkills, setMemberSkills] = useState<DemoMemberSkill[]>(initialSkills)
+  const [achievements, setAchievements] = useState<DemoAchievement[]>(memberAchievements)
+  const [showAchForm, setShowAchForm] = useState(false)
+  const [achTitle, setAchTitle] = useState('')
+  const [achDesc, setAchDesc] = useState('')
+  const [achCategory, setAchCategory] = useState<DemoAchievement['category']>('general')
+  const [achIcon, setAchIcon] = useState('\u{1F3C6}')
 
   function getBookingStatusColor(status: string) {
     switch (status) {
@@ -175,6 +184,131 @@ export default function DemoMemberDetailPage({ params }: { params: Promise<{ id:
         </Card>
       )}
 
+      {/* Achievements */}
+      <Card className="border-amber-200">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>Achievements</CardTitle>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowAchForm((v) => !v)}
+            >
+              {showAchForm ? 'Cancel' : 'Add Achievement'}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {showAchForm && (
+            <div className="border border-amber-200 rounded-lg p-4 space-y-3 bg-amber-50/50">
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Title *</label>
+                <Input
+                  type="text"
+                  placeholder="e.g. First Invert"
+                  value={achTitle}
+                  onChange={(e) => setAchTitle(e.target.value)}
+                  maxLength={200}
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Description</label>
+                <Input
+                  type="text"
+                  placeholder="e.g. Nailed it in Thursday's class!"
+                  value={achDesc}
+                  onChange={(e) => setAchDesc(e.target.value)}
+                  maxLength={500}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Category</label>
+                  <select
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    value={achCategory}
+                    onChange={(e) => setAchCategory(e.target.value as DemoAchievement['category'])}
+                  >
+                    <option value="skill">Skill</option>
+                    <option value="milestone">Milestone</option>
+                    <option value="personal">Personal</option>
+                    <option value="general">General</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Icon</label>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {['\u{1F3C6}', '\u{1F525}', '\u{1F4AA}', '\u{1F938}', '\u{2B50}', '\u{26A1}', '\u{1F389}', '\u{1F31F}'].map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => setAchIcon(emoji)}
+                        className={`w-8 h-8 rounded-md text-lg flex items-center justify-center cursor-pointer ${achIcon === emoji ? 'ring-2 ring-amber-500 bg-amber-100' : 'bg-secondary hover:bg-secondary/80'}`}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                disabled={!achTitle.trim()}
+                onClick={() => {
+                  if (!achTitle.trim()) return
+                  setAchievements((prev) => [{
+                    id: `ach-new-${Date.now()}`,
+                    user_id: id,
+                    title: achTitle.trim(),
+                    description: achDesc.trim(),
+                    category: achCategory,
+                    icon: achIcon,
+                    earned_at: new Date().toISOString(),
+                  }, ...prev])
+                  setAchTitle('')
+                  setAchDesc('')
+                  setAchCategory('general')
+                  setAchIcon('\u{1F3C6}')
+                  setShowAchForm(false)
+                }}
+              >
+                Add Achievement
+              </Button>
+            </div>
+          )}
+
+          {achievements.length === 0 && !showAchForm && (
+            <p className="text-sm text-muted-foreground">No achievements yet.</p>
+          )}
+
+          {achievements.map((ach) => (
+            <div key={ach.id} className="flex items-center justify-between p-3 border border-amber-200 rounded-lg bg-amber-50/30">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">{ach.icon}</span>
+                <div>
+                  <div className="font-medium text-sm">{ach.title}</div>
+                  {ach.description && (
+                    <div className="text-xs text-muted-foreground">{ach.description}</div>
+                  )}
+                  <div className="text-xs text-muted-foreground">
+                    <Badge variant="outline" className="text-xs mr-1">{ach.category}</Badge>
+                    {new Date(ach.earned_at).toLocaleDateString()}
+                  </div>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                onClick={() => setAchievements((prev) => prev.filter((a) => a.id !== ach.id))}
+              >
+                Remove
+              </Button>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>Class History</CardTitle>
@@ -206,6 +340,79 @@ export default function DemoMemberDetailPage({ params }: { params: Promise<{ id:
           )}
         </CardContent>
       </Card>
+
+      {/* Skills Progress */}
+      {memberSkills.some((s) => s.level !== null) && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Skills Progress</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {(() => {
+              const grouped: Record<string, DemoMemberSkill[]> = {}
+              for (const s of memberSkills) {
+                if (!grouped[s.category]) grouped[s.category] = []
+                grouped[s.category].push(s)
+              }
+              return Object.entries(grouped).map(([category, skills]) => (
+                <div key={category}>
+                  <h3 className="text-sm font-semibold text-muted-foreground mb-2">{category}</h3>
+                  <div className="space-y-2">
+                    {skills.map((skill) => (
+                      <div key={skill.id} className="flex items-center justify-between py-1.5 border-b last:border-0">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-sm font-medium truncate">{skill.name}</span>
+                          {skill.verified_at && (
+                            <span className="text-xs text-green-600 flex-shrink-0" title={`Verified by ${skill.verifier_name}`}>
+                              Verified
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <select
+                            className="text-xs border rounded px-2 py-1 bg-background"
+                            value={skill.level ?? ''}
+                            onChange={(e) => {
+                              const newLevel = (e.target.value || null) as DemoMemberSkill['level']
+                              setMemberSkills((prev) =>
+                                prev.map((s) => s.id === skill.id ? { ...s, level: newLevel } : s)
+                              )
+                            }}
+                            aria-label={`Skill level for ${skill.name}`}
+                          >
+                            <option value="">Not started</option>
+                            <option value="learning">Learning</option>
+                            <option value="practicing">Practicing</option>
+                            <option value="confident">Confident</option>
+                            <option value="mastered">Mastered</option>
+                          </select>
+                          {skill.level && !skill.verified_at && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs h-7 px-2"
+                              onClick={() => {
+                                setMemberSkills((prev) =>
+                                  prev.map((s) => s.id === skill.id
+                                    ? { ...s, verified_by: 'demo-teacher-emma', verified_at: new Date().toISOString(), verifier_name: 'Alex' }
+                                    : s
+                                  )
+                                )
+                              }}
+                            >
+                              Verify
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))
+            })()}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

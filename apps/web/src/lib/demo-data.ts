@@ -248,7 +248,7 @@ export interface DemoFeedPost {
   created_at: string
   class_name: string | null
   class_id: string | null
-  post_type: 'post' | 'milestone' | 'media'
+  post_type: 'post' | 'milestone' | 'media' | 'achievement'
   media_urls: string[]
   reactions: Array<{ emoji: string; count: number }>
 }
@@ -362,6 +362,30 @@ export const demoFeedPosts: DemoFeedPost[] = [
     ],
     reactions: [{ emoji: '❤️', count: 16 }, { emoji: '🔥', count: 3 }],
   },
+  {
+    id: 'post-9',
+    author: 'Rabble',
+    author_id: 'member-1',
+    content: '\u{1F938} Achievement unlocked: First Invert \u2014 Nailed my first invert!',
+    created_at: new Date(Date.now() - 80 * 60 * 60 * 1000).toISOString(),
+    class_name: null,
+    class_id: null,
+    post_type: 'achievement',
+    media_urls: [],
+    reactions: [{ emoji: '\u{1F525}', count: 12 }, { emoji: '\u{1F44F}', count: 18 }, { emoji: '\u2764\uFE0F', count: 9 }],
+  },
+  {
+    id: 'post-10',
+    author: 'Mia',
+    author_id: 'member-3',
+    content: '\u{1F4AA} Achievement unlocked: Shoulder Mount \u2014 First shoulder mount!',
+    created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+    class_name: null,
+    class_id: null,
+    post_type: 'achievement',
+    media_urls: [],
+    reactions: [{ emoji: '\u{1F525}', count: 15 }, { emoji: '\u{1F44F}', count: 22 }],
+  },
 ]
 
 export const demoUser = {
@@ -465,6 +489,7 @@ export interface DemoBooking {
   member_id: string
   status: 'booked' | 'confirmed' | 'cancelled'
   booked_at: string
+  spot: number | null
 }
 
 function generateBookings(): DemoBooking[] {
@@ -486,12 +511,15 @@ function generateBookings(): DemoBooking[] {
     for (let i = 0; i < count; i++) {
       const statusIdx = (seed + i) % 10
       const status: DemoBooking['status'] = statusIdx < 5 ? 'confirmed' : statusIdx < 8 ? 'booked' : 'cancelled'
+      // Assign spots to non-cancelled bookings deterministically
+      const spot = status !== 'cancelled' ? ((seed + i) % cls.max_capacity) + 1 : null
       bookings.push({
         id: `booking-${bookingIdx++}`,
         class_id: cls.id,
         member_id: shuffled[i]!,
         status,
         booked_at: new Date(Date.now() - (bookingIdx * 3 + 1) * 60 * 60 * 1000).toISOString(),
+        spot,
       })
     }
   }
@@ -1294,4 +1322,274 @@ export function getDemoAttendanceForClass(classId: string) {
 
 export function getDemoClassFeedPosts(classId: string) {
   return demoClassFeedPosts.filter((p) => p.class_id === classId)
+}
+
+// ============================================================
+// Achievements
+// ============================================================
+
+export interface DemoAchievement {
+  id: string
+  user_id: string
+  title: string
+  description: string
+  category: 'skill' | 'milestone' | 'personal' | 'general'
+  icon: string
+  earned_at: string
+}
+
+export const demoAchievements: DemoAchievement[] = [
+  { id: 'ach-1', user_id: 'member-1', title: 'First Invert', description: 'Nailed my first invert!', category: 'skill', icon: '\u{1F938}', earned_at: '2026-02-20' },
+  { id: 'ach-2', user_id: 'member-2', title: '50 Classes', description: 'Attended 50 classes', category: 'milestone', icon: '\u{1F525}', earned_at: '2026-02-15' },
+  { id: 'ach-3', user_id: 'member-3', title: 'Shoulder Mount', description: 'First shoulder mount!', category: 'skill', icon: '\u{1F4AA}', earned_at: '2026-02-28' },
+  { id: 'ach-4', user_id: 'member-4', title: 'Splits Achievement', description: 'Finally got my flat splits on both sides!', category: 'personal', icon: '\u{1F938}\u{200D}\u{2640}\u{FE0F}', earned_at: '2026-02-10' },
+  { id: 'ach-5', user_id: 'member-1', title: '10 Week Streak', description: 'Attended at least one class for 10 consecutive weeks', category: 'milestone', icon: '\u{26A1}', earned_at: '2026-01-30' },
+  { id: 'ach-6', user_id: 'member-5', title: 'First Class', description: 'Completed my very first aerial class!', category: 'milestone', icon: '\u{2B50}', earned_at: '2026-02-25' },
+  { id: 'ach-7', user_id: 'member-6', title: 'Handspring', description: 'Got my first handspring!', category: 'skill', icon: '\u{1F3C6}', earned_at: '2026-02-22' },
+]
+
+export function getDemoAchievementsForMember(memberId: string): DemoAchievement[] {
+  return demoAchievements.filter((a) => a.user_id === memberId)
+}
+
+// ============================================================
+// Sub Requests
+// ============================================================
+
+export interface DemoSubRequest {
+  id: string
+  class_instance_id: string
+  studio_id: string
+  requesting_teacher: { id: string; name: string; avatar_url: string | null }
+  substitute_teacher: { id: string; name: string; avatar_url: string | null } | null
+  status: 'open' | 'accepted' | 'cancelled' | 'expired'
+  reason: string | null
+  class_info: { id: string; name: string; date: string; start_time: string; end_time: string }
+  created_at: string
+  accepted_at: string | null
+}
+
+function generateDemoSubRequests(): DemoSubRequest[] {
+  const tomorrow = new Date()
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  const tomorrowStr = tomorrow.toLocaleDateString('en-CA', { timeZone: 'Pacific/Auckland' })
+
+  const dayAfter = new Date()
+  dayAfter.setDate(dayAfter.getDate() + 2)
+  const dayAfterStr = dayAfter.toLocaleDateString('en-CA', { timeZone: 'Pacific/Auckland' })
+
+  const jadeClass = demoClasses.find(c => c.teacher_id === TEACHER_JADE_ID)
+  const emmaClass = demoClasses.find(c => c.teacher_id === TEACHER_EMMA_ID && c.id !== jadeClass?.id)
+
+  return [
+    {
+      id: 'sub-1',
+      class_instance_id: jadeClass?.id ?? 'cls-fallback-1',
+      studio_id: STUDIO_ID,
+      requesting_teacher: { id: TEACHER_JADE_ID, name: 'Jade', avatar_url: null },
+      substitute_teacher: null,
+      status: 'open',
+      reason: 'Doctor appointment',
+      class_info: {
+        id: jadeClass?.id ?? 'cls-fallback-1',
+        name: jadeClass?.template?.name ?? 'Aerial Hoop (Lyra)',
+        date: tomorrowStr,
+        start_time: jadeClass?.start_time ?? '10:00:00',
+        end_time: jadeClass?.end_time ?? '11:00:00',
+      },
+      created_at: new Date().toISOString(),
+      accepted_at: null,
+    },
+    {
+      id: 'sub-2',
+      class_instance_id: emmaClass?.id ?? 'cls-fallback-2',
+      studio_id: STUDIO_ID,
+      requesting_teacher: { id: TEACHER_EMMA_ID, name: 'Alex', avatar_url: null },
+      substitute_teacher: { id: TEACHER_SAM_ID, name: 'Sam', avatar_url: null },
+      status: 'accepted',
+      reason: 'Family emergency',
+      class_info: {
+        id: emmaClass?.id ?? 'cls-fallback-2',
+        name: emmaClass?.template?.name ?? 'Pole Technique Level 1',
+        date: dayAfterStr,
+        start_time: emmaClass?.start_time ?? '18:00:00',
+        end_time: emmaClass?.end_time ?? '19:00:00',
+      },
+      created_at: new Date(Date.now() - 86400000).toISOString(),
+      accepted_at: new Date(Date.now() - 43200000).toISOString(),
+    },
+  ]
+}
+
+export const demoSubRequests: DemoSubRequest[] = generateDemoSubRequests()
+
+export function getDemoSubRequestsForClass(classId: string) {
+  return demoSubRequests.find((s) => s.class_instance_id === classId) ?? null
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Skill Definitions & Member Skills
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface DemoSkillDefinition {
+  id: string
+  name: string
+  category: string
+  description: string | null
+  sort_order: number
+}
+
+export interface DemoMemberSkill extends DemoSkillDefinition {
+  level: 'learning' | 'practicing' | 'confident' | 'mastered' | null
+  notes: string | null
+  verified_by: string | null
+  verified_at: string | null
+  verifier_name: string | null
+}
+
+export const demoSkillDefinitions: DemoSkillDefinition[] = [
+  { id: 'skill-spin-basic', name: 'Basic Spin', category: 'Spins', description: 'Foundational pole spin', sort_order: 0 },
+  { id: 'skill-spin-fireman', name: 'Fireman Spin', category: 'Spins', description: 'Classic fireman spin', sort_order: 1 },
+  { id: 'skill-spin-chair', name: 'Chair Spin', category: 'Spins', description: 'Chair spin with proper form', sort_order: 2 },
+  { id: 'skill-climb-basic', name: 'Basic Climb', category: 'Climbs', description: 'Climbing the pole safely', sort_order: 0 },
+  { id: 'skill-invert-basic', name: 'Basic Invert', category: 'Inverts', description: 'First inversion from the ground', sort_order: 0 },
+  { id: 'skill-invert-shoulder', name: 'Shoulder Mount', category: 'Inverts', description: 'Shoulder mount from standing', sort_order: 1 },
+  { id: 'skill-flex-splits', name: 'Splits', category: 'Flexibility', description: 'Full front splits', sort_order: 0 },
+  { id: 'skill-flex-backbend', name: 'Backbend', category: 'Flexibility', description: 'Full backbend / bridge', sort_order: 1 },
+]
+
+const demoMemberSkillsData: Record<string, Array<{ skill_id: string; level: DemoMemberSkill['level']; notes: string | null; verified: boolean }>> = {
+  'member-1': [
+    { skill_id: 'skill-spin-basic', level: 'mastered', notes: null, verified: true },
+    { skill_id: 'skill-spin-fireman', level: 'confident', notes: 'Getting smoother each week', verified: true },
+    { skill_id: 'skill-spin-chair', level: 'practicing', notes: null, verified: false },
+    { skill_id: 'skill-climb-basic', level: 'confident', notes: null, verified: true },
+    { skill_id: 'skill-invert-basic', level: 'learning', notes: 'Working on core strength', verified: false },
+  ],
+  'member-2': [
+    { skill_id: 'skill-spin-basic', level: 'mastered', notes: null, verified: true },
+    { skill_id: 'skill-spin-fireman', level: 'mastered', notes: null, verified: true },
+    { skill_id: 'skill-spin-chair', level: 'confident', notes: null, verified: true },
+    { skill_id: 'skill-climb-basic', level: 'mastered', notes: null, verified: true },
+    { skill_id: 'skill-invert-basic', level: 'confident', notes: 'Almost there!', verified: false },
+    { skill_id: 'skill-invert-shoulder', level: 'learning', notes: null, verified: false },
+    { skill_id: 'skill-flex-splits', level: 'practicing', notes: 'Left side better than right', verified: false },
+  ],
+  'member-3': [
+    { skill_id: 'skill-spin-basic', level: 'confident', notes: null, verified: true },
+    { skill_id: 'skill-spin-fireman', level: 'practicing', notes: null, verified: false },
+    { skill_id: 'skill-climb-basic', level: 'learning', notes: null, verified: false },
+  ],
+  'member-4': [
+    { skill_id: 'skill-spin-basic', level: 'mastered', notes: null, verified: true },
+    { skill_id: 'skill-spin-fireman', level: 'mastered', notes: null, verified: true },
+    { skill_id: 'skill-spin-chair', level: 'mastered', notes: null, verified: true },
+    { skill_id: 'skill-climb-basic', level: 'mastered', notes: null, verified: true },
+    { skill_id: 'skill-invert-basic', level: 'mastered', notes: null, verified: true },
+    { skill_id: 'skill-invert-shoulder', level: 'confident', notes: 'Working on clean entry', verified: true },
+    { skill_id: 'skill-flex-splits', level: 'confident', notes: null, verified: false },
+    { skill_id: 'skill-flex-backbend', level: 'practicing', notes: null, verified: false },
+  ],
+}
+
+export function getDemoMemberSkills(memberId: string): DemoMemberSkill[] {
+  const memberProgress = demoMemberSkillsData[memberId] ?? []
+  const progressMap = new Map(memberProgress.map((p) => [p.skill_id, p]))
+
+  return demoSkillDefinitions.map((def) => {
+    const progress = progressMap.get(def.id)
+    return {
+      ...def,
+      level: progress?.level ?? null,
+      notes: progress?.notes ?? null,
+      verified_by: progress?.verified ? TEACHER_EMMA_ID : null,
+      verified_at: progress?.verified ? '2026-01-15T10:00:00Z' : null,
+      verifier_name: progress?.verified ? 'Alex' : null,
+    }
+  })
+}
+
+export function getDemoSkillsGrouped(): Record<string, DemoSkillDefinition[]> {
+  const grouped: Record<string, DemoSkillDefinition[]> = {}
+  for (const skill of demoSkillDefinitions) {
+    if (!grouped[skill.category]) grouped[skill.category] = []
+    grouped[skill.category].push(skill)
+  }
+  return grouped
+}
+
+// ============================================================
+// V8: Financial Data
+// ============================================================
+
+export function getDemoExpenses() {
+  return [
+    { id: 'exp-1', description: 'Studio Rent', amount_cents: 350000, date: '2026-02-01', recurring: true, recurring_interval: 'monthly' as const, vendor: 'Wellington Property', category: { id: 'cat-1', name: 'Rent', color: '#ef4444' }, notes: null },
+    { id: 'exp-2', description: 'Public Liability Insurance', amount_cents: 30000, date: '2026-02-01', recurring: true, recurring_interval: 'monthly' as const, vendor: 'NZ Insurance Co', category: { id: 'cat-2', name: 'Insurance', color: '#f97316' }, notes: null },
+    { id: 'exp-3', description: 'Electricity & Gas', amount_cents: 55000, date: '2026-02-15', recurring: true, recurring_interval: 'monthly' as const, vendor: 'Meridian Energy', category: { id: 'cat-3', name: 'Utilities', color: '#eab308' }, notes: null },
+    { id: 'exp-4', description: 'Water', amount_cents: 25000, date: '2026-02-15', recurring: true, recurring_interval: 'monthly' as const, vendor: 'Wellington Water', category: { id: 'cat-3', name: 'Utilities', color: '#eab308' }, notes: null },
+    { id: 'exp-5', description: 'Crash mat replacement', amount_cents: 20000, date: '2026-02-10', recurring: false, recurring_interval: null, vendor: 'Circus Gear NZ', category: { id: 'cat-4', name: 'Equipment', color: '#22c55e' }, notes: 'Replacing worn mats in aerial area' },
+    { id: 'exp-6', description: 'Studio cleaning', amount_cents: 40000, date: '2026-02-01', recurring: true, recurring_interval: 'monthly' as const, vendor: 'CleanCo', category: { id: 'cat-5', name: 'Cleaning', color: '#06b6d4' }, notes: null },
+    { id: 'exp-7', description: 'Spotify Business', amount_cents: 5000, date: '2026-02-01', recurring: true, recurring_interval: 'monthly' as const, vendor: 'Spotify', category: { id: 'cat-6', name: 'Music & Software', color: '#8b5cf6' }, notes: null },
+    { id: 'exp-8', description: 'Instagram + Google Ads', amount_cents: 50000, date: '2026-02-01', recurring: true, recurring_interval: 'monthly' as const, vendor: null, category: { id: 'cat-7', name: 'Marketing', color: '#ec4899' }, notes: 'Monthly ad budget' },
+  ]
+}
+
+export function getDemoInstructorComp() {
+  return [
+    { id: 'ic-1', user_id: TEACHER_EMMA_ID, name: 'Alex (Emma)', rate_cents: 6500, rate_type: 'per_class' as const, classes_this_month: 18, total_cents: 117000 },
+    { id: 'ic-2', user_id: TEACHER_JADE_ID, name: 'Jade', rate_cents: 6000, rate_type: 'per_class' as const, classes_this_month: 15, total_cents: 90000 },
+    { id: 'ic-3', user_id: TEACHER_SAM_ID, name: 'Sam', rate_cents: 5500, rate_type: 'per_class' as const, classes_this_month: 12, total_cents: 66000 },
+    { id: 'ic-4', user_id: TEACHER_ARIA_ID, name: 'Aria', rate_cents: 5000, rate_type: 'per_class' as const, classes_this_month: 10, total_cents: 50000 },
+  ]
+}
+
+export function getDemoFinancialOverview() {
+  return {
+    monthly_revenue_cents: 1680000,
+    monthly_expenses_cents: 898000,
+    net_income_cents: 782000,
+    profit_margin: 0.465,
+  }
+}
+
+export function getDemoHealthCheck() {
+  return {
+    score: 78,
+    grade: 'B+',
+    metrics: [
+      { name: 'Profit Margin', value: '46.5%', status: 'good' as const, detail: 'Above 30% target' },
+      { name: 'Expense Ratio', value: '53.5%', status: 'good' as const, detail: 'Below 70% threshold' },
+      { name: 'Revenue per Member', value: '$35.00', status: 'warning' as const, detail: 'Slightly below $40 benchmark' },
+      { name: 'Cash Reserve', value: '2.1 months', status: 'warning' as const, detail: 'Target is 3+ months' },
+      { name: 'Instructor Cost Ratio', value: '19.2%', status: 'good' as const, detail: 'Within 15-25% target range' },
+      { name: 'Recurring Revenue %', value: '82%', status: 'good' as const, detail: 'Above 75% target' },
+    ],
+  }
+}
+
+export function getDemoPnl() {
+  return {
+    months: [
+      { month: '2025-09', revenue_cents: 1420000, expenses_cents: 860000, net_cents: 560000 },
+      { month: '2025-10', revenue_cents: 1510000, expenses_cents: 875000, net_cents: 635000 },
+      { month: '2025-11', revenue_cents: 1550000, expenses_cents: 890000, net_cents: 660000 },
+      { month: '2025-12', revenue_cents: 1380000, expenses_cents: 870000, net_cents: 510000 },
+      { month: '2026-01', revenue_cents: 1620000, expenses_cents: 885000, net_cents: 735000 },
+      { month: '2026-02', revenue_cents: 1680000, expenses_cents: 898000, net_cents: 782000 },
+    ],
+  }
+}
+
+export function getDemoCashFlow() {
+  return {
+    months: [
+      { month: '2026-03', inflows_cents: 1700000, outflows_cents: 905000, net_cents: 795000, running_balance_cents: 3200000 },
+      { month: '2026-04', inflows_cents: 1720000, outflows_cents: 910000, net_cents: 810000, running_balance_cents: 4010000 },
+      { month: '2026-05', inflows_cents: 1750000, outflows_cents: 920000, net_cents: 830000, running_balance_cents: 4840000 },
+      { month: '2026-06', inflows_cents: 1650000, outflows_cents: 915000, net_cents: 735000, running_balance_cents: 5575000 },
+      { month: '2026-07', inflows_cents: 1600000, outflows_cents: 900000, net_cents: 700000, running_balance_cents: 6275000 },
+      { month: '2026-08', inflows_cents: 1680000, outflows_cents: 910000, net_cents: 770000, running_balance_cents: 7045000 },
+    ],
+  }
 }

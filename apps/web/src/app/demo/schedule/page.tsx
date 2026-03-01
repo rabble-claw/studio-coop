@@ -2,8 +2,8 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { demoClasses, demoTemplates, demoTeachers, demoStudio, type DemoClass } from '@/lib/demo-data'
-import { Card, CardContent } from '@/components/ui/card'
+import { demoClasses, demoTemplates, demoTeachers, demoStudio, demoSubRequests, type DemoClass, type DemoSubRequest } from '@/lib/demo-data'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatTime, formatDate } from '@/lib/utils'
@@ -11,6 +11,9 @@ import { formatTime, formatDate } from '@/lib/utils'
 export default function DemoSchedulePage() {
   const [classes, setClasses] = useState<DemoClass[]>(demoClasses)
   const [showAddModal, setShowAddModal] = useState(false)
+  const [subRequests, setSubRequests] = useState<DemoSubRequest[]>(demoSubRequests)
+  const [subRequestClassId, setSubRequestClassId] = useState<string | null>(null)
+  const [subReason, setSubReason] = useState('')
 
   // Form state
   const [selectedTemplateId, setSelectedTemplateId] = useState(demoTemplates[0]?.id ?? '')
@@ -22,12 +25,19 @@ export default function DemoSchedulePage() {
 
   const selectedTemplate = demoTemplates.find((t) => t.id === selectedTemplateId)
 
+  // Demo: simulate current user is Alex (first teacher)
+  const currentTeacherId = demoTeachers[0]?.id ?? ''
+
+  const openSubRequests = subRequests.filter(s => s.status === 'open')
+  const classesWithSubRequests = new Set(
+    openSubRequests.map(s => s.class_instance_id)
+  )
+
   function handleTemplateChange(templateId: string) {
     setSelectedTemplateId(templateId)
     const tpl = demoTemplates.find((t) => t.id === templateId)
     if (tpl) {
       setCapacity(tpl.default_capacity)
-      // Auto-set end time based on template duration
       const [h, m] = startTime.split(':').map(Number)
       const endMinutes = h! * 60 + m! + tpl.default_duration_min
       const endH = Math.floor(endMinutes / 60) % 24
@@ -73,6 +83,48 @@ export default function DemoSchedulePage() {
       return a.start_time.localeCompare(b.start_time)
     }))
     setShowAddModal(false)
+  }
+
+  function handleRequestSub() {
+    if (!subRequestClassId) return
+    const cls = classes.find(c => c.id === subRequestClassId)
+    if (!cls) return
+
+    const newSub: DemoSubRequest = {
+      id: `sub-demo-${Date.now()}`,
+      class_instance_id: subRequestClassId,
+      studio_id: 'demo-empire-001',
+      requesting_teacher: { id: currentTeacherId, name: demoTeachers[0]?.name ?? 'Alex', avatar_url: null },
+      substitute_teacher: null,
+      status: 'open',
+      reason: subReason || null,
+      class_info: {
+        id: cls.id,
+        name: cls.template.name,
+        date: cls.date,
+        start_time: cls.start_time,
+        end_time: cls.end_time,
+      },
+      created_at: new Date().toISOString(),
+      accepted_at: null,
+    }
+    setSubRequests(prev => [newSub, ...prev])
+    setSubRequestClassId(null)
+    setSubReason('')
+  }
+
+  function handleAcceptSub(subId: string) {
+    setSubRequests(prev => prev.map(s =>
+      s.id === subId
+        ? { ...s, status: 'accepted' as const, substitute_teacher: { id: currentTeacherId, name: 'Alex', avatar_url: null }, accepted_at: new Date().toISOString() }
+        : s
+    ))
+  }
+
+  function handleCancelSub(subId: string) {
+    setSubRequests(prev => prev.map(s =>
+      s.id === subId ? { ...s, status: 'cancelled' as const } : s
+    ))
   }
 
   const classesByDate = classes.reduce<Record<string, DemoClass[]>>((acc, cls) => {
@@ -189,6 +241,67 @@ export default function DemoSchedulePage() {
         </div>
       )}
 
+      {/* Sub Requests Section */}
+      {openSubRequests.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Sub Requests</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {openSubRequests.map((sub) => (
+              <div key={sub.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg border">
+                <div className="flex-1">
+                  <div className="font-medium text-sm">{sub.class_info?.name ?? 'Unknown class'}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {sub.class_info ? `${formatDate(sub.class_info.date)} ${formatTime(sub.class_info.start_time)} - ${formatTime(sub.class_info.end_time)}` : ''}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Requested by {sub.requesting_teacher?.name ?? 'Unknown'}
+                    {sub.reason && ` - ${sub.reason}`}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  {currentTeacherId !== sub.requesting_teacher?.id && (
+                    <Button size="sm" onClick={() => handleAcceptSub(sub.id)}>
+                      Accept Sub
+                    </Button>
+                  )}
+                  {currentTeacherId === sub.requesting_teacher?.id && (
+                    <Button size="sm" variant="outline" onClick={() => handleCancelSub(sub.id)}>
+                      Cancel Request
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Request Sub Form */}
+      {subRequestClassId && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Request Substitute</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div>
+              <label htmlFor="demo-sub-reason" className="text-sm font-medium">Reason (optional)</label>
+              <Input
+                id="demo-sub-reason"
+                value={subReason}
+                onChange={(e) => setSubReason(e.target.value)}
+                placeholder="e.g., Doctor appointment"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={handleRequestSub}>Request Sub</Button>
+              <Button variant="outline" onClick={() => { setSubRequestClassId(null); setSubReason('') }}>Cancel</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="space-y-6">
         {Object.entries(classesByDate).map(([date, dateClasses]) => (
           <div key={date}>
@@ -210,7 +323,12 @@ export default function DemoSchedulePage() {
                                 {formatTime(cls.start_time)} — {formatTime(cls.end_time)}
                               </div>
                               <div>
-                                <div className="font-medium">{cls.template.name}</div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">{cls.template.name}</span>
+                                  {classesWithSubRequests.has(cls.id) && (
+                                    <span className="text-xs px-1.5 py-0.5 rounded bg-orange-100 text-orange-700">Needs Sub</span>
+                                  )}
+                                </div>
                                 <div className="text-sm text-muted-foreground">with {cls.teacher.name}</div>
                               </div>
                             </div>
@@ -228,15 +346,25 @@ export default function DemoSchedulePage() {
                                 />
                               </div>
                             </div>
-                            <span className={`text-xs px-2 py-1 rounded-full ${
-                              spotsLeft <= 2
-                                ? 'bg-red-100 text-red-700'
-                                : spotsLeft <= 4
-                                ? 'bg-amber-100 text-amber-700'
-                                : 'bg-green-100 text-green-700'
-                            }`}>
-                              {spotsLeft === 0 ? 'Full' : `${spotsLeft} left`}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-xs px-2 py-1 rounded-full font-semibold ${
+                                spotsLeft <= 2
+                                  ? 'bg-red-700 text-white'
+                                  : spotsLeft <= 4
+                                  ? 'bg-amber-600 text-white'
+                                  : 'bg-emerald-700 text-white'
+                              }`}>
+                                {spotsLeft === 0 ? 'Full' : `${spotsLeft} left`}
+                              </span>
+                              {cls.teacher_id === currentTeacherId && !classesWithSubRequests.has(cls.id) && (
+                                <button
+                                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSubRequestClassId(cls.id) }}
+                                  className="text-xs px-2 py-1 rounded bg-orange-50 text-orange-700 hover:bg-orange-100 whitespace-nowrap"
+                                >
+                                  Request Sub
+                                </button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </CardContent>

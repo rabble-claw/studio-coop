@@ -4,8 +4,32 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { reportApi } from '@/lib/api-client'
+import { useStudioId } from '@/hooks/use-studio-id'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import Link from 'next/link'
+
+interface TeacherWeeklyTrend {
+  week: string
+  classes: number
+  avgAttendance: number
+  avgFillRate: number
+}
+
+interface TeacherTopClass {
+  name: string
+  timesTaught: number
+  avgAttendance: number
+  fillRate: number
+}
+
+interface TeacherStats {
+  classesTaught: number
+  avgAttendance: number
+  avgFillRate: number
+  weeklyTrend: TeacherWeeklyTrend[]
+  topClasses: TeacherTopClass[]
+}
 
 interface AttendanceWeek {
   week: string
@@ -37,12 +61,18 @@ interface AtRiskMember {
 
 export default function ReportsPage() {
   const router = useRouter()
-  const [studioId, setStudioId] = useState<string | null>(null)
+  const { studioId, studios, loading: studioLoading } = useStudioId()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   // Overview
   const [overview, setOverview] = useState({ activeMembers: 0, totalRevenue: 0, avgAttendanceRate: 0, retentionRate: 0 })
+  const [noShowsPrevented, setNoShowsPrevented] = useState(0)
+
+  // Teacher stats
+  const [memberRole, setMemberRole] = useState<string | null>(null)
+  const [userId, setUserId] = useState<string | null>(null)
+  const [teacherStats, setTeacherStats] = useState<TeacherStats | null>(null)
 
   // Tab data
   const [attendance, setAttendance] = useState<AttendanceWeek[]>([])
@@ -51,29 +81,44 @@ export default function ReportsPage() {
   const [atRisk, setAtRisk] = useState<AtRiskMember[]>([])
 
   useEffect(() => {
+    if (studioLoading) return
+    if (!studioId) { setLoading(false); return }
+
+    const sid = studioId
+    const currentStudio = studios.find((s) => s.id === sid)
+    const role = currentStudio?.role ?? 'member'
+
     async function load() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
 
-      const { data: membership } = await supabase
-        .from('memberships')
-        .select('studio_id')
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .limit(1)
-        .single()
-
-      if (!membership) { setLoading(false); return }
-      setStudioId(membership.studio_id)
+      setMemberRole(role)
+      setUserId(user.id)
 
       try {
-        const [overviewData, attendanceData, revenueData, popularData, atRiskData] = await Promise.all([
-          reportApi.overview(membership.studio_id),
-          reportApi.attendance(membership.studio_id),
-          reportApi.revenue(membership.studio_id),
-          reportApi.popular(membership.studio_id),
-          reportApi.atRisk(membership.studio_id),
+        const thisMonth = new Date()
+        thisMonth.setDate(1)
+        thisMonth.setHours(0, 0, 0, 0)
+        const monthStart = thisMonth.toISOString()
+
+        const isTeacher = ['teacher', 'admin', 'owner'].includes(role)
+
+        const [overviewData, attendanceData, revenueData, popularData, atRiskData, confirmedResult, teacherData] = await Promise.all([
+          reportApi.overview(sid),
+          reportApi.attendance(sid),
+          reportApi.revenue(sid),
+          reportApi.popular(sid),
+          reportApi.atRisk(sid),
+          supabase
+            .from('bookings')
+            .select('id, class_instance:class_instances!bookings_class_instance_id_fkey(studio_id, date)', { count: 'exact', head: true })
+            .eq('status', 'confirmed')
+            .eq('class_instance.studio_id' as string, sid)
+            .gte('confirmed_at', monthStart),
+          isTeacher
+            ? reportApi.teacherStats(sid, user.id).catch(() => null)
+            : Promise.resolve(null),
         ])
 
         setOverview(overviewData)
@@ -81,16 +126,18 @@ export default function ReportsPage() {
         setRevenue(revenueData.revenue)
         setPopular(popularData.classes)
         setAtRisk(atRiskData.members)
+        setNoShowsPrevented(confirmedResult.count ?? 0)
+        if (teacherData) setTeacherStats(teacherData)
       } catch {
         setError('Failed to load reports. Please try again.')
       }
       setLoading(false)
     }
     load()
-  }, [])
+  }, [studioId, studioLoading, studios, router])
 
   function formatCurrency(cents: number) {
-    return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(cents / 100)
+    return new Intl.NumberFormat('en-NZ', { style: 'currency', currency: 'NZD', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(cents / 100)
   }
 
   function formatWeek(dateStr: string) {
@@ -154,6 +201,96 @@ export default function ReportsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* No-show prevention */}
+      {noShowsPrevented > 0 && (
+        <Card className="border-green-200 bg-green-50/50">
+          <CardContent className="py-4 flex items-center gap-4">
+            <div className="text-3xl">&#x2705;</div>
+            <div>
+              <div className="font-semibold text-green-800">
+                Smart confirmations saved {noShowsPrevented} no-show{noShowsPrevented !== 1 ? 's' : ''} this month
+              </div>
+              <p className="text-sm text-green-700/80">
+                {noShowsPrevented} member{noShowsPrevented !== 1 ? 's' : ''} confirmed attendance before class
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Teacher Stats */}
+      {teacherStats && teacherStats.classesTaught > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>My Teaching Stats</CardTitle>
+            <p className="text-sm text-muted-foreground">Your performance over the last 90 days</p>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Summary row */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+              <div>
+                <div className="text-2xl font-bold">{teacherStats.classesTaught}</div>
+                <div className="text-xs text-muted-foreground">Classes taught</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold">{teacherStats.avgAttendance}</div>
+                <div className="text-xs text-muted-foreground">Avg attendance</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold">{(teacherStats.avgFillRate * 100).toFixed(0)}%</div>
+                <div className="text-xs text-muted-foreground">Avg fill rate</div>
+              </div>
+            </div>
+
+            {/* Weekly trend */}
+            {teacherStats.weeklyTrend.length > 0 && (
+              <div>
+                <h4 className="font-medium text-sm mb-3">Weekly Trend</h4>
+                <div className="space-y-2">
+                  {teacherStats.weeklyTrend.map(w => (
+                    <div key={w.week} className="flex items-center gap-2 sm:gap-4">
+                      <div className="w-14 sm:w-16 text-xs sm:text-sm text-muted-foreground shrink-0">{formatWeek(w.week)}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="h-5 bg-muted rounded-full overflow-hidden" role="progressbar" aria-valuenow={Math.round(w.avgFillRate * 100)} aria-valuemin={0} aria-valuemax={100} aria-label={`${formatWeek(w.week)}: ${w.classes} classes, ${w.avgAttendance} avg attendance`}>
+                          <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${w.avgFillRate * 100}%` }} />
+                        </div>
+                      </div>
+                      <div className="w-24 sm:w-36 text-xs sm:text-sm text-right shrink-0">
+                        <span className="font-medium">{w.classes} cls</span>
+                        <span className="text-muted-foreground"> ({(w.avgFillRate * 100).toFixed(0)}%)</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Top classes */}
+            {teacherStats.topClasses.length > 0 && (
+              <div>
+                <h4 className="font-medium text-sm mb-3">Top Classes by Fill Rate</h4>
+                <div className="space-y-2 text-sm">
+                  {teacherStats.topClasses.map((tc, i) => (
+                    <div key={tc.name} className="flex items-center gap-3">
+                      <div className="w-5 h-5 rounded-full bg-blue-500/10 flex items-center justify-center text-xs font-bold text-blue-600">
+                        {i + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate">{tc.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {tc.timesTaught}x taught, avg {tc.avgAttendance} students
+                        </div>
+                      </div>
+                      <div className="w-16 text-right font-medium">{(tc.fillRate * 100).toFixed(0)}%</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs defaultValue="attendance">
         <TabsList className="flex-wrap h-auto">
@@ -224,6 +361,11 @@ export default function ReportsPage() {
                   ))}
                 </div>
               )}
+              <div className="mt-4 pt-4 border-t">
+                <Link href="/dashboard/finances" className="text-sm text-muted-foreground hover:text-foreground">
+                  See full financial analysis &rarr;
+                </Link>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

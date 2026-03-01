@@ -155,7 +155,7 @@ export default function NetworkPage() {
       )}
 
       {message && (
-        <div role={message.startsWith('Error') ? 'alert' : 'status'} aria-live={message.startsWith('Error') ? 'assertive' : 'polite'} className={`text-sm px-4 py-2 rounded-md ${message.startsWith('Error') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
+        <div role={message.startsWith('Error') ? 'alert' : 'status'} aria-live={message.startsWith('Error') ? 'assertive' : 'polite'} className={`text-sm px-4 py-2 rounded-md ${message.startsWith('Error') ? 'bg-red-50 text-red-700' : 'bg-emerald-100 text-emerald-900'}`}>
           {message}
         </div>
       )}

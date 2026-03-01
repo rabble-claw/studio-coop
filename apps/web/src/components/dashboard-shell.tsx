@@ -9,6 +9,8 @@ import { cn } from '@/lib/utils'
 import { getDemoUnreadCount } from '@/lib/demo-data'
 import { notificationApi } from '@/lib/api-client'
 import { Button } from '@/components/ui/button'
+import { StudioSwitcher } from '@/components/studio-switcher'
+import { useStudioId } from '@/hooks/use-studio-id'
 
 const navItems = [
   { path: '', labelKey: 'overview', icon: '🏠' },
@@ -20,6 +22,7 @@ const navItems = [
   { path: '/coupons', labelKey: 'coupons', icon: '🏷️' },
   { path: '/private-bookings', labelKey: 'bookings', icon: '🔒' },
   { path: '/reports', labelKey: 'reports', icon: '📊' },
+  { path: '/finances', labelKey: 'finances', icon: '💰' },
   { path: '/migrate', labelKey: 'migrate', icon: '📦' },
   { path: '/settings', labelKey: 'settings', icon: '⚙️' },
 ] as const
@@ -36,6 +39,7 @@ export function DashboardShell({ children, mode = 'live', basePath = '/dashboard
   const t = useTranslations('common')
   const nav = useTranslations('common.nav')
   const [unreadCount, setUnreadCount] = useState(0)
+  const { studios, studioId, switchStudio } = useStudioId(mode === 'demo')
 
   useEffect(() => {
     if (mode === 'demo') return
@@ -92,6 +96,13 @@ export function DashboardShell({ children, mode = 'live', basePath = '/dashboard
               </div>
               <span className="font-semibold hidden sm:inline">{t('appName')}</span>
             </Link>
+            {mode === 'live' && (
+              <StudioSwitcher
+                studios={studios}
+                currentStudioId={studioId}
+                onSwitch={switchStudio}
+              />
+            )}
             <nav aria-label="Dashboard navigation" className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
               {navItems.map((item) => {
                 const href = basePath + item.path

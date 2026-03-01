@@ -9,16 +9,16 @@ import { Input } from '@/components/ui/input'
 import { formatTime, formatDate } from '@/lib/utils'
 
 const statusColors: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-700',
-  confirmed: 'bg-green-100 text-green-700',
-  completed: 'bg-blue-100 text-blue-700',
-  cancelled: 'bg-red-100 text-red-700',
+  pending: 'bg-amber-600 text-white',
+  confirmed: 'bg-emerald-700 text-white',
+  completed: 'bg-blue-700 text-white',
+  cancelled: 'bg-red-700 text-white',
 }
 
 const typeLabels: Record<string, string> = {
-  'Private Lesson': 'bg-purple-100 text-purple-700',
-  'Pole Party': 'bg-pink-100 text-pink-700',
-  'Corporate Event': 'bg-indigo-100 text-indigo-700',
+  'Private Lesson': 'bg-purple-700 text-white',
+  'Pole Party': 'bg-pink-700 text-white',
+  'Corporate Event': 'bg-indigo-700 text-white',
 }
 
 export default function DemoPrivateBookingsPage() {

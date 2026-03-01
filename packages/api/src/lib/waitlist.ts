@@ -6,15 +6,72 @@ import { checkBookingCredits, deductCredit } from './credits'
 import { sendNotification } from './notifications'
 
 /**
+ * Fetch waitlist settings for a studio. Returns defaults if not configured.
+ */
+async function getWaitlistSettings(studioId: string): Promise<{
+  autoPromote: boolean
+  confirmationMinutes: number
+  maxSize: number
+  notifyPosition: boolean
+}> {
+  const supabase = createServiceClient()
+  const { data: studio } = await supabase
+    .from('studios')
+    .select('settings')
+    .eq('id', studioId)
+    .single()
+
+  const settings = (studio?.settings ?? {}) as Record<string, unknown>
+  const wl = (settings.waitlist ?? {}) as Record<string, unknown>
+
+  return {
+    autoPromote: typeof wl.autoPromote === 'boolean' ? wl.autoPromote : true,
+    confirmationMinutes: typeof wl.confirmationMinutes === 'number' ? wl.confirmationMinutes : 60,
+    maxSize: typeof wl.maxSize === 'number' ? wl.maxSize : 0,
+    notifyPosition: typeof wl.notifyPosition === 'boolean' ? wl.notifyPosition : true,
+  }
+}
+
+/**
  * Add a user to the waitlist for a class.
  * Assigns the next sequential waitlist_position and creates a booking
  * with status = 'waitlisted'.
+ *
+ * Respects the studio's maxSize setting — if waitlist is full, throws an error.
  */
 export async function addToWaitlist(
   classId: string,
   userId: string,
+  studioId?: string,
 ): Promise<{ waitlist_position: number; bookingId: string }> {
   const supabase = createServiceClient()
+
+  // Resolve studioId if not provided
+  let resolvedStudioId = studioId
+  if (!resolvedStudioId) {
+    const { data: cls } = await supabase
+      .from('class_instances')
+      .select('studio_id')
+      .eq('id', classId)
+      .single()
+    resolvedStudioId = cls?.studio_id
+  }
+
+  // Check max waitlist size
+  if (resolvedStudioId) {
+    const wlSettings = await getWaitlistSettings(resolvedStudioId)
+    if (wlSettings.maxSize > 0) {
+      const { count } = await supabase
+        .from('bookings')
+        .select('*', { count: 'exact', head: true })
+        .eq('class_instance_id', classId)
+        .eq('status', 'waitlisted')
+
+      if ((count ?? 0) >= wlSettings.maxSize) {
+        throw new Error('Waitlist is full for this class')
+      }
+    }
+  }
 
   // Count current waitlisted entries to derive position (1-based)
   const { count } = await supabase
@@ -79,7 +136,7 @@ export async function getWaitlistPosition(
 export async function promoteFromWaitlist(classId: string): Promise<void> {
   const supabase = createServiceClient()
 
-  // Need studio_id to check credits
+  // Need studio_id to check credits and waitlist settings
   const { data: classInstance } = await supabase
     .from('class_instances')
     .select('studio_id')
@@ -87,6 +144,13 @@ export async function promoteFromWaitlist(classId: string): Promise<void> {
     .single()
 
   if (!classInstance) return
+
+  // Check if auto-promote is enabled for this studio
+  const wlSettings = await getWaitlistSettings(classInstance.studio_id)
+  if (!wlSettings.autoPromote) {
+    console.log(`[waitlist] Auto-promote disabled for studio ${classInstance.studio_id}, skipping`)
+    return
+  }
 
   // Fetch waitlisted entries ordered by position ascending
   const { data: waitlisted } = await supabase

@@ -4,13 +4,32 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { memberApi } from '@/lib/api-client'
+import { memberApi, achievementApi, skillApi } from '@/lib/api-client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { getRoleBadgeColor } from '@/lib/utils'
+import { ConfirmDialog } from '@/components/confirm-dialog'
+
+interface PrivacySettings {
+  profile_visibility: string
+  show_attendance: boolean
+  show_email: boolean
+  show_phone: boolean
+  show_achievements: boolean
+  feed_posts_visible: boolean
+}
+
+const PRIVACY_DEFAULTS: PrivacySettings = {
+  profile_visibility: 'members',
+  show_attendance: true,
+  show_email: false,
+  show_phone: false,
+  show_achievements: true,
+  feed_posts_visible: true,
+}
 
 interface MemberDetail {
   id: string
@@ -55,6 +74,34 @@ interface SubscriptionInfo {
   created_at: string
 }
 
+interface Achievement {
+  id: string
+  title: string
+  description: string | null
+  category: string
+  icon: string
+  earned_at: string
+}
+
+interface MemberSkill {
+  id: string
+  name: string
+  category: string
+  description: string | null
+  level: string | null
+  notes: string | null
+  verified_by: string | null
+  verified_at: string | null
+  verifier_name: string | null
+}
+
+const SKILL_LEVEL_COLORS: Record<string, string> = {
+  learning: 'bg-gray-100 text-gray-700',
+  practicing: 'bg-blue-100 text-blue-800',
+  confident: 'bg-amber-100 text-amber-800',
+  mastered: 'bg-green-100 text-green-800',
+}
+
 export default function MemberDetailPage() {
   const params  = useParams()
   const router  = useRouter()
@@ -68,6 +115,8 @@ export default function MemberDetailPage() {
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null)
   const [loading, setLoading]     = useState(true)
   const [isStaff, setIsStaff]     = useState(false)
+  const [isSelf, setIsSelf]       = useState(false)
+  const [privacySettings, setPrivacySettings] = useState<PrivacySettings>(PRIVACY_DEFAULTS)
 
   // Grant comp classes form state
   const [showGrantForm, setShowGrantForm] = useState(false)
@@ -78,9 +127,34 @@ export default function MemberDetailPage() {
   const [grantError, setGrantError]       = useState<string | null>(null)
   const [grantSuccess, setGrantSuccess]   = useState<string | null>(null)
 
+  // Notes editing state
+  const [editingNotes, setEditingNotes] = useState(false)
+  const [notesValue, setNotesValue]     = useState('')
+  const [savingNotes, setSavingNotes]   = useState(false)
+  const [notesError, setNotesError]     = useState<string | null>(null)
+
   // Member management state
   const [memberAction, setMemberAction] = useState<string | null>(null)
   const [memberActionError, setMemberActionError] = useState<string | null>(null)
+  const [showSuspendDialog, setShowSuspendDialog] = useState(false)
+  const [showRemoveDialog, setShowRemoveDialog] = useState(false)
+  const [revokeTarget, setRevokeTarget] = useState<string | null>(null)
+
+  // Skills state
+  const [memberSkills, setMemberSkills] = useState<MemberSkill[]>([])
+  const [skillsGrouped, setSkillsGrouped] = useState<Record<string, MemberSkill[]>>({})
+  const [updatingSkill, setUpdatingSkill] = useState<string | null>(null)
+
+  // Achievement state
+  const [achievements, setAchievements] = useState<Achievement[]>([])
+  const [showAchievementForm, setShowAchievementForm] = useState(false)
+  const [achTitle, setAchTitle] = useState('')
+  const [achDescription, setAchDescription] = useState('')
+  const [achCategory, setAchCategory] = useState('general')
+  const [achIcon, setAchIcon] = useState('\u{1F3C6}')
+  const [achShareToFeed, setAchShareToFeed] = useState(true)
+  const [achSaving, setAchSaving] = useState(false)
+  const [achError, setAchError] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
@@ -130,7 +204,21 @@ export default function MemberDetailPage() {
         .single()
 
       const staffRoles = ['teacher', 'admin', 'owner']
-      setIsStaff(staffRoles.includes(myRole?.role ?? ''))
+      const viewerIsStaff = staffRoles.includes(myRole?.role ?? '')
+      setIsStaff(viewerIsStaff)
+      setIsSelf(user.id === memberId)
+
+      // Fetch privacy settings for the target member
+      if (!viewerIsStaff && user.id !== memberId) {
+        const { data: targetUser } = await supabase
+          .from('users')
+          .select('privacy_settings')
+          .eq('id', memberId)
+          .single()
+        if (targetUser?.privacy_settings) {
+          setPrivacySettings({ ...PRIVACY_DEFAULTS, ...(targetUser.privacy_settings as Partial<PrivacySettings>) })
+        }
+      }
 
       // Fetch comp grants for this member
       const { data: grants } = await supabase
@@ -177,6 +265,29 @@ export default function MemberDetailPage() {
 
       setSubscription(sub as unknown as SubscriptionInfo | null)
 
+      // Fetch achievements
+      try {
+        const achResult = await achievementApi.memberAchievements(membership.studio_id, memberId)
+        setAchievements(achResult.achievements ?? [])
+      } catch {
+        // achievements table may not exist yet
+      }
+
+      // Fetch member skills
+      try {
+        const skillResult = await skillApi.memberSkills(membership.studio_id, memberId)
+        setMemberSkills(skillResult.skills as MemberSkill[] ?? [])
+        // Group skills by category from the flat list
+        const grouped: Record<string, MemberSkill[]> = {}
+        for (const s of (skillResult.skills ?? []) as MemberSkill[]) {
+          if (!grouped[s.category]) grouped[s.category] = []
+          grouped[s.category].push(s)
+        }
+        setSkillsGrouped(grouped)
+      } catch {
+        // skills table may not exist yet
+      }
+
       setLoading(false)
     }
     load()
@@ -212,7 +323,6 @@ export default function MemberDetailPage() {
 
   async function handleSuspend() {
     if (!member) return
-    if (!confirm('Suspend this member? They will not be able to book classes until reactivated.')) return
     setMemberAction('suspending')
     setMemberActionError(null)
     try {
@@ -241,7 +351,6 @@ export default function MemberDetailPage() {
 
   async function handleRemove() {
     if (!member) return
-    if (!confirm('Remove this member from the studio? This action sets their membership to cancelled.')) return
     setMemberAction('removing')
     setMemberActionError(null)
     try {
@@ -256,16 +365,122 @@ export default function MemberDetailPage() {
 
   async function handleRevoke(compId: string) {
     if (!member) return
-    if (!confirm('Revoke this comp grant? The member will lose any remaining classes.')) return
-
     try {
-      const { api } = await import('@/lib/api-client')
-      await api.delete(`/studios/${member.studio_id}/comps/${compId}`)
+      await memberApi.revokeComp(member.studio_id, compId)
       setCompGrants((prev) =>
         prev.map((c) => c.id === compId ? { ...c, remaining_classes: 0 } : c),
       )
+    } catch (err) {
+      setGrantError(`Failed to revoke comp: ${(err as Error).message}`)
+    }
+  }
+
+  async function handleSaveNotes() {
+    if (!member) return
+    setSavingNotes(true)
+    setNotesError(null)
+    try {
+      await memberApi.addNote(member.studio_id, memberId, notesValue.trim())
+      setMember((prev) => prev ? { ...prev, notes: notesValue.trim() || null } : prev)
+      setEditingNotes(false)
+    } catch (err) {
+      setNotesError((err as Error).message)
+    } finally {
+      setSavingNotes(false)
+    }
+  }
+
+  async function handleCreateAchievement(e: React.FormEvent) {
+    e.preventDefault()
+    if (!member || !achTitle.trim()) return
+    setAchSaving(true)
+    setAchError(null)
+    try {
+      const result = await achievementApi.create(member.studio_id, {
+        title: achTitle.trim(),
+        description: achDescription.trim() || undefined,
+        category: achCategory,
+        icon: achIcon,
+        share_to_feed: achShareToFeed,
+        user_id: memberId,
+      })
+      setAchievements((prev) => [{
+        id: result.achievement.id,
+        title: result.achievement.title,
+        description: result.achievement.description,
+        category: result.achievement.category,
+        icon: result.achievement.icon,
+        earned_at: result.achievement.earned_at,
+      }, ...prev])
+      setAchTitle('')
+      setAchDescription('')
+      setAchCategory('general')
+      setAchIcon('\u{1F3C6}')
+      setAchShareToFeed(true)
+      setShowAchievementForm(false)
+    } catch (err) {
+      setAchError((err as Error).message)
+    } finally {
+      setAchSaving(false)
+    }
+  }
+
+  async function handleDeleteAchievement(achievementId: string) {
+    if (!member) return
+    try {
+      await achievementApi.remove(member.studio_id, achievementId)
+      setAchievements((prev) => prev.filter((a) => a.id !== achievementId))
+    } catch (err) {
+      setAchError((err as Error).message)
+    }
+  }
+
+  async function handleUpdateSkillLevel(skillId: string, level: string) {
+    if (!member) return
+    setUpdatingSkill(skillId)
+    try {
+      await skillApi.updateLevel(member.studio_id, memberId, skillId, { level })
+      setMemberSkills((prev) =>
+        prev.map((s) => s.id === skillId ? { ...s, level } : s)
+      )
+      setSkillsGrouped((prev) => {
+        const updated = { ...prev }
+        for (const cat of Object.keys(updated)) {
+          updated[cat] = updated[cat].map((s) =>
+            s.id === skillId ? { ...s, level } : s
+          )
+        }
+        return updated
+      })
     } catch {
-      // Revoke failed
+      // silently fail
+    } finally {
+      setUpdatingSkill(null)
+    }
+  }
+
+  async function handleVerifySkill(skillId: string, currentLevel: string) {
+    if (!member) return
+    setUpdatingSkill(skillId)
+    try {
+      const result = await skillApi.updateLevel(member.studio_id, memberId, skillId, { level: currentLevel, verify: true })
+      const updated = result.skill
+      setMemberSkills((prev) =>
+        prev.map((s) => s.id === skillId ? { ...s, verified_by: updated.verified_by, verified_at: updated.verified_at } : s)
+      )
+      setSkillsGrouped((prev) => {
+        const updatedGrouped = { ...prev }
+        for (const cat of Object.keys(updatedGrouped)) {
+          updatedGrouped[cat] = updatedGrouped[cat].map((s) =>
+            s.id === skillId ? { ...s, verified_by: updated.verified_by, verified_at: updated.verified_at } : s
+          )
+        }
+        return updatedGrouped
+      })
+    } catch {
+      // silently fail
+    } finally {
+      setUpdatingSkill(null)
     }
   }
 
@@ -290,6 +505,40 @@ export default function MemberDetailPage() {
     (c) => c.remaining_classes === 0 || (c.expires_at && new Date(c.expires_at) <= now),
   )
 
+  // Attendance stats
+  const totalClasses = attendance.length
+  const thisMonth = new Date()
+  thisMonth.setDate(1)
+  thisMonth.setHours(0, 0, 0, 0)
+  const classesThisMonth = attendance.filter(
+    (a) => a.class_instance?.date && new Date(a.class_instance.date + 'T00:00:00') >= thisMonth,
+  ).length
+
+  // Calculate weekly streak: how many consecutive weeks (counting back from now) had at least one class
+  const weekStreak = (() => {
+    if (attendance.length === 0) return 0
+    const weeks = new Set<string>()
+    for (const a of attendance) {
+      if (a.class_instance?.date) {
+        const d = new Date(a.class_instance.date + 'T00:00:00')
+        const weekStart = new Date(d)
+        weekStart.setDate(d.getDate() - d.getDay())
+        weeks.add(weekStart.toISOString().split('T')[0])
+      }
+    }
+    // Count consecutive weeks from most recent
+    const currentWeekStart = new Date()
+    currentWeekStart.setDate(currentWeekStart.getDate() - currentWeekStart.getDay())
+    currentWeekStart.setHours(0, 0, 0, 0)
+    let streak = 0
+    const check = new Date(currentWeekStart)
+    while (weeks.has(check.toISOString().split('T')[0])) {
+      streak++
+      check.setDate(check.getDate() - 7)
+    }
+    return streak
+  })()
+
   return (
     <div className="space-y-6 max-w-2xl">
       <Link href="/dashboard/members" className="text-sm text-muted-foreground hover:text-foreground inline-block">
@@ -308,7 +557,9 @@ export default function MemberDetailPage() {
             </Avatar>
             <div className="flex-1">
               <h1 className="text-2xl font-bold">{member.name}</h1>
-              <p className="text-muted-foreground">{member.email}</p>
+              {(isStaff || isSelf || privacySettings.show_email) && member.email && (
+                <p className="text-muted-foreground">{member.email}</p>
+              )}
               <div className="flex items-center gap-2 mt-2">
                 <span className={`text-xs px-2 py-1 rounded-full capitalize ${getRoleBadgeColor(member.role)}`}>
                   {member.role}
@@ -320,11 +571,49 @@ export default function MemberDetailPage() {
                   Joined {new Date(member.joined_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                 </span>
               </div>
-              {member.notes && (
+              {!editingNotes && member.notes && (
                 <p className="text-sm text-muted-foreground mt-2 italic">{member.notes}</p>
               )}
             </div>
           </div>
+
+          {/* Notes editing for staff */}
+          {isStaff && (
+            <div className="mt-4 border-t pt-4">
+              {editingNotes ? (
+                <div className="space-y-2">
+                  <label htmlFor="member-notes" className="text-sm font-medium">Staff Notes</label>
+                  <textarea
+                    id="member-notes"
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    rows={3}
+                    placeholder="Injuries, experience level, preferences..."
+                    value={notesValue}
+                    onChange={(e) => setNotesValue(e.target.value)}
+                    maxLength={1000}
+                  />
+                  {notesError && <p role="alert" className="text-xs text-red-600">{notesError}</p>}
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={handleSaveNotes} disabled={savingNotes}>
+                      {savingNotes ? 'Saving...' : 'Save Notes'}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setEditingNotes(false)} disabled={savingNotes}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground"
+                  onClick={() => { setNotesValue(member.notes ?? ''); setEditingNotes(true); setNotesError(null) }}
+                >
+                  {member.notes ? 'Edit Notes' : '+ Add Notes'}
+                </Button>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -344,7 +633,7 @@ export default function MemberDetailPage() {
                   variant="outline"
                   size="sm"
                   className="text-amber-600 border-amber-300 hover:bg-amber-50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  onClick={handleSuspend}
+                  onClick={() => setShowSuspendDialog(true)}
                   disabled={memberAction !== null}
                   aria-label={`Suspend ${member.name}`}
                 >
@@ -355,7 +644,7 @@ export default function MemberDetailPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  className="text-green-600 border-green-300 hover:bg-green-50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  className="text-emerald-800 border-emerald-400 hover:bg-emerald-100 font-semibold focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   onClick={handleReactivate}
                   disabled={memberAction !== null}
                   aria-label={`Reactivate ${member.name}`}
@@ -368,7 +657,7 @@ export default function MemberDetailPage() {
                   variant="outline"
                   size="sm"
                   className="text-red-600 border-red-300 hover:bg-red-50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  onClick={handleRemove}
+                  onClick={() => setShowRemoveDialog(true)}
                   disabled={memberAction !== null}
                   aria-label={`Remove ${member.name}`}
                 >
@@ -391,7 +680,7 @@ export default function MemberDetailPage() {
               <div>
                 <div className="font-medium">{subscription.plan?.name ?? 'Plan'}</div>
                 <div className="text-sm text-muted-foreground">
-                  ${((subscription.plan?.price_cents ?? 0) / 100).toFixed(2)} / {subscription.plan?.interval ?? 'month'}
+                  NZ${((subscription.plan?.price_cents ?? 0) / 100).toFixed(2)} / {subscription.plan?.interval ?? 'month'}
                 </div>
               </div>
               <div className="text-right">
@@ -409,8 +698,43 @@ export default function MemberDetailPage() {
         </Card>
       )}
 
+      {/* Attendance Stats */}
+      {!isStaff && !isSelf && !privacySettings.show_attendance ? (
+        <Card>
+          <CardHeader><CardTitle>Attendance</CardTitle></CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">This member has hidden their attendance history.</p>
+          </CardContent>
+        </Card>
+      ) : totalClasses > 0 ? (
+        <Card>
+          <CardHeader><CardTitle>Attendance Stats</CardTitle></CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div>
+                <div className="text-2xl font-bold">{totalClasses}</div>
+                <div className="text-xs text-muted-foreground">Total Classes</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold">{classesThisMonth}</div>
+                <div className="text-xs text-muted-foreground">This Month</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold">{weekStreak}</div>
+                <div className="text-xs text-muted-foreground">Week Streak</div>
+              </div>
+            </div>
+            {weekStreak >= 4 && (
+              <p className="text-sm text-center mt-3 text-green-700 font-medium">
+                {weekStreak} week streak! Keep it up!
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
+
       {/* Attendance History */}
-      {attendance.length > 0 && (
+      {(isStaff || isSelf || privacySettings.show_attendance) && attendance.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle>Attendance History ({attendance.length})</CardTitle>
@@ -448,6 +772,195 @@ export default function MemberDetailPage() {
                 </tbody>
               </table>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Skills Progress */}
+      {memberSkills.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Skills Progress</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {Object.entries(skillsGrouped).map(([category, skills]) => (
+              <div key={category}>
+                <h3 className="text-sm font-semibold text-muted-foreground mb-2">{category}</h3>
+                <div className="space-y-2">
+                  {skills.map((skill) => (
+                    <div key={skill.id} className="flex items-center justify-between py-1.5 border-b last:border-0">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-sm font-medium truncate">{skill.name}</span>
+                        {skill.verified_at && (
+                          <span className="text-xs text-green-600 flex-shrink-0" title={`Verified by ${skill.verifier_name}`}>
+                            Verified
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {(isStaff || isSelf) ? (
+                          <select
+                            className="text-xs border rounded px-2 py-1 bg-background"
+                            value={skill.level ?? ''}
+                            onChange={(e) => handleUpdateSkillLevel(skill.id, e.target.value || 'learning')}
+                            disabled={updatingSkill === skill.id}
+                            aria-label={`Skill level for ${skill.name}`}
+                          >
+                            <option value="">Not started</option>
+                            <option value="learning">Learning</option>
+                            <option value="practicing">Practicing</option>
+                            <option value="confident">Confident</option>
+                            <option value="mastered">Mastered</option>
+                          </select>
+                        ) : (
+                          skill.level && (
+                            <Badge className={`text-xs ${SKILL_LEVEL_COLORS[skill.level] ?? 'bg-gray-100 text-gray-700'}`}>
+                              {skill.level}
+                            </Badge>
+                          )
+                        )}
+                        {isStaff && skill.level && !skill.verified_at && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-xs h-7 px-2"
+                            onClick={() => handleVerifySkill(skill.id, skill.level!)}
+                            disabled={updatingSkill === skill.id}
+                          >
+                            Verify
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Achievements */}
+      {(isStaff || isSelf || (privacySettings.show_achievements && achievements.length > 0)) && (
+        <Card className="border-amber-200">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle>Achievements</CardTitle>
+              {(isStaff || isSelf) && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => { setShowAchievementForm((v) => !v); setAchError(null) }}
+                >
+                  {showAchievementForm ? 'Cancel' : 'Add Achievement'}
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {showAchievementForm && (
+              <form onSubmit={handleCreateAchievement} className="border border-amber-200 rounded-lg p-4 space-y-3 bg-amber-50/50">
+                <div>
+                  <label htmlFor="ach-title" className="text-xs text-muted-foreground mb-1 block">Title *</label>
+                  <Input
+                    id="ach-title"
+                    type="text"
+                    placeholder="e.g. First Invert"
+                    value={achTitle}
+                    onChange={(e) => setAchTitle(e.target.value)}
+                    required
+                    maxLength={200}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="ach-desc" className="text-xs text-muted-foreground mb-1 block">Description (optional)</label>
+                  <Input
+                    id="ach-desc"
+                    type="text"
+                    placeholder="e.g. Nailed it in Thursday's class!"
+                    value={achDescription}
+                    onChange={(e) => setAchDescription(e.target.value)}
+                    maxLength={500}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="ach-category" className="text-xs text-muted-foreground mb-1 block">Category</label>
+                    <select
+                      id="ach-category"
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      value={achCategory}
+                      onChange={(e) => setAchCategory(e.target.value)}
+                    >
+                      <option value="skill">Skill</option>
+                      <option value="milestone">Milestone</option>
+                      <option value="personal">Personal</option>
+                      <option value="general">General</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground mb-1 block">Icon</label>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {['\u{1F3C6}', '\u{1F525}', '\u{1F4AA}', '\u{1F938}', '\u{2B50}', '\u{26A1}', '\u{1F389}', '\u{1F31F}'].map((emoji) => (
+                        <button
+                          key={emoji}
+                          type="button"
+                          onClick={() => setAchIcon(emoji)}
+                          className={`w-8 h-8 rounded-md text-lg flex items-center justify-center cursor-pointer ${achIcon === emoji ? 'ring-2 ring-amber-500 bg-amber-100' : 'bg-secondary hover:bg-secondary/80'}`}
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={achShareToFeed}
+                    onChange={(e) => setAchShareToFeed(e.target.checked)}
+                    className="rounded"
+                  />
+                  Share to community feed
+                </label>
+                {achError && <p role="alert" className="text-xs text-red-600">{achError}</p>}
+                <Button type="submit" size="sm" disabled={achSaving || !achTitle.trim()}>
+                  {achSaving ? 'Saving...' : 'Add Achievement'}
+                </Button>
+              </form>
+            )}
+
+            {achievements.length === 0 && !showAchievementForm && (
+              <p className="text-sm text-muted-foreground">No achievements yet.</p>
+            )}
+
+            {achievements.map((ach) => (
+              <div key={ach.id} className="flex items-center justify-between p-3 border border-amber-200 rounded-lg bg-amber-50/30">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">{ach.icon}</span>
+                  <div>
+                    <div className="font-medium text-sm">{ach.title}</div>
+                    {ach.description && (
+                      <div className="text-xs text-muted-foreground">{ach.description}</div>
+                    )}
+                    <div className="text-xs text-muted-foreground">
+                      <Badge variant="outline" className="text-xs mr-1">{ach.category}</Badge>
+                      {new Date(ach.earned_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                </div>
+                {(isStaff || isSelf) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    onClick={() => handleDeleteAchievement(ach.id)}
+                  >
+                    Remove
+                  </Button>
+                )}
+              </div>
+            ))}
           </CardContent>
         </Card>
       )}
@@ -538,7 +1051,7 @@ export default function MemberDetailPage() {
                   variant="ghost"
                   size="sm"
                   className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                  onClick={() => handleRevoke(grant.id)}
+                  onClick={() => setRevokeTarget(grant.id)}
                   aria-label={`Revoke comp grant of ${grant.total_classes} classes`}
                 >
                   Revoke
@@ -576,6 +1089,36 @@ export default function MemberDetailPage() {
           </CardContent>
         </Card>
       )}
+
+      <ConfirmDialog
+        open={showSuspendDialog}
+        onOpenChange={setShowSuspendDialog}
+        title="Suspend member"
+        description="Suspend this member? They will not be able to book classes until reactivated."
+        confirmLabel="Suspend"
+        variant="danger"
+        onConfirm={handleSuspend}
+      />
+
+      <ConfirmDialog
+        open={showRemoveDialog}
+        onOpenChange={setShowRemoveDialog}
+        title="Remove member"
+        description="Remove this member from the studio? This action sets their membership to cancelled."
+        confirmLabel="Remove"
+        variant="danger"
+        onConfirm={handleRemove}
+      />
+
+      <ConfirmDialog
+        open={revokeTarget !== null}
+        onOpenChange={(open) => { if (!open) setRevokeTarget(null) }}
+        title="Revoke comp grant"
+        description="Revoke this comp grant? The member will lose any remaining classes."
+        confirmLabel="Revoke"
+        variant="danger"
+        onConfirm={() => { if (revokeTarget) return handleRevoke(revokeTarget) }}
+      />
     </div>
   )
 }

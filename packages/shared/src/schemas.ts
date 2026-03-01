@@ -121,3 +121,48 @@ export const startMigrationImportSchema = z.object({
   source: z.enum(['mindbody', 'vagaro', 'csv']),
   fileName: z.string().optional(),
 })
+
+// ============================================================
+// V3: FINANCIAL PLANNER
+// ============================================================
+
+export const createExpenseSchema = z.object({
+  categoryId: z.string().min(1),
+  name: z.string().min(1).max(200),
+  amountCents: z.number().int().min(0),
+  currency: z.string().default('NZD'),
+  recurrence: z.enum(['once', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly']).default('monthly'),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  notes: z.string().max(1000).nullable().optional(),
+})
+
+export const createInstructorCompSchema = z.object({
+  instructorId: z.string().uuid(),
+  compType: z.enum(['per_class', 'monthly_salary', 'revenue_share', 'hybrid']),
+  perClassRateCents: z.number().int().min(0).default(0),
+  monthlySalaryCents: z.number().int().min(0).default(0),
+  revenueSharePercent: z.number().min(0).max(100).default(0),
+  effectiveFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  effectiveUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+  notes: z.string().max(1000).nullable().optional(),
+})
+
+export const scenarioSchema = z.object({
+  newMembers: z.number().int().min(0).default(0),
+  lostMembers: z.number().int().min(0).default(0),
+  priceChangePercent: z.number().default(0),
+  newExpenses: z.array(z.object({
+    categoryId: z.string().optional(),
+    name: z.string().optional(),
+    amountCents: z.number().int().min(0),
+    recurrence: z.enum(['once', 'weekly', 'biweekly', 'monthly', 'quarterly', 'yearly']).optional(),
+  })).default([]),
+  removedExpenseIds: z.array(z.string().uuid()).default([]),
+  newClassesPerWeek: z.number().int().min(0).default(0),
+})
+
+export const expenseSetupSchema = z.object({
+  expenses: z.array(createExpenseSchema).optional(),
+  instructors: z.array(createInstructorCompSchema).optional(),
+})

@@ -2,14 +2,15 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase/client'
 import { inviteApi, memberApi } from '@/lib/api-client'
+import { useStudioId } from '@/hooks/use-studio-id'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { getRoleBadgeColor } from '@/lib/utils'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 
 interface Member {
   id: string
@@ -22,10 +23,9 @@ interface Member {
 }
 
 export default function MembersPage() {
-  const router = useRouter()
   const t = useTranslations('members')
   const tc = useTranslations('common')
-  const [studioId, setStudioId] = useState<string | null>(null)
+  const { studioId, loading: studioLoading } = useStudioId()
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -35,28 +35,23 @@ export default function MembersPage() {
   const [invite, setInvite] = useState({ email: '', name: '', role: 'member' })
   const [inviting, setInviting] = useState(false)
   const [inviteMessage, setInviteMessage] = useState('')
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [suspendTarget, setSuspendTarget] = useState<string | null>(null)
+  const [removeTarget, setRemoveTarget] = useState<string | null>(null)
 
   useEffect(() => {
+    if (studioLoading) return
+    if (!studioId) { setLoading(false); return }
+
+    const sid = studioId
+
     async function load() {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/login'); return }
-
-      const { data: membership } = await supabase
-        .from('memberships')
-        .select('studio_id')
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .limit(1)
-        .single()
-
-      if (!membership) { setLoading(false); return }
-      setStudioId(membership.studio_id)
 
       const { data: studioMembers } = await supabase
         .from('memberships')
         .select('role, status, joined_at, user:users(id, name, email, avatar_url)')
-        .eq('studio_id', membership.studio_id)
+        .eq('studio_id', sid)
         .in('status', ['active', 'suspended'])
         .order('joined_at')
 
@@ -76,7 +71,7 @@ export default function MembersPage() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [studioId, studioLoading])
 
   async function handleInvite() {
     if (!studioId || !invite.email) return
@@ -100,16 +95,14 @@ export default function MembersPage() {
     setInviting(false)
   }
 
-  async function handleSuspend(e: React.MouseEvent, memberId: string) {
-    e.preventDefault()
-    e.stopPropagation()
+  async function handleSuspend(memberId: string) {
     if (!studioId) return
-    if (!confirm('Suspend this member?')) return
+    setActionError(null)
     try {
       await memberApi.suspend(studioId, memberId)
       setMembers((prev) => prev.map((m) => m.id === memberId ? { ...m, status: 'suspended' } : m))
     } catch (err) {
-      alert(`Failed: ${(err as Error).message}`)
+      setActionError(`Failed: ${(err as Error).message}`)
     }
   }
 
@@ -117,24 +110,23 @@ export default function MembersPage() {
     e.preventDefault()
     e.stopPropagation()
     if (!studioId) return
+    setActionError(null)
     try {
       await memberApi.reactivate(studioId, memberId)
       setMembers((prev) => prev.map((m) => m.id === memberId ? { ...m, status: 'active' } : m))
     } catch (err) {
-      alert(`Failed: ${(err as Error).message}`)
+      setActionError(`Failed: ${(err as Error).message}`)
     }
   }
 
-  async function handleRemove(e: React.MouseEvent, memberId: string) {
-    e.preventDefault()
-    e.stopPropagation()
+  async function handleRemove(memberId: string) {
     if (!studioId) return
-    if (!confirm('Remove this member from the studio?')) return
+    setActionError(null)
     try {
       await memberApi.remove(studioId, memberId)
       setMembers((prev) => prev.filter((m) => m.id !== memberId))
     } catch (err) {
-      alert(`Failed: ${(err as Error).message}`)
+      setActionError(`Failed: ${(err as Error).message}`)
     }
   }
 
@@ -193,7 +185,7 @@ export default function MembersPage() {
               </div>
             </div>
             {inviteMessage && (
-              <div role={inviteMessage.startsWith('Error') ? 'alert' : 'status'} aria-live={inviteMessage.startsWith('Error') ? 'assertive' : 'polite'} className={`text-sm px-3 py-2 rounded-md ${inviteMessage.startsWith('Error') ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
+              <div role={inviteMessage.startsWith('Error') ? 'alert' : 'status'} aria-live={inviteMessage.startsWith('Error') ? 'assertive' : 'polite'} className={`text-sm px-3 py-2 rounded-md ${inviteMessage.startsWith('Error') ? 'bg-red-50 text-red-700' : 'bg-emerald-100 text-emerald-900'}`}>
                 {inviteMessage}
               </div>
             )}
@@ -250,7 +242,7 @@ export default function MembersPage() {
                       <div className="flex items-center gap-1">
                         {member.status === 'active' && (
                           <button
-                            onClick={(e) => handleSuspend(e, member.id)}
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSuspendTarget(member.id) }}
                             className="text-xs px-2 py-1 rounded text-amber-600 hover:bg-amber-50 hidden sm:inline focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                             aria-label={`Suspend ${member.name}`}
                           >
@@ -260,14 +252,14 @@ export default function MembersPage() {
                         {member.status === 'suspended' && (
                           <button
                             onClick={(e) => handleReactivate(e, member.id)}
-                            className="text-xs px-2 py-1 rounded text-green-600 hover:bg-green-50 hidden sm:inline focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                            className="text-xs px-2 py-1 rounded text-emerald-800 font-semibold hover:bg-emerald-100 hidden sm:inline focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                             aria-label={`Reactivate ${member.name}`}
                           >
                             {t('reactivate')}
                           </button>
                         )}
                         <button
-                          onClick={(e) => handleRemove(e, member.id)}
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setRemoveTarget(member.id) }}
                           className="text-xs px-2 py-1 rounded text-red-600 hover:bg-red-50 hidden sm:inline focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                           aria-label={`Remove ${member.name}`}
                         >
@@ -287,6 +279,33 @@ export default function MembersPage() {
           </p>
         )}
       </div>
+
+      {actionError && (
+        <div role="alert" className="fixed bottom-4 right-4 z-50 text-sm px-4 py-3 rounded-md bg-red-50 text-red-700 shadow-lg">
+          {actionError}
+          <button onClick={() => setActionError(null)} className="ml-2 font-bold">x</button>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={suspendTarget !== null}
+        onOpenChange={(open) => { if (!open) setSuspendTarget(null) }}
+        title="Suspend member"
+        description="Suspend this member? They will not be able to book classes until reactivated."
+        confirmLabel="Suspend"
+        variant="danger"
+        onConfirm={() => { if (suspendTarget) return handleSuspend(suspendTarget) }}
+      />
+
+      <ConfirmDialog
+        open={removeTarget !== null}
+        onOpenChange={(open) => { if (!open) setRemoveTarget(null) }}
+        title="Remove member"
+        description="Remove this member from the studio? Their membership will be cancelled."
+        confirmLabel="Remove"
+        variant="danger"
+        onConfirm={() => { if (removeTarget) return handleRemove(removeTarget) }}
+      />
     </div>
   )
 }

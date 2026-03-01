@@ -97,7 +97,7 @@ export default function DemoFeedPage() {
 
       <div className="space-y-4">
         {posts.map((post) => (
-          <Card key={post.id}>
+          <Card key={post.id} className={post.post_type === 'achievement' ? 'border-amber-300 bg-amber-50/30' : ''}>
             <CardContent className="p-4">
               {/* Class context */}
               {post.class_name && post.class_id && (
@@ -116,8 +116,8 @@ export default function DemoFeedPage() {
               {/* Author */}
               <div className="flex items-center gap-3 mb-3">
                 <Link href={`/demo/members/${post.author_id}`} className="shrink-0">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
-                    {post.author[0]}
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${post.post_type === 'achievement' ? 'bg-amber-100 text-amber-700' : 'bg-primary/10 text-primary'}`}>
+                    {post.post_type === 'achievement' ? '\u{1F3C6}' : post.author[0]}
                   </div>
                 </Link>
                 <div>
@@ -127,6 +127,9 @@ export default function DemoFeedPage() {
                     </Link>
                     {post.post_type === 'milestone' && (
                       <Badge variant="outline" className="text-xs">milestone</Badge>
+                    )}
+                    {post.post_type === 'achievement' && (
+                      <Badge variant="outline" className="text-xs border-amber-300 text-amber-700 bg-amber-50">achievement</Badge>
                     )}
                   </div>
                   <div className="text-xs text-muted-foreground">

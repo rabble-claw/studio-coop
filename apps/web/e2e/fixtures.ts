@@ -1,4 +1,5 @@
 import { test as base, expect, type Page } from '@playwright/test'
+import path from 'path'
 
 /**
  * Wait for the page to finish loading — no loading spinners visible.
@@ -15,6 +16,9 @@ async function waitForPageLoad(page: Page) {
 
 type Fixtures = {
   demoPage: Page
+  ownerPage: Page
+  teacherPage: Page
+  memberPage: Page
 }
 
 export const test = base.extend<Fixtures>({
@@ -22,6 +26,36 @@ export const test = base.extend<Fixtures>({
     await page.goto('/demo')
     await waitForPageLoad(page)
     await use(page)
+  },
+
+  ownerPage: async ({ browser }, use) => {
+    const authFile = path.join(__dirname, '.auth', 'owner.json')
+    const context = await browser.newContext({ storageState: authFile })
+    const page = await context.newPage()
+    await page.goto('/dashboard')
+    await waitForPageLoad(page)
+    await use(page)
+    await context.close()
+  },
+
+  teacherPage: async ({ browser }, use) => {
+    const authFile = path.join(__dirname, '.auth', 'teacher.json')
+    const context = await browser.newContext({ storageState: authFile })
+    const page = await context.newPage()
+    await page.goto('/dashboard')
+    await waitForPageLoad(page)
+    await use(page)
+    await context.close()
+  },
+
+  memberPage: async ({ browser }, use) => {
+    const authFile = path.join(__dirname, '.auth', 'member.json')
+    const context = await browser.newContext({ storageState: authFile })
+    const page = await context.newPage()
+    await page.goto('/dashboard')
+    await waitForPageLoad(page)
+    await use(page)
+    await context.close()
   },
 })
 

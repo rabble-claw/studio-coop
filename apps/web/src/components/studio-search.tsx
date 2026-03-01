@@ -48,6 +48,7 @@ export function StudioSearch({
   const searchParams = useSearchParams()
   const [search, setSearch] = useState(currentSearch)
   const [geoLoading, setGeoLoading] = useState(false)
+  const [geoError, setGeoError] = useState<string | null>(null)
 
   const updateParams = useCallback(
     (updates: { q?: string; discipline?: string; city?: string; country?: string; region?: string; lat?: string; lng?: string; radius?: string }) => {
@@ -99,10 +100,11 @@ export function StudioSearch({
 
   const handleNearMe = () => {
     if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser.')
+      setGeoError('Geolocation is not supported by your browser.')
       return
     }
     setGeoLoading(true)
+    setGeoError(null)
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setGeoLoading(false)
@@ -117,7 +119,7 @@ export function StudioSearch({
       },
       () => {
         setGeoLoading(false)
-        alert('Unable to get your location. Please check your browser permissions.')
+        setGeoError('Unable to get your location. Please check your browser permissions.')
       }
     )
   }
@@ -160,6 +162,9 @@ export function StudioSearch({
           </svg>
           {geoLoading ? 'Locating...' : 'Near Me'}
         </button>
+        {geoError && (
+          <p role="alert" className="text-sm text-red-600 mt-1">{geoError}</p>
+        )}
       </div>
 
       {/* Discipline filter -- visual pills with emoji */}

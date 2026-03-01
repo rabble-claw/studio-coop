@@ -17,6 +17,49 @@ truncate public.coupon_redemptions, public.coupons, public.comp_classes,
          public.users cascade;
 
 -- ============================================================
+-- AUTH USERS (for E2E tests — created in auth.users so login works)
+-- Password: testpass123! (bcrypt hash below)
+-- ============================================================
+insert into auth.users (
+  instance_id, id, aud, role, email, encrypted_password,
+  email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
+  created_at, updated_at, confirmation_token, recovery_token
+) values
+  -- Owner: Alex Rivera
+  ('00000000-0000-0000-0000-000000000000',
+   'aa000000-0000-0000-0000-000000000001', 'authenticated', 'authenticated',
+   'alex@empireaerialarts.com',
+   '$2a$10$ZwGSmtT.2KLZSt4RUDz6eO1iz2XdXuJ9bIAnSRDHBnliFf9v6AQAC',
+   now(), '{"provider":"email","providers":["email"]}',
+   '{"name":"Alex Rivera"}', now(), now(), '', ''),
+  -- Teacher: Jade Nguyen
+  ('00000000-0000-0000-0000-000000000000',
+   'aa000000-0000-0000-0000-000000000002', 'authenticated', 'authenticated',
+   'jade@empireaerialarts.com',
+   '$2a$10$ZwGSmtT.2KLZSt4RUDz6eO1iz2XdXuJ9bIAnSRDHBnliFf9v6AQAC',
+   now(), '{"provider":"email","providers":["email"]}',
+   '{"name":"Jade Nguyen"}', now(), now(), '', ''),
+  -- Member: Aroha Patel
+  ('00000000-0000-0000-0000-000000000000',
+   'aa000000-0000-0000-0000-000000000010', 'authenticated', 'authenticated',
+   'aroha@gmail.com',
+   '$2a$10$ZwGSmtT.2KLZSt4RUDz6eO1iz2XdXuJ9bIAnSRDHBnliFf9v6AQAC',
+   now(), '{"provider":"email","providers":["email"]}',
+   '{"name":"Aroha Patel"}', now(), now(), '', '');
+
+-- Auth identities (required for email login to work)
+insert into auth.identities (id, user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at) values
+  (gen_random_uuid(), 'aa000000-0000-0000-0000-000000000001', 'alex@empireaerialarts.com',
+   '{"sub":"aa000000-0000-0000-0000-000000000001","email":"alex@empireaerialarts.com"}',
+   'email', now(), now(), now()),
+  (gen_random_uuid(), 'aa000000-0000-0000-0000-000000000002', 'jade@empireaerialarts.com',
+   '{"sub":"aa000000-0000-0000-0000-000000000002","email":"jade@empireaerialarts.com"}',
+   'email', now(), now(), now()),
+  (gen_random_uuid(), 'aa000000-0000-0000-0000-000000000010', 'aroha@gmail.com',
+   '{"sub":"aa000000-0000-0000-0000-000000000010","email":"aroha@gmail.com"}',
+   'email', now(), now(), now());
+
+-- ============================================================
 -- USERS (fixed UUIDs for cross-referencing)
 -- ============================================================
 -- Owner

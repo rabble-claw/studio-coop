@@ -40,13 +40,15 @@ export default function SetupWizardPage() {
   })
 
   const [createdStudioId, setCreatedStudioId] = useState<string | null>(null)
+  const [setupError, setSetupError] = useState<string | null>(null)
 
   function handleUseMyLocation() {
     if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser.')
+      setSetupError('Geolocation is not supported by your browser.')
       return
     }
     setGeoLoading(true)
+    setSetupError(null)
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setGeoLoading(false)
@@ -58,13 +60,14 @@ export default function SetupWizardPage() {
       },
       () => {
         setGeoLoading(false)
-        alert('Unable to get your location. Please check your browser permissions.')
+        setSetupError('Unable to get your location. Please check your browser permissions.')
       }
     )
   }
 
   async function createStudio() {
     setLoading(true)
+    setSetupError(null)
     try {
       const payload = {
         ...studioData,
@@ -75,7 +78,7 @@ export default function SetupWizardPage() {
       setCreatedStudioId(result.studio.id)
       setStep('stripe')
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Error creating studio')
+      setSetupError(e instanceof Error ? e.message : 'Error creating studio')
     } finally {
       setLoading(false)
     }
@@ -193,6 +196,9 @@ export default function SetupWizardPage() {
                 </div>
               </div>
             </div>
+            {setupError && (
+              <p role="alert" className="text-sm text-red-600">{setupError}</p>
+            )}
             <Button className="w-full" onClick={createStudio} disabled={!studioData.name || loading}>
               {loading ? 'Creating...' : 'Create Studio \u{2192}'}
             </Button>

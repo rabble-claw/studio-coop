@@ -1,17 +1,35 @@
 // Member management routes — studio-scoped (mounted at /api/studios)
 //
 // Separate from invitations.ts which handles invite/suspend/reactivate/remove.
-// These endpoints provide read-only member listing and detail, plus notes.
+// These endpoints provide read-only member listing and detail, plus notes and privacy.
 //
 //   GET  /:studioId/members            — list studio members (paginated, filterable)
 //   GET  /:studioId/members/:memberId  — member detail with history
 //   POST /:studioId/members/:memberId/notes — add/update staff notes
+//   GET  /:studioId/members/:memberId/privacy — get member privacy settings
+//   PUT  /:studioId/members/:memberId/privacy — update member privacy settings
 
 import { Hono } from 'hono'
 import { authMiddleware } from '../middleware/auth'
-import { requireStaff } from '../middleware/studio-access'
+import { requireMember, requireStaff } from '../middleware/studio-access'
 import { createServiceClient } from '../lib/supabase'
-import { badRequest, notFound } from '../lib/errors'
+import { badRequest, notFound, forbidden } from '../lib/errors'
+
+// Privacy settings defaults
+const PRIVACY_DEFAULTS = {
+  profile_visibility: 'members' as const,
+  show_attendance: true,
+  show_email: false,
+  show_phone: false,
+  show_achievements: true,
+  feed_posts_visible: true,
+}
+
+type PrivacySettings = typeof PRIVACY_DEFAULTS
+
+function mergePrivacyDefaults(settings: Record<string, unknown> | null): PrivacySettings {
+  return { ...PRIVACY_DEFAULTS, ...(settings ?? {}) }
+}
 
 const members = new Hono()
 
@@ -89,12 +107,19 @@ members.get('/:studioId/members', authMiddleware, requireStaff, async (c) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /:studioId/members/:memberId — member detail with history
+// Respects privacy settings when viewer is not staff and not the member themselves.
 // ─────────────────────────────────────────────────────────────────────────────
 
-members.get('/:studioId/members/:memberId', authMiddleware, requireStaff, async (c) => {
+members.get('/:studioId/members/:memberId', authMiddleware, requireMember, async (c) => {
   const studioId = c.req.param('studioId')
   const memberId = c.req.param('memberId')
   const supabase = createServiceClient()
+
+  // Determine if the viewing user is staff
+  const viewerRole = c.get('memberRole')
+  const viewerId = c.get('user').id
+  const isStaff = ['teacher', 'admin', 'owner'].includes(viewerRole)
+  const isSelf = viewerId === memberId
 
   // Fetch everything in parallel
   const [memberResult, attendanceResult, subscriptionResult, compResult, bookingsResult] = await Promise.all([
@@ -204,27 +229,39 @@ members.get('/:studioId/members/:memberId', authMiddleware, requireStaff, async 
   const totalAttendance = attendance.length
   const attendanceThisMonth = attendance.filter(a => a.date?.startsWith(thisMonth)).length
 
+  // Fetch privacy settings for the target member
+  const { data: targetUser } = await supabase
+    .from('users')
+    .select('privacy_settings')
+    .eq('id', userId)
+    .single()
+
+  const privacy = mergePrivacyDefaults(targetUser?.privacy_settings as Record<string, unknown> | null)
+
+  // Apply privacy filtering for non-staff, non-self viewers
+  const shouldRedact = !isStaff && !isSelf
+
   return c.json({
     member: {
       id: m.id,
       user_id: u.id,
       name: u.name,
-      email: u.email,
+      email: shouldRedact && !privacy.show_email ? null : u.email,
       avatar_url: u.avatar_url,
-      phone: u.phone,
+      phone: shouldRedact && !privacy.show_phone ? null : u.phone,
       role: m.role,
       status: m.status,
       joined_at: m.created_at,
-      notes: m.notes ?? null,
+      notes: isStaff ? (m.notes ?? null) : null,
     },
-    subscription: formattedSubscription,
-    compGrants,
-    attendance,
-    recentBookings,
-    stats: {
-      totalAttendance,
-      attendanceThisMonth,
-    },
+    privacy: shouldRedact ? privacy : undefined,
+    subscription: isStaff || isSelf ? formattedSubscription : null,
+    compGrants: isStaff ? compGrants : [],
+    attendance: shouldRedact && !privacy.show_attendance ? [] : attendance,
+    recentBookings: isStaff || isSelf ? recentBookings : [],
+    stats: shouldRedact && !privacy.show_attendance
+      ? { totalAttendance: 0, attendanceThisMonth: 0, attendanceHidden: true }
+      : { totalAttendance, attendanceThisMonth },
   })
 })
 
@@ -260,6 +297,116 @@ members.post('/:studioId/members/:memberId/notes', authMiddleware, requireStaff,
   if (error) throw new Error(error.message)
 
   return c.json({ notes: note })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /:studioId/members/:memberId/privacy — get member privacy settings
+// Members can get their own; staff can get anyone's.
+// ─────────────────────────────────────────────────────────────────────────────
+
+members.get('/:studioId/members/:memberId/privacy', authMiddleware, requireMember, async (c) => {
+  const studioId = c.req.param('studioId')
+  const memberId = c.req.param('memberId')
+  const viewer = c.get('user')
+  const viewerRole = c.get('memberRole')
+  const isStaff = ['teacher', 'admin', 'owner'].includes(viewerRole)
+  const supabase = createServiceClient()
+
+  // Only the member themselves or staff can view privacy settings
+  if (viewer.id !== memberId && !isStaff) {
+    throw forbidden('You can only view your own privacy settings')
+  }
+
+  // Verify the target member belongs to this studio
+  const { data: membership } = await supabase
+    .from('memberships')
+    .select('user_id')
+    .eq('user_id', memberId)
+    .eq('studio_id', studioId)
+    .single()
+
+  if (!membership) throw notFound('Member')
+
+  const { data: user } = await supabase
+    .from('users')
+    .select('privacy_settings')
+    .eq('id', memberId)
+    .single()
+
+  if (!user) throw notFound('User')
+
+  return c.json(mergePrivacyDefaults(user.privacy_settings as Record<string, unknown> | null))
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PUT /:studioId/members/:memberId/privacy — update member privacy settings
+// Members can only update their own privacy settings.
+// ─────────────────────────────────────────────────────────────────────────────
+
+members.put('/:studioId/members/:memberId/privacy', authMiddleware, requireMember, async (c) => {
+  const studioId = c.req.param('studioId')
+  const memberId = c.req.param('memberId')
+  const viewer = c.get('user')
+  const supabase = createServiceClient()
+
+  // Only the member themselves can update their privacy settings
+  if (viewer.id !== memberId) {
+    throw forbidden('You can only update your own privacy settings')
+  }
+
+  // Verify membership
+  const { data: membership } = await supabase
+    .from('memberships')
+    .select('user_id')
+    .eq('user_id', memberId)
+    .eq('studio_id', studioId)
+    .single()
+
+  if (!membership) throw notFound('Member')
+
+  const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
+
+  // Validate keys
+  const validKeys = ['profile_visibility', 'show_attendance', 'show_email', 'show_phone', 'show_achievements', 'feed_posts_visible']
+  const booleanKeys = ['show_attendance', 'show_email', 'show_phone', 'show_achievements', 'feed_posts_visible']
+  const validVisibility = ['everyone', 'members', 'staff_only']
+
+  for (const key of Object.keys(body)) {
+    if (!validKeys.includes(key)) {
+      throw badRequest(`Unknown privacy setting: ${key}`)
+    }
+  }
+
+  for (const key of booleanKeys) {
+    if (key in body && typeof body[key] !== 'boolean') {
+      throw badRequest(`${key} must be a boolean`)
+    }
+  }
+
+  if ('profile_visibility' in body && !validVisibility.includes(body.profile_visibility as string)) {
+    throw badRequest(`profile_visibility must be one of: ${validVisibility.join(', ')}`)
+  }
+
+  // Get current settings and merge
+  const { data: user } = await supabase
+    .from('users')
+    .select('privacy_settings')
+    .eq('id', memberId)
+    .single()
+
+  if (!user) throw notFound('User')
+
+  const current = (user.privacy_settings as Record<string, unknown>) ?? {}
+  const updated = { ...current, ...body }
+
+  const { error } = await supabase
+    .from('users')
+    .update({ privacy_settings: updated })
+    .eq('id', memberId)
+
+  if (error) throw new Error(error.message)
+
+  return c.json(mergePrivacyDefaults(updated))
 })
 
 export { members }

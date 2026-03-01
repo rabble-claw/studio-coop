@@ -55,13 +55,13 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Dashboard screenshot */}
+          {/* Hero image */}
           <div className="hidden lg:block">
-            <div className="rounded-xl shadow-2xl border border-border/50 overflow-hidden bg-white">
+            <div className="rounded-xl shadow-2xl border border-border/50 overflow-hidden">
               <img
-                src="/assets/dashboard-screenshot.png"
-                alt="Studio Co-op dashboard showing schedule, community feed, and member stats"
-                className="w-full h-auto"
+                src="/empire/hero.jpg"
+                alt="Aerial arts class at Empire Aerial Arts — pole, silks, and hoop in a welcoming studio"
+                className="w-full h-auto object-cover"
               />
             </div>
           </div>
@@ -70,11 +70,11 @@ export default function LandingPage() {
 
       {/* Mobile hero image */}
       <div className="lg:hidden max-w-6xl mx-auto px-6 pb-12">
-        <div className="rounded-xl overflow-hidden shadow-xl border border-border/50 bg-white">
+        <div className="rounded-xl overflow-hidden shadow-xl border border-border/50">
           <img
-            src="/assets/dashboard-screenshot.png"
-            alt="Studio Co-op dashboard showing schedule, community feed, and member stats"
-            className="w-full h-auto"
+            src="/empire/hero.jpg"
+            alt="Aerial arts class at Empire Aerial Arts — pole, silks, and hoop in a welcoming studio"
+            className="w-full h-auto object-cover"
           />
         </div>
       </div>

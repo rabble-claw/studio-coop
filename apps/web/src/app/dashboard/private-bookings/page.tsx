@@ -29,6 +29,7 @@ export default function PrivateBookingsPage() {
   const [bookings, setBookings] = useState<PrivateBooking[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const [showCreate, setShowCreate] = useState(false)
   const [newBooking, setNewBooking] = useState({
@@ -81,7 +82,7 @@ export default function PrivateBookingsPage() {
       setShowCreate(false)
       setNewBooking({ client_name: '', client_email: '', type: 'Private Lesson', date: '', start_time: '', end_time: '', price: '', notes: '' })
     } catch (e) {
-      alert(`Failed to create booking: ${e instanceof Error ? e.message : 'Unknown error'}`)
+      setActionError(`Failed to create booking: ${e instanceof Error ? e.message : 'Unknown error'}`)
     }
   }
 
@@ -91,7 +92,7 @@ export default function PrivateBookingsPage() {
       await bookingApi.privateUpdate(studioId, id, { status })
       setBookings(bookings.map(b => b.id === id ? { ...b, status } : b))
     } catch (e) {
-      alert(`Failed to update: ${e instanceof Error ? e.message : 'Unknown error'}`)
+      setActionError(`Failed to update: ${e instanceof Error ? e.message : 'Unknown error'}`)
     }
   }
 
@@ -162,7 +163,7 @@ export default function PrivateBookingsPage() {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="booking-price" className="text-sm font-medium">Price ($NZD)</label>
+                <label htmlFor="booking-price" className="text-sm font-medium">Price (NZ$)</label>
                 <Input id="booking-price" type="number" step="0.01" value={newBooking.price} onChange={e => setNewBooking({...newBooking, price: e.target.value})} />
               </div>
               <div>
@@ -200,7 +201,7 @@ export default function PrivateBookingsPage() {
                   {booking.notes && <div className="text-sm italic mt-1">&ldquo;{booking.notes}&rdquo;</div>}
                 </div>
                 <div className="flex sm:flex-col items-center sm:items-end gap-2 sm:text-right">
-                  <div className="font-bold">${(booking.price_cents / 100).toFixed(2)}</div>
+                  <div className="font-bold">NZ${(booking.price_cents / 100).toFixed(2)}</div>
                   <div className="flex gap-2">
                     {booking.status === 'pending' && (
                       <>
@@ -218,6 +219,13 @@ export default function PrivateBookingsPage() {
           </Card>
         ))}
       </div>
+
+      {actionError && (
+        <div role="alert" className="fixed bottom-4 right-4 z-50 text-sm px-4 py-3 rounded-md bg-red-50 text-red-700 shadow-lg">
+          {actionError}
+          <button onClick={() => setActionError(null)} className="ml-2 font-bold">x</button>
+        </div>
+      )}
     </div>
   )
 }

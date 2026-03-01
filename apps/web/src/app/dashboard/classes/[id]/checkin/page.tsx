@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatTime, formatDate } from '@/lib/utils'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -49,6 +50,8 @@ export default function CheckinPage() {
   const [saving, setSaving] = useState(false)
   const [completing, setCompleting] = useState(false)
   const [isStaff, setIsStaff] = useState(false)
+
+  const [showCompleteDialog, setShowCompleteDialog] = useState(false)
 
   // Walk-in dialog state
   const [showWalkIn, setShowWalkIn] = useState(false)
@@ -278,7 +281,6 @@ export default function CheckinPage() {
   // ─── Complete class ──────────────────────────────────────────────────────
 
   async function handleComplete() {
-    if (!confirm('Mark this class as complete? Absent members will be marked as no-shows.')) return
     setCompleting(true)
     await saveAll()
 
@@ -413,7 +415,7 @@ export default function CheckinPage() {
 
           <Button
             variant="destructive"
-            onClick={handleComplete}
+            onClick={() => setShowCompleteDialog(true)}
             disabled={completing || classInfo.status === 'completed'}
           >
             {completing ? 'Completing...' : 'Complete Class'}
@@ -460,6 +462,16 @@ export default function CheckinPage() {
           </Card>
         </div>
       )}
+
+      <ConfirmDialog
+        open={showCompleteDialog}
+        onOpenChange={setShowCompleteDialog}
+        title="Complete class"
+        description="Mark this class as complete? Absent members will be marked as no-shows."
+        confirmLabel="Complete Class"
+        variant="danger"
+        onConfirm={handleComplete}
+      />
     </div>
   )
 }

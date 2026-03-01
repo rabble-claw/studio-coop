@@ -15,18 +15,53 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { SpotPicker } from '@/components/spot-picker'
 import { formatTime, formatDate, getRoleBadgeColor } from '@/lib/utils'
+
+function downloadICS(cls: DemoClass) {
+  const datePart = cls.date.replace(/-/g, '')
+  const [sh = '00', sm = '00'] = cls.start_time.split(':')
+  const [eh = '00', em = '00'] = cls.end_time.split(':')
+  const dtStart = `${datePart}T${sh.padStart(2, '0')}${sm.padStart(2, '0')}00`
+  const dtEnd = `${datePart}T${eh.padStart(2, '0')}${em.padStart(2, '0')}00`
+  const summary = cls.template.name
+  const now = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')
+
+  const ics = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Studio Co-op//Booking//EN',
+    'BEGIN:VEVENT',
+    `UID:class-${cls.id}@studiocoop`,
+    `DTSTAMP:${now}`,
+    `DTSTART:${dtStart}`,
+    `DTEND:${dtEnd}`,
+    `SUMMARY:${summary}`,
+    `DESCRIPTION:Class with ${cls.teacher.name}`,
+    'STATUS:CONFIRMED',
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].join('\r\n') + '\r\n'
+
+  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${summary.replace(/\s+/g, '-').toLowerCase()}.ics`
+  a.click()
+  URL.revokeObjectURL(url)
+}
 
 function getStatusBadgeColor(status: string) {
   switch (status) {
     case 'confirmed':
-      return 'bg-green-100 text-green-700'
+      return 'bg-emerald-700 text-white'
     case 'booked':
-      return 'bg-blue-100 text-blue-700'
+      return 'bg-blue-700 text-white'
     case 'cancelled':
-      return 'bg-red-100 text-red-700'
+      return 'bg-red-700 text-white'
     default:
-      return 'bg-gray-100 text-gray-700'
+      return 'bg-gray-600 text-white'
   }
 }
 
@@ -81,6 +116,15 @@ function ClassDetailContent({ cls, classId }: { cls: DemoClass; classId: string 
   // Feed state
   const [feedPosts, setFeedPosts] = useState<ClassFeedPost[]>(initialFeedPosts)
   const [newPostContent, setNewPostContent] = useState('')
+
+  // Spot selection state
+  const [selectedSpot, setSelectedSpot] = useState<number | null>(null)
+  const [booked, setBooked] = useState(false)
+
+  // Compute taken spots from non-cancelled bookings
+  const takenSpots = bookings
+    .filter((b) => b.status !== 'cancelled' && b.spot != null)
+    .map((b) => b.spot!)
 
   // Reactions state: track which reactions the user has toggled
   // Key: "postId-emoji", value: true if user has reacted
@@ -164,6 +208,9 @@ function ClassDetailContent({ cls, classId }: { cls: DemoClass; classId: string 
                   style={{ width: `${Math.min(fillPercent, 100)}%` }}
                 />
               </div>
+              <Button variant="outline" size="sm" className="ml-auto" onClick={() => downloadICS(cls)}>
+                Add to Calendar
+              </Button>
             </div>
 
             {cls.template.description && (
@@ -172,6 +219,36 @@ function ClassDetailContent({ cls, classId }: { cls: DemoClass; classId: string 
           </div>
         </CardContent>
       </Card>
+
+      {/* Spot Picker + Book */}
+      {cls.status === 'scheduled' && !booked && (
+        <Card>
+          <CardContent className="py-6 space-y-4">
+            <SpotPicker
+              maxCapacity={cls.max_capacity}
+              takenSpots={takenSpots}
+              selectedSpot={selectedSpot}
+              onSelectSpot={setSelectedSpot}
+            />
+            <Button
+              className="w-full"
+              onClick={() => setBooked(true)}
+            >
+              {selectedSpot ? `Book Class - Spot ${selectedSpot}` : 'Book Class'}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {booked && (
+        <Card>
+          <CardContent className="py-6 text-center">
+            <p className="text-sm font-medium text-green-700">
+              Booked{selectedSpot ? ` - Spot ${selectedSpot}` : ''}
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Tabs */}
       <Tabs defaultValue="roster">
@@ -249,8 +326,8 @@ function ClassDetailContent({ cls, classId }: { cls: DemoClass; classId: string 
                           <div
                             className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold relative transition-all ${
                               isCheckedIn
-                                ? 'bg-green-100 text-green-700 ring-2 ring-green-500'
-                                : 'bg-gray-100 text-gray-500 ring-2 ring-gray-300 hover:ring-green-300'
+                                ? 'bg-emerald-700 text-white ring-2 ring-emerald-500'
+                                : 'bg-gray-100 text-gray-500 ring-2 ring-gray-300 hover:ring-emerald-300'
                             }`}
                           >
                             {booking.member?.name?.[0] ?? '?'}
@@ -286,8 +363,8 @@ function ClassDetailContent({ cls, classId }: { cls: DemoClass; classId: string 
                               <div
                                 className={`w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold relative transition-all ${
                                   isCheckedIn
-                                    ? 'bg-green-100 text-green-700 ring-2 ring-green-500'
-                                    : 'bg-gray-100 text-gray-500 ring-2 ring-gray-300 hover:ring-green-300'
+                                    ? 'bg-emerald-700 text-white ring-2 ring-emerald-500'
+                                    : 'bg-gray-100 text-gray-500 ring-2 ring-gray-300 hover:ring-emerald-300'
                                 }`}
                               >
                                 {memberName[0]}

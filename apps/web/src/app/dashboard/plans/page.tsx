@@ -1,13 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { planApi } from '@/lib/api-client'
+import { useStudioId } from '@/hooks/use-studio-id'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 
 interface Plan {
   id: string
@@ -31,47 +32,40 @@ const PLAN_TYPES = [
 ]
 
 export default function PlansPage() {
-  const router = useRouter()
-  const [studioId, setStudioId] = useState<string | null>(null)
+  const { studioId, loading: studioLoading } = useStudioId()
   const [plans, setPlans] = useState<Plan[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [editingPlan, setEditingPlan] = useState<string | null>(null)
-  const [studioCurrency, setStudioCurrency] = useState('USD')
+  const [studioCurrency, setStudioCurrency] = useState('NZD')
   const [newPlan, setNewPlan] = useState({
     name: '', type: 'unlimited', price: '', interval: 'month',
     class_limit: '', validity_days: '',
   })
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [deactivateTarget, setDeactivateTarget] = useState<string | null>(null)
 
   useEffect(() => {
+    if (studioLoading) return
+    if (!studioId) { setLoading(false); return }
+
+    const sid = studioId
+
     async function load() {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/login'); return }
 
-      const { data: membership } = await supabase
-        .from('memberships')
-        .select('studio_id')
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .limit(1)
-        .single()
-
-      if (!membership) { setLoading(false); return }
-      setStudioId(membership.studio_id)
-
-      // Fetch studio currency from settings or existing plans
+      // Fetch studio currency from settings
       const { data: studioData } = await supabase
         .from('studios')
         .select('settings')
-        .eq('id', membership.studio_id)
+        .eq('id', sid)
         .single()
       const currency = (studioData?.settings as Record<string, unknown>)?.currency as string | undefined
       if (currency) setStudioCurrency(currency)
 
       try {
-        const result = await planApi.list(membership.studio_id) as { plans: Plan[] }
+        const result = await planApi.list(sid) as { plans: Plan[] }
         setPlans(result.plans ?? [])
       } catch {
         setError('Failed to load plans. Please try again.')
@@ -79,10 +73,10 @@ export default function PlansPage() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [studioId, studioLoading])
 
   function formatPrice(cents: number, currency: string) {
-    return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(cents / 100)
+    return new Intl.NumberFormat('en-NZ', { style: 'currency', currency }).format(cents / 100)
   }
 
   async function handleCreate() {
@@ -101,7 +95,7 @@ export default function PlansPage() {
       setShowCreate(false)
       setNewPlan({ name: '', type: 'unlimited', price: '', interval: 'month', class_limit: '', validity_days: '' })
     } catch (e) {
-      alert(`Failed to create plan: ${e instanceof Error ? e.message : 'Unknown error'}`)
+      setActionError(`Failed to create plan: ${e instanceof Error ? e.message : 'Unknown error'}`)
     }
   }
 
@@ -117,7 +111,7 @@ export default function PlansPage() {
         setPlans(plans.map(p => p.id === planId ? result.plan : p))
         setEditingPlan(null)
       } catch (e) {
-        alert(`Failed to update: ${e instanceof Error ? e.message : 'Unknown error'}`)
+        setActionError(`Failed to update: ${e instanceof Error ? e.message : 'Unknown error'}`)
       }
     } else {
       setEditingPlan(planId)
@@ -126,12 +120,11 @@ export default function PlansPage() {
 
   async function handleDeactivate(planId: string) {
     if (!studioId) return
-    if (!confirm('Are you sure you want to deactivate this plan?')) return
     try {
       await planApi.delete(studioId, planId)
       setPlans(plans.map(p => p.id === planId ? { ...p, active: false } : p))
     } catch (e) {
-      alert(`Failed to deactivate: ${e instanceof Error ? e.message : 'Unknown error'}`)
+      setActionError(`Failed to deactivate: ${e instanceof Error ? e.message : 'Unknown error'}`)
     }
   }
 
@@ -228,7 +221,7 @@ export default function PlansPage() {
                   {editingPlan === plan.id ? 'Save' : 'Edit'}
                 </Button>
                 {plan.active && (
-                  <Button variant="outline" size="sm" className="min-h-[44px] touch-manipulation" onClick={() => handleDeactivate(plan.id)} aria-label={`Deactivate ${plan.name}`}>
+                  <Button variant="outline" size="sm" className="min-h-[44px] touch-manipulation" onClick={() => setDeactivateTarget(plan.id)} aria-label={`Deactivate ${plan.name}`}>
                     Deactivate
                   </Button>
                 )}
@@ -244,6 +237,23 @@ export default function PlansPage() {
           </Card>
         )}
       </div>
+
+      {actionError && (
+        <div role="alert" className="fixed bottom-4 right-4 z-50 text-sm px-4 py-3 rounded-md bg-red-50 text-red-700 shadow-lg">
+          {actionError}
+          <button onClick={() => setActionError(null)} className="ml-2 font-bold">x</button>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={deactivateTarget !== null}
+        onOpenChange={(open) => { if (!open) setDeactivateTarget(null) }}
+        title="Deactivate plan"
+        description="Are you sure you want to deactivate this plan? Existing subscribers will not be affected."
+        confirmLabel="Deactivate"
+        variant="danger"
+        onConfirm={() => { if (deactivateTarget) return handleDeactivate(deactivateTarget) }}
+      />
     </div>
   )
 }

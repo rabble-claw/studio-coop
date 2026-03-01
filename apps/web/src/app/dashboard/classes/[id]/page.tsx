@@ -9,7 +9,9 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { SpotPicker } from '@/components/spot-picker'
 import { formatTime, formatDate } from '@/lib/utils'
+import { subRequestApi } from '@/lib/api-client'
 
 interface ClassDetail {
   id: string
@@ -55,6 +57,41 @@ interface FeedPost {
   reactions: Reaction[]
 }
 
+function downloadICS(classInfo: ClassDetail) {
+  const datePart = classInfo.date.replace(/-/g, '')
+  const [sh = '00', sm = '00'] = classInfo.start_time.split(':')
+  const [eh = '00', em = '00'] = classInfo.end_time.split(':')
+  const dtStart = `${datePart}T${sh.padStart(2, '0')}${sm.padStart(2, '0')}00`
+  const dtEnd = `${datePart}T${eh.padStart(2, '0')}${em.padStart(2, '0')}00`
+  const summary = classInfo.template?.name ?? 'Class'
+  const description = classInfo.teacher ? `Class with ${classInfo.teacher.name}` : ''
+  const now = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')
+
+  const ics = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Studio Co-op//Booking//EN',
+    'BEGIN:VEVENT',
+    `UID:class-${classInfo.id}@studiocoop`,
+    `DTSTAMP:${now}`,
+    `DTSTART:${dtStart}`,
+    `DTEND:${dtEnd}`,
+    `SUMMARY:${summary}`,
+    description ? `DESCRIPTION:${description}` : '',
+    'STATUS:CONFIRMED',
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].filter(Boolean).join('\r\n') + '\r\n'
+
+  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${summary.replace(/\s+/g, '-').toLowerCase()}.ics`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 const REACTION_EMOJIS = ['❤️', '🔥', '👏']
 
 function groupReactions(
@@ -86,11 +123,23 @@ export default function ClassDetailPage() {
   const [isStaff, setIsStaff] = useState(false)
   const [currentUserId, setCurrentUserId] = useState('')
 
+  // Spot selection state
+  const [selectedSpot, setSelectedSpot] = useState<number | null>(null)
+  const [bookingInProgress, setBookingInProgress] = useState(false)
+  const [userBooking, setUserBooking] = useState<BookingWithUser | null>(null)
+
   // Feed composer state
   const [postText, setPostText] = useState('')
   const [postFile, setPostFile] = useState<File | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Sub request state
+  const [subRequest, setSubRequest] = useState<{ id: string; status: string; reason: string | null; requesting_teacher: { id: string; name: string } | null; substitute_teacher: { id: string; name: string } | null } | null>(null)
+  const [showSubForm, setShowSubForm] = useState(false)
+  const [subReason, setSubReason] = useState('')
+  const [submittingSub, setSubmittingSub] = useState(false)
+  const [isAssignedTeacher, setIsAssignedTeacher] = useState(false)
 
   const supabase = createClient()
 
@@ -168,11 +217,74 @@ export default function ClassDetailPage() {
 
       setBookings(bks ?? [])
       setAttendance(att ?? [])
+
+      // Check if current user already has a booking
+      const myBooking = (bks ?? []).find((b: BookingWithUser) => b.user.id === user.id)
+      if (myBooking) setUserBooking(myBooking)
+
+      // Check if the current user is the assigned teacher
+      if (cls.teacher_id === user.id) {
+        setIsAssignedTeacher(true)
+      }
+
+      // Load sub request for this class
+      try {
+        const subs = await subRequestApi.list(cls.studio_id, 'all') as Array<{ id: string; status: string; reason: string | null; requesting_teacher: { id: string; name: string } | null; substitute_teacher: { id: string; name: string } | null; class_info: { id: string } | null }>
+        const classSub = subs.find(s => s.class_info?.id === classId && (s.status === 'open' || s.status === 'accepted'))
+        if (classSub) setSubRequest(classSub)
+      } catch {
+        // Sub requests may not be available
+      }
+
       await loadFeed(user.id)
       setLoading(false)
     }
     load()
   }, [classId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleBookClass() {
+    if (!classData) return
+    setBookingInProgress(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const token = (await supabase.auth.getSession()).data.session?.access_token
+      if (!token) return
+
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+      const res = await fetch(`${API_URL}/studios/${classData.studio_id}/classes/${classId}/book`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ spot: selectedSpot }),
+      })
+
+      if (res.ok) {
+        const result = await res.json()
+        // Update the spot on the booking in DB if spot was selected
+        if (selectedSpot && result.bookingId) {
+          await supabase
+            .from('bookings')
+            .update({ spot: String(selectedSpot) })
+            .eq('id', result.bookingId)
+        }
+        // Refresh bookings
+        const { data: bks } = await supabase
+          .from('bookings')
+          .select('*, user:users!bookings_user_id_fkey(id, name, email, avatar_url)')
+          .eq('class_instance_id', classId)
+          .in('status', ['booked', 'confirmed'])
+          .order('booked_at')
+        setBookings(bks ?? [])
+        const myBooking = (bks ?? []).find((b: BookingWithUser) => b.user.id === user.id)
+        if (myBooking) setUserBooking(myBooking)
+      }
+    } finally {
+      setBookingInProgress(false)
+    }
+  }
 
   async function toggleCheckIn(userId: string) {
     const existing = attendance.find((a) => a.user.id === userId)
@@ -261,6 +373,49 @@ export default function ClassDetailPage() {
     await loadFeed(currentUserId)
   }
 
+  async function handleRequestSub() {
+    if (!classData) return
+    setSubmittingSub(true)
+    try {
+      await subRequestApi.create(classData.studio_id, {
+        class_instance_id: classId,
+        reason: subReason || undefined,
+      })
+      setSubRequest({
+        id: 'pending',
+        status: 'open',
+        reason: subReason || null,
+        requesting_teacher: { id: currentUserId, name: 'You' },
+        substitute_teacher: null,
+      })
+      setShowSubForm(false)
+      setSubReason('')
+    } catch {
+      // handle error silently
+    }
+    setSubmittingSub(false)
+  }
+
+  async function handleAcceptSub() {
+    if (!classData || !subRequest) return
+    try {
+      await subRequestApi.accept(classData.studio_id, subRequest.id)
+      setSubRequest({ ...subRequest, status: 'accepted', substitute_teacher: { id: currentUserId, name: 'You' } })
+    } catch {
+      // handle error silently
+    }
+  }
+
+  async function handleCancelSub() {
+    if (!classData || !subRequest) return
+    try {
+      await subRequestApi.cancel(classData.studio_id, subRequest.id)
+      setSubRequest(null)
+    } catch {
+      // handle error silently
+    }
+  }
+
   if (loading) {
     return <div className="text-muted-foreground py-20 text-center">Loading class...</div>
   }
@@ -284,14 +439,126 @@ export default function ClassDetailPage() {
         {classData.template?.description && (
           <p className="text-sm text-muted-foreground mt-2">{classData.template.description}</p>
         )}
-        <div className="flex gap-2 mt-3">
+        <div className="flex items-center gap-2 mt-3 flex-wrap">
           <Badge variant={classData.status === 'scheduled' ? 'secondary' : classData.status === 'completed' ? 'outline' : 'destructive'}>
             {classData.status}
           </Badge>
           <Badge variant="outline">{bookings.length}/{classData.max_capacity} booked</Badge>
           {classData.feed_enabled && <Badge variant="outline">Feed enabled</Badge>}
+          <Button variant="outline" size="sm" className="ml-auto" onClick={() => downloadICS(classData)}>
+            Add to Calendar
+          </Button>
         </div>
       </div>
+
+      {/* Sub Request Section */}
+      {subRequest && subRequest.status === 'open' && (
+        <Card className="mb-6 border-orange-200 bg-orange-50">
+          <CardContent className="py-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-medium text-orange-800">Substitute requested</p>
+                <p className="text-xs text-orange-700">
+                  {subRequest.requesting_teacher?.name ?? 'Teacher'} needs a sub
+                  {subRequest.reason && ` - ${subRequest.reason}`}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                {isStaff && currentUserId !== subRequest.requesting_teacher?.id && (
+                  <Button size="sm" onClick={handleAcceptSub}>Accept Sub</Button>
+                )}
+                {(currentUserId === subRequest.requesting_teacher?.id || isStaff) && (
+                  <Button size="sm" variant="outline" onClick={handleCancelSub}>Cancel Request</Button>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {subRequest && subRequest.status === 'accepted' && (
+        <Card className="mb-6 border-green-200 bg-green-50">
+          <CardContent className="py-4">
+            <p className="text-sm font-medium text-green-800">Substitute confirmed</p>
+            <p className="text-xs text-green-700">
+              {subRequest.substitute_teacher?.name ?? 'A teacher'} is covering this class
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {isAssignedTeacher && classData.status === 'scheduled' && !subRequest && !showSubForm && (
+        <Button variant="outline" className="mb-6" onClick={() => setShowSubForm(true)}>
+          Request Substitute
+        </Button>
+      )}
+
+      {showSubForm && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="text-lg">Request Substitute</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div>
+              <label htmlFor="sub-reason-detail" className="text-sm font-medium">Reason (optional)</label>
+              <input
+                id="sub-reason-detail"
+                className="w-full border rounded-md px-3 py-2 text-sm mt-1"
+                value={subReason}
+                onChange={(e) => setSubReason(e.target.value)}
+                placeholder="e.g., Doctor appointment"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={handleRequestSub} disabled={submittingSub}>
+                {submittingSub ? 'Requesting...' : 'Request Sub'}
+              </Button>
+              <Button variant="outline" onClick={() => { setShowSubForm(false); setSubReason('') }}>
+                Cancel
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Spot Picker + Book (for members who haven't booked yet) */}
+      {classData.status === 'scheduled' && !userBooking && (
+        <Card className="mb-6">
+          <CardContent className="py-6 space-y-4">
+            <SpotPicker
+              maxCapacity={classData.max_capacity}
+              takenSpots={bookings
+                .filter((b) => b.spot != null)
+                .map((b) => parseInt(b.spot!, 10))
+                .filter((n) => !isNaN(n))}
+              selectedSpot={selectedSpot}
+              onSelectSpot={setSelectedSpot}
+            />
+            <Button
+              className="w-full"
+              onClick={handleBookClass}
+              disabled={bookingInProgress}
+            >
+              {bookingInProgress
+                ? 'Booking...'
+                : selectedSpot
+                  ? `Book Class - Spot ${selectedSpot}`
+                  : 'Book Class'}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {userBooking && (
+        <Card className="mb-6">
+          <CardContent className="py-4">
+            <p className="text-sm font-medium text-green-700">
+              You are booked for this class
+              {userBooking.spot ? ` - Spot ${userBooking.spot}` : ''}
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       <Tabs defaultValue="roster">
         <TabsList>

@@ -1,15 +1,16 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-import { api, scheduleApi } from '@/lib/api-client'
+import { api, scheduleApi, subRequestApi } from '@/lib/api-client'
+import { useStudioId } from '@/hooks/use-studio-id'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatTime, formatDate } from '@/lib/utils'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 
 interface ClassInstance {
   id: string
@@ -19,8 +20,9 @@ interface ClassInstance {
   max_capacity: number
   booked_count: number
   status: string
+  teacher_id?: string
   template: { name: string } | null
-  teacher: { name: string } | null
+  teacher: { id?: string; name: string } | null
 }
 
 interface ClassTemplate {
@@ -34,15 +36,27 @@ interface Teacher {
   name: string
 }
 
+interface SubRequest {
+  id: string
+  status: string
+  reason: string | null
+  created_at: string
+  accepted_at: string | null
+  requesting_teacher: { id: string; name: string; avatar_url: string | null } | null
+  substitute_teacher: { id: string; name: string; avatar_url: string | null } | null
+  class_info: { id: string; name: string; date: string; start_time: string; end_time: string } | null
+}
+
 export default function SchedulePage() {
-  const router = useRouter()
   const t = useTranslations('schedule')
   const tc = useTranslations('common')
-  const [studioId, setStudioId] = useState<string | null>(null)
+  const { studioId, loading: studioLoading } = useStudioId()
   const [classesByDate, setClassesByDate] = useState<Record<string, ClassInstance[]>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showAddClass, setShowAddClass] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [restoreTarget, setRestoreTarget] = useState<string | null>(null)
 
   // Add class form
   const [templates, setTemplates] = useState<ClassTemplate[]>([])
@@ -51,30 +65,52 @@ export default function SchedulePage() {
     template_id: '', teacher_id: '', date: '', start_time: '', end_time: '', max_capacity: '',
   })
   const [creating, setCreating] = useState(false)
+  const [subRequests, setSubRequests] = useState<SubRequest[]>([])
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [isTeacher, setIsTeacher] = useState(false)
+  const [subRequestClassId, setSubRequestClassId] = useState<string | null>(null)
+  const [subReason, setSubReason] = useState('')
+  const [submittingSub, setSubmittingSub] = useState(false)
 
   useEffect(() => {
+    if (studioLoading) return
+    if (!studioId) { setLoading(false); return }
+
+    const sid = studioId
+
     async function load() {
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/login'); return }
-
-      const { data: membership } = await supabase
-        .from('memberships')
-        .select('studio_id')
-        .eq('user_id', user.id)
-        .eq('status', 'active')
-        .limit(1)
-        .single()
-
-      if (!membership) { setLoading(false); return }
-      setStudioId(membership.studio_id)
 
       try {
+        // Get current user and check if they're a teacher
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          setCurrentUserId(user.id)
+          const { data: membership } = await supabase
+            .from('memberships')
+            .select('role')
+            .eq('studio_id', sid)
+            .eq('user_id', user.id)
+            .eq('status', 'active')
+            .single()
+          if (membership && ['teacher', 'admin', 'owner'].includes(membership.role)) {
+            setIsTeacher(true)
+          }
+        }
+
+        // Load sub requests
+        try {
+          const subs = await subRequestApi.list(sid, 'all') as SubRequest[]
+          setSubRequests(subs)
+        } catch {
+          // Sub requests may not be available yet
+        }
+
         const todayStr = new Date().toISOString().split('T')[0]
         const { data: classes } = await supabase
           .from('class_instances')
-          .select('id, date, start_time, end_time, max_capacity, booked_count, status, template:class_templates(name), teacher:users!class_instances_teacher_id_fkey(name)')
-          .eq('studio_id', membership.studio_id)
+          .select('id, date, start_time, end_time, max_capacity, booked_count, status, teacher_id, template:class_templates(name), teacher:users!class_instances_teacher_id_fkey(id, name)')
+          .eq('studio_id', sid)
           .gte('date', todayStr)
           .order('date')
           .order('start_time')
@@ -92,7 +128,7 @@ export default function SchedulePage() {
         const { data: tpls } = await supabase
           .from('class_templates')
           .select('id, name, default_capacity')
-          .eq('studio_id', membership.studio_id)
+          .eq('studio_id', sid)
           .order('name')
 
         setTemplates((tpls ?? []) as ClassTemplate[])
@@ -101,7 +137,7 @@ export default function SchedulePage() {
         const { data: staffMembers } = await supabase
           .from('memberships')
           .select('user:users(id, name)')
-          .eq('studio_id', membership.studio_id)
+          .eq('studio_id', sid)
           .in('role', ['teacher', 'admin', 'owner'])
           .eq('status', 'active')
 
@@ -116,7 +152,7 @@ export default function SchedulePage() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [studioId, studioLoading])
 
   function handleTemplateChange(templateId: string) {
     const tpl = templates.find(t => t.id === templateId)
@@ -145,7 +181,7 @@ export default function SchedulePage() {
       const todayStr = new Date().toISOString().split('T')[0]
       const { data: classes } = await supabase
         .from('class_instances')
-        .select('id, date, start_time, end_time, max_capacity, booked_count, status, template:class_templates(name), teacher:users!class_instances_teacher_id_fkey(name)')
+        .select('id, date, start_time, end_time, max_capacity, booked_count, status, teacher_id, template:class_templates(name), teacher:users!class_instances_teacher_id_fkey(id, name)')
         .eq('studio_id', studioId)
         .gte('date', todayStr)
         .order('date')
@@ -163,19 +199,15 @@ export default function SchedulePage() {
       setShowAddClass(false)
       setNewClass({ template_id: '', teacher_id: '', date: '', start_time: '', end_time: '', max_capacity: '' })
     } catch (e) {
-      alert(`Failed to create class: ${e instanceof Error ? e.message : 'Unknown error'}`)
+      setActionError(`Failed to create class: ${e instanceof Error ? e.message : 'Unknown error'}`)
     }
     setCreating(false)
   }
 
-  async function handleRestoreClass(e: React.MouseEvent, classId: string) {
-    e.preventDefault()
-    e.stopPropagation()
+  async function handleRestoreClass(classId: string) {
     if (!studioId) return
-    if (!confirm('Restore this cancelled class? Previously booked members will be notified.')) return
     try {
       await scheduleApi.restoreClass(studioId, classId)
-      // Update local state
       setClassesByDate((prev) => {
         const updated = { ...prev }
         for (const date of Object.keys(updated)) {
@@ -186,9 +218,56 @@ export default function SchedulePage() {
         return updated
       })
     } catch (err) {
-      alert(`Failed to restore class: ${(err as Error).message}`)
+      setActionError(`Failed to restore class: ${(err as Error).message}`)
     }
   }
+
+  async function handleRequestSub() {
+    if (!studioId || !subRequestClassId) return
+    setSubmittingSub(true)
+    try {
+      await subRequestApi.create(studioId, {
+        class_instance_id: subRequestClassId,
+        reason: subReason || undefined,
+      })
+      const subs = await subRequestApi.list(studioId, 'all') as SubRequest[]
+      setSubRequests(subs)
+      setSubRequestClassId(null)
+      setSubReason('')
+    } catch (e) {
+      setActionError(`Failed to request sub: ${e instanceof Error ? e.message : 'Unknown error'}`)
+    }
+    setSubmittingSub(false)
+  }
+
+  async function handleAcceptSub(requestId: string) {
+    if (!studioId) return
+    try {
+      await subRequestApi.accept(studioId, requestId)
+      const subs = await subRequestApi.list(studioId, 'all') as SubRequest[]
+      setSubRequests(subs)
+    } catch (e) {
+      setActionError(`Failed to accept sub: ${e instanceof Error ? e.message : 'Unknown error'}`)
+    }
+  }
+
+  async function handleCancelSub(requestId: string) {
+    if (!studioId) return
+    try {
+      await subRequestApi.cancel(studioId, requestId)
+      const subs = await subRequestApi.list(studioId, 'all') as SubRequest[]
+      setSubRequests(subs)
+    } catch (e) {
+      setActionError(`Failed to cancel sub: ${e instanceof Error ? e.message : 'Unknown error'}`)
+    }
+  }
+
+  // Build a set of class IDs that have open sub requests
+  const classesWithSubRequests = new Set(
+    subRequests.filter(s => s.status === 'open').map(s => s.class_info?.id).filter(Boolean)
+  )
+
+  const openSubRequests = subRequests.filter(s => s.status === 'open')
 
   if (loading) {
     return <div className="flex items-center justify-center py-20" aria-busy="true"><div className="text-muted-foreground" role="status">{t('loadingSchedule')}</div></div>
@@ -257,6 +336,71 @@ export default function SchedulePage() {
         </Card>
       )}
 
+      {/* Sub Requests Section */}
+      {openSubRequests.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Sub Requests</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {openSubRequests.map((sub) => (
+              <div key={sub.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-lg border">
+                <div className="flex-1">
+                  <div className="font-medium text-sm">{sub.class_info?.name ?? 'Unknown class'}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {sub.class_info ? `${formatDate(sub.class_info.date)} ${formatTime(sub.class_info.start_time)} - ${formatTime(sub.class_info.end_time)}` : ''}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Requested by {sub.requesting_teacher?.name ?? 'Unknown'}
+                    {sub.reason && ` - ${sub.reason}`}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  {isTeacher && currentUserId !== sub.requesting_teacher?.id && (
+                    <Button size="sm" onClick={() => handleAcceptSub(sub.id)}>
+                      Accept Sub
+                    </Button>
+                  )}
+                  {(currentUserId === sub.requesting_teacher?.id) && (
+                    <Button size="sm" variant="outline" onClick={() => handleCancelSub(sub.id)}>
+                      Cancel Request
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Request Sub Dialog */}
+      {subRequestClassId && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Request Substitute</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div>
+              <label htmlFor="sub-reason" className="text-sm font-medium">Reason (optional)</label>
+              <Input
+                id="sub-reason"
+                value={subReason}
+                onChange={(e) => setSubReason(e.target.value)}
+                placeholder="e.g., Doctor appointment"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={handleRequestSub} disabled={submittingSub}>
+                {submittingSub ? 'Requesting...' : 'Request Sub'}
+              </Button>
+              <Button variant="outline" onClick={() => { setSubRequestClassId(null); setSubReason('') }}>
+                {tc('cancel')}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {Object.keys(classesByDate).length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
@@ -285,7 +429,12 @@ export default function SchedulePage() {
                                   {formatTime(cls.start_time)} — {formatTime(cls.end_time)}
                                 </div>
                                 <div>
-                                  <div className="font-medium">{cls.template?.name ?? t('classFallback')}</div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-medium">{cls.template?.name ?? t('classFallback')}</span>
+                                    {classesWithSubRequests.has(cls.id) && (
+                                      <span className="text-xs px-1.5 py-0.5 rounded bg-orange-100 text-orange-700">Needs Sub</span>
+                                    )}
+                                  </div>
                                   <div className="text-sm text-muted-foreground">{t('withTeacher', { name: cls.teacher?.name ?? t('teacherTba') })}</div>
                                 </div>
                               </div>
@@ -305,27 +454,37 @@ export default function SchedulePage() {
                               </div>
                               {cls.status === 'cancelled' ? (
                                 <div className="flex items-center gap-2">
-                                  <span className="text-xs px-2 py-1 rounded-full whitespace-nowrap bg-red-100 text-red-700">
+                                  <span className="text-xs px-2 py-1 rounded-full whitespace-nowrap bg-red-700 text-white font-semibold">
                                     {t('cancelled')}
                                   </span>
                                   <button
-                                    onClick={(e) => handleRestoreClass(e, cls.id)}
-                                    className="text-xs px-2 py-1 rounded bg-green-50 text-green-700 hover:bg-green-100 whitespace-nowrap focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setRestoreTarget(cls.id) }}
+                                    className="text-xs px-2 py-1 rounded bg-emerald-700 text-white hover:bg-emerald-600 whitespace-nowrap focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                     aria-label={`${t('restore')} ${cls.template?.name ?? t('classFallback')}`}
                                   >
                                     {t('restore')}
                                   </button>
                                 </div>
                               ) : (
-                                <span className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${
-                                  spotsLeft <= 2
-                                    ? 'bg-red-100 text-red-700'
-                                    : spotsLeft <= 4
-                                    ? 'bg-amber-100 text-amber-700'
-                                    : 'bg-green-100 text-green-700'
-                                }`}>
-                                  {spotsLeft === 0 ? t('full') : t('spotsLeft', { count: spotsLeft })}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-xs px-2 py-1 rounded-full whitespace-nowrap font-semibold ${
+                                    spotsLeft <= 2
+                                      ? 'bg-red-700 text-white'
+                                      : spotsLeft <= 4
+                                      ? 'bg-amber-600 text-white'
+                                      : 'bg-emerald-700 text-white'
+                                  }`}>
+                                    {spotsLeft === 0 ? t('full') : t('spotsLeft', { count: spotsLeft })}
+                                  </span>
+                                  {isTeacher && currentUserId === (cls.teacher_id ?? cls.teacher?.id) && !classesWithSubRequests.has(cls.id) && (
+                                    <button
+                                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSubRequestClassId(cls.id) }}
+                                      className="text-xs px-2 py-1 rounded bg-orange-50 text-orange-700 hover:bg-orange-100 whitespace-nowrap"
+                                    >
+                                      Request Sub
+                                    </button>
+                                  )}
+                                </div>
                               )}
                             </div>
                           </div>
@@ -339,6 +498,22 @@ export default function SchedulePage() {
           ))}
         </div>
       )}
+
+      {actionError && (
+        <div role="alert" className="fixed bottom-4 right-4 z-50 text-sm px-4 py-3 rounded-md bg-red-50 text-red-700 shadow-lg">
+          {actionError}
+          <button onClick={() => setActionError(null)} className="ml-2 font-bold">x</button>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={restoreTarget !== null}
+        onOpenChange={(open) => { if (!open) setRestoreTarget(null) }}
+        title="Restore class"
+        description="Restore this cancelled class? Previously booked members will be notified."
+        confirmLabel="Restore"
+        onConfirm={() => { if (restoreTarget) return handleRestoreClass(restoreTarget) }}
+      />
     </div>
   )
 }

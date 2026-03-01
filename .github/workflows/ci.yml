@@ -59,6 +59,8 @@ jobs:
           NEXT_PUBLIC_API_URL: http://localhost:3001
           NEXT_PUBLIC_APP_URL: http://localhost:3000
           NEXT_PUBLIC_APP_NAME: "Studio Co-op"
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder
 
       - name: Cache Playwright browsers
         uses: actions/cache@v4
@@ -69,13 +71,15 @@ jobs:
       - name: Install Playwright browsers
         run: cd apps/web && npx playwright install --with-deps chromium
 
-      - name: Run E2E tests
-        run: cd apps/web && pnpm test:e2e
+      - name: Run E2E tests (demo)
+        run: cd apps/web && npx playwright test --project=demo
         env:
           CI: true
           NEXT_PUBLIC_API_URL: http://localhost:3001
           NEXT_PUBLIC_APP_URL: http://localhost:3000
           NEXT_PUBLIC_APP_NAME: "Studio Co-op"
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder
 
       - name: Upload E2E test artifacts
         if: failure()

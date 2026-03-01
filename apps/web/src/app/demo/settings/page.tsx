@@ -69,9 +69,9 @@ function ToggleRow({
 
 function StatusBadge({ label, variant }: { label: string; variant: 'green' | 'yellow' }) {
   const colors = variant === 'green'
-    ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
-    : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
-  return <span className={`text-xs px-2 py-1 rounded-full font-medium ${colors}`}>{label}</span>
+    ? 'bg-emerald-700 text-white'
+    : 'bg-amber-600 text-white'
+  return <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${colors}`}>{label}</span>
 }
 
 export default function DemoSettingsPage() {
@@ -99,6 +99,14 @@ export default function DemoSettingsPage() {
   const [lateCancelFee, setLateCancelFee] = useState('$5.00 NZD')
   const [noShowFee, setNoShowFee] = useState('$10.00 NZD')
   const [waitlistAutoPromote, setWaitlistAutoPromote] = useState(true)
+
+  // Privacy settings (local state only for demo)
+  const [profileVisibility, setProfileVisibility] = useState<'everyone' | 'members' | 'staff_only'>('members')
+  const [showAttendance, setShowAttendance] = useState(true)
+  const [showEmail, setShowEmail] = useState(false)
+  const [showPhone, setShowPhone] = useState(false)
+  const [showAchievements, setShowAchievements] = useState(true)
+  const [feedPostsVisible, setFeedPostsVisible] = useState(true)
 
   // Save feedback
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
@@ -133,6 +141,7 @@ export default function DemoSettingsPage() {
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="notifications">Notifications</TabsTrigger>
           <TabsTrigger value="cancellation">Cancellation Policy</TabsTrigger>
+          <TabsTrigger value="privacy">Privacy</TabsTrigger>
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
         </TabsList>
 
@@ -224,6 +233,43 @@ export default function DemoSettingsPage() {
               </div>
               <div className="pt-2">
                 <Button onClick={() => handleSave('Cancellation policy')}>Save Policy</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Privacy Tab */}
+        <TabsContent value="privacy" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Privacy Settings</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-muted-foreground">Control what other studio members can see about you. Staff and studio owners always have full access.</p>
+
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-muted-foreground">Profile Visibility</label>
+                <select
+                  className="w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  value={profileVisibility}
+                  onChange={e => setProfileVisibility(e.target.value as typeof profileVisibility)}
+                >
+                  <option value="everyone">Everyone</option>
+                  <option value="members">Studio Members Only</option>
+                  <option value="staff_only">Staff Only</option>
+                </select>
+              </div>
+
+              <div className="divide-y">
+                <ToggleRow label="Show attendance history to other members" checked={showAttendance} onToggle={() => setShowAttendance(v => !v)} />
+                <ToggleRow label="Show email to other members" checked={showEmail} onToggle={() => setShowEmail(v => !v)} />
+                <ToggleRow label="Show phone to other members" checked={showPhone} onToggle={() => setShowPhone(v => !v)} />
+                <ToggleRow label="Show achievements to other members" checked={showAchievements} onToggle={() => setShowAchievements(v => !v)} />
+                <ToggleRow label="Show feed posts to non-attendees" checked={feedPostsVisible} onToggle={() => setFeedPostsVisible(v => !v)} />
+              </div>
+
+              <div className="pt-2">
+                <Button onClick={() => handleSave('Privacy settings')}>Save Privacy Settings</Button>
               </div>
             </CardContent>
           </Card>

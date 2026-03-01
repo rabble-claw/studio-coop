@@ -31,6 +31,10 @@ import { stripeRoutes } from './routes/stripe'
 import featureFlags from './routes/feature-flags'
 import governance from './routes/governance'
 import discover from './routes/discover'
+import achievements from './routes/achievements'
+import skills from './routes/skills'
+import subRequests from './routes/sub-requests'
+import finances from './routes/finances'
 import { getConfig } from './lib/config'
 
 // Validate environment configuration at startup (best-effort).
@@ -108,6 +112,10 @@ app.route('/api/admin', featureFlags)
 app.route('/api/studios', featureFlags)
 app.route('/api/governance', governance)
 app.route('/api/discover', discover)
+app.route('/api/studios', achievements)
+app.route('/api/studios', skills)
+app.route('/api/studios', subRequests)
+app.route('/api/studios', finances)
 
 export default app
 export { app }

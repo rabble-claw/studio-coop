@@ -277,3 +277,97 @@ export interface MigrationImport {
   completedAt?: Date
   createdAt: Date
 }
+
+// ============================================================
+// V3: FINANCIAL PLANNER
+// ============================================================
+
+export type CompensationType = 'per_class' | 'monthly_salary' | 'revenue_share' | 'hybrid'
+export type ExpenseRecurrence = 'once' | 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'yearly'
+
+export interface ExpenseCategory {
+  id: string
+  name: string
+  icon: string
+  sortOrder: number
+}
+
+export interface StudioExpense {
+  id: string
+  studioId: string
+  categoryId: string
+  name: string
+  amountCents: number
+  currency: string
+  recurrence: ExpenseRecurrence
+  startDate: string
+  endDate?: string | null
+  notes?: string | null
+  createdBy?: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface InstructorCompensation {
+  id: string
+  studioId: string
+  instructorId: string
+  compType: CompensationType
+  perClassRateCents: number
+  monthlySalaryCents: number
+  revenueSharePercent: number
+  effectiveFrom: string
+  effectiveUntil?: string | null
+  notes?: string | null
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface FinancialSnapshot {
+  id: string
+  studioId: string
+  month: string
+  revenueCents: number
+  revenueBreakdown: Record<string, number>
+  expensesCents: number
+  expenseBreakdown: Record<string, number>
+  instructorCostsCents: number
+  netIncomeCents: number
+  activeMembers: number
+  classesHeld: number
+  computedAt: Date
+}
+
+export interface HealthScore {
+  overall: number
+  profitMargin: { score: number; value: number }
+  classUtilization: { score: number; value: number }
+  rentRatio: { score: number; value: number }
+  instructorCostRatio: { score: number; value: number }
+  revenueTrend: { score: number; value: number }
+  revenuePerMember: { score: number; value: number }
+}
+
+export interface ScenarioResult {
+  current: {
+    members: number
+    revenue: number
+    expenses: number
+    instructorCosts: number
+    netIncome: number
+  }
+  projected: {
+    members: number
+    revenue: number
+    expenses: number
+    instructorCosts: number
+    netIncome: number
+  }
+  changes: {
+    membersDelta: number
+    revenueDelta: number
+    expensesDelta: number
+    instructorCostsDelta: number
+    netIncomeDelta: number
+  }
+}
