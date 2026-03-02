@@ -82,8 +82,8 @@ export function DashboardShell({ children, mode = 'live', basePath = '/dashboard
         </div>
       )}
       <header className="sticky top-0 z-50 border-b bg-card/80 backdrop-blur-sm">
-        <div className="flex items-center justify-between px-4 sm:px-6 h-14">
-          <div className="flex items-center gap-6">
+        <div className="flex items-center px-4 sm:px-6 h-14">
+          <div className="flex items-center gap-3 shrink-0">
             <Link href={basePath} className="flex items-center gap-2" aria-label="Studio Co-op home">
               <div className="w-7 h-7 bg-primary rounded-md flex items-center justify-center" aria-hidden="true">
                 <span className="text-white font-bold text-xs">SC</span>
@@ -97,31 +97,31 @@ export function DashboardShell({ children, mode = 'live', basePath = '/dashboard
                 onSwitch={switchStudio}
               />
             )}
-            <nav aria-label="Dashboard navigation" className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
-              {navItems.map((item) => {
-                const href = basePath + item.path
-                const active = isActive(href)
-                return (
-                  <Link
-                    key={href}
-                    href={href}
-                    aria-current={active ? 'page' : undefined}
-                    className={cn(
-                      'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors whitespace-nowrap min-h-[44px] min-w-[44px] justify-center focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                      active
-                        ? 'bg-secondary text-foreground font-medium'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
-                    )}
-                  >
-                    <span className="text-base" aria-hidden="true">{item.icon}</span>
-                    <span className="hidden lg:inline">{nav(item.labelKey)}</span>
-                    <span className="lg:hidden sr-only">{nav(item.labelKey)}</span>
-                  </Link>
-                )
-              })}
-            </nav>
           </div>
-          <div className="flex items-center gap-3">
+          <nav aria-label="Dashboard navigation" className="flex-1 flex items-center justify-center gap-1 overflow-x-auto scrollbar-hide">
+            {navItems.map((item) => {
+              const href = basePath + item.path
+              const active = isActive(href)
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  aria-current={active ? 'page' : undefined}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors whitespace-nowrap min-h-[44px] min-w-[44px] justify-center focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                    active
+                      ? 'bg-secondary text-foreground font-medium'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
+                  )}
+                >
+                  <span className="text-base" aria-hidden="true">{item.icon}</span>
+                  <span className="hidden lg:inline">{nav(item.labelKey)}</span>
+                  <span className="lg:hidden sr-only">{nav(item.labelKey)}</span>
+                </Link>
+              )
+            })}
+          </nav>
+          <div className="flex items-center gap-3 shrink-0">
             <Link
               href={`${basePath}/notifications`}
               className="relative p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
