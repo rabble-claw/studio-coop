@@ -6,7 +6,6 @@ import { useStudioId } from '@/hooks/use-studio-id'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import Link from 'next/link'
 
 interface ScenarioParams {
   priceChangePercent: number
@@ -44,7 +43,7 @@ const DEFAULT_PARAMS: ScenarioParams = {
   rentChangeCents: 0,
 }
 
-export default function ScenarioPage() {
+export function ScenarioTab() {
   const { studioId, loading: studioLoading } = useStudioId()
   const [params, setParams] = useState<ScenarioParams>(DEFAULT_PARAMS)
   const [result, setResult] = useState<ScenarioResult | null>(null)
@@ -57,7 +56,6 @@ export default function ScenarioPage() {
     setLoading(true)
     setError(null)
     try {
-      // Build API payload - map rent change into newExpenses if non-zero
       const payload: Record<string, unknown> = {
         priceChangePercent: p.priceChangePercent,
         newClassesPerWeek: p.newClassesPerWeek,
@@ -99,32 +97,22 @@ export default function ScenarioPage() {
   }
 
   if (studioLoading) {
-    return <div className="py-20 text-center text-muted-foreground" aria-busy="true" role="status">Loading...</div>
+    return <div className="py-12 text-center text-muted-foreground" aria-busy="true" role="status">Loading...</div>
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Scenario Planner</h1>
-          <p className="text-muted-foreground">Model &quot;what if&quot; changes to see projected financial impact</p>
-        </div>
-        <Link href="/dashboard/finances" className="text-sm text-muted-foreground hover:text-foreground">
-          Back to finances
-        </Link>
-      </div>
+      <p className="text-muted-foreground">Model &quot;what if&quot; changes to see projected financial impact</p>
 
       {error && (
         <div role="alert" className="text-sm px-4 py-3 rounded-md bg-red-50 text-red-700">{error}</div>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left panel: Controls */}
         <div className="space-y-4">
           <Card>
             <CardHeader><CardTitle>Scenario Parameters</CardTitle></CardHeader>
             <CardContent className="space-y-6">
-              {/* Price change */}
               <div>
                 <div className="flex justify-between text-sm mb-1">
                   <label htmlFor="price-change">Price change</label>
@@ -144,7 +132,6 @@ export default function ScenarioPage() {
                 </div>
               </div>
 
-              {/* Additional classes per week */}
               <div>
                 <div className="flex justify-between text-sm mb-1">
                   <label htmlFor="additional-classes">Additional classes/week</label>
@@ -164,7 +151,6 @@ export default function ScenarioPage() {
                 </div>
               </div>
 
-              {/* New members */}
               <div>
                 <div className="flex justify-between text-sm mb-1">
                   <label htmlFor="new-members">New members</label>
@@ -184,7 +170,6 @@ export default function ScenarioPage() {
                 </div>
               </div>
 
-              {/* Expected churn (lost members) */}
               <div>
                 <div className="flex justify-between text-sm mb-1">
                   <label htmlFor="churn">Expected lost members</label>
@@ -204,7 +189,6 @@ export default function ScenarioPage() {
                 </div>
               </div>
 
-              {/* Rent change */}
               <div>
                 <label htmlFor="rent-change" className="text-sm block mb-1">Rent change (NZD/month)</label>
                 <Input
@@ -229,7 +213,6 @@ export default function ScenarioPage() {
           </Card>
         </div>
 
-        {/* Right panel: Results */}
         <div className="space-y-4">
           {!result && !loading && (
             <Card>
@@ -250,7 +233,6 @@ export default function ScenarioPage() {
 
           {result && !loading && (
             <>
-              {/* Members */}
               <div className="grid grid-cols-2 gap-4">
                 <Card>
                   <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Current Members</CardTitle></CardHeader>
@@ -269,7 +251,6 @@ export default function ScenarioPage() {
                 </Card>
               </div>
 
-              {/* Revenue */}
               <div className="grid grid-cols-2 gap-4">
                 <Card>
                   <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Current Revenue</CardTitle></CardHeader>
@@ -291,7 +272,6 @@ export default function ScenarioPage() {
                 </Card>
               </div>
 
-              {/* Expenses */}
               <div className="grid grid-cols-2 gap-4">
                 <Card>
                   <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Current Expenses</CardTitle></CardHeader>
@@ -313,7 +293,6 @@ export default function ScenarioPage() {
                 </Card>
               </div>
 
-              {/* Net Income */}
               <div className="grid grid-cols-2 gap-4">
                 <Card>
                   <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Current Net Income</CardTitle></CardHeader>

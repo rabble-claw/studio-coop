@@ -16,14 +16,8 @@ const navItems = [
   { path: '', labelKey: 'overview', icon: '🏠' },
   { path: '/schedule', labelKey: 'schedule', icon: '📅' },
   { path: '/members', labelKey: 'members', icon: '👥' },
-  { path: '/plans', labelKey: 'plans', icon: '💳' },
-  { path: '/feed', labelKey: 'feed', icon: '📸' },
-  { path: '/network', labelKey: 'network', icon: '🤝' },
-  { path: '/coupons', labelKey: 'coupons', icon: '🏷️' },
-  { path: '/private-bookings', labelKey: 'bookings', icon: '🔒' },
+  { path: '/money', labelKey: 'money', icon: '💰' },
   { path: '/reports', labelKey: 'reports', icon: '📊' },
-  { path: '/finances', labelKey: 'finances', icon: '💰' },
-  { path: '/migrate', labelKey: 'migrate', icon: '📦' },
   { path: '/settings', labelKey: 'settings', icon: '⚙️' },
 ] as const
 

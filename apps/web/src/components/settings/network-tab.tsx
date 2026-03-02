@@ -23,7 +23,7 @@ interface PartnerStudio {
   discipline: string
 }
 
-export default function NetworkPage() {
+export function NetworkTab() {
   const router = useRouter()
   const [studioId, setStudioId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -31,13 +31,11 @@ export default function NetworkPage() {
   const [networks, setNetworks] = useState<Network[]>([])
   const [partners, setPartners] = useState<PartnerStudio[]>([])
 
-  // Create network form
   const [showCreate, setShowCreate] = useState(false)
   const [newName, setNewName] = useState('')
   const [newDesc, setNewDesc] = useState('')
   const [creating, setCreating] = useState(false)
 
-  // Invite modal
   const [inviteNetworkId, setInviteNetworkId] = useState<string | null>(null)
   const [inviteStudioId, setInviteStudioId] = useState('')
   const [inviting, setInviting] = useState(false)
@@ -135,7 +133,7 @@ export default function NetworkPage() {
     setTimeout(() => setMessage(''), 3000)
   }
 
-  if (loading) return <div className="py-20 text-center text-muted-foreground" aria-busy="true" role="status">Loading network...</div>
+  if (loading) return <div className="py-12 text-center text-muted-foreground" aria-busy="true" role="status">Loading network...</div>
 
   const activeNetworks = networks.filter(n => n.status === 'active')
   const pendingInvitations = networks.filter(n => n.status === 'pending')
@@ -143,10 +141,7 @@ export default function NetworkPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Studio Network</h1>
-          <p className="text-muted-foreground">Manage multi-studio networks and partnerships</p>
-        </div>
+        <p className="text-muted-foreground">Manage multi-studio networks and partnerships</p>
         <Button onClick={() => setShowCreate(true)}>Create Network</Button>
       </div>
 
@@ -160,7 +155,6 @@ export default function NetworkPage() {
         </div>
       )}
 
-      {/* Create Network Form */}
       {showCreate && (
         <Card>
           <CardHeader><CardTitle>Create a New Network</CardTitle></CardHeader>
@@ -183,7 +177,6 @@ export default function NetworkPage() {
         </Card>
       )}
 
-      {/* Pending Invitations */}
       {pendingInvitations.length > 0 && (
         <Card>
           <CardHeader><CardTitle>Pending Invitations</CardTitle></CardHeader>
@@ -206,7 +199,6 @@ export default function NetworkPage() {
         </Card>
       )}
 
-      {/* Active Networks */}
       <Card>
         <CardHeader><CardTitle>Your Networks ({activeNetworks.length})</CardTitle></CardHeader>
         <CardContent>
@@ -236,7 +228,6 @@ export default function NetworkPage() {
         </CardContent>
       </Card>
 
-      {/* Invite Modal */}
       {inviteNetworkId && (
         <Card>
           <CardHeader><CardTitle>Invite Studio to Network</CardTitle></CardHeader>
@@ -250,7 +241,7 @@ export default function NetworkPage() {
                 placeholder="e.g. my-studio-slug or studio UUID"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Enter the studio&apos;s slug (from their URL) or their studio ID. Ask the studio owner for their slug if you&apos;re unsure.
+                Enter the studio&apos;s slug (from their URL) or their studio ID.
               </p>
             </div>
             <div className="flex gap-2">
@@ -263,7 +254,6 @@ export default function NetworkPage() {
         </Card>
       )}
 
-      {/* Partner Studios */}
       <Card>
         <CardHeader><CardTitle>Partner Studios ({partners.length})</CardTitle></CardHeader>
         <CardContent>

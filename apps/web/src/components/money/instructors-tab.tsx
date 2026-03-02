@@ -56,7 +56,7 @@ const EMPTY_FORM = {
   effective_to: '',
 }
 
-export default function InstructorsPage() {
+export function InstructorsTab() {
   const { studioId, loading: studioLoading } = useStudioId()
   const [instructors, setInstructors] = useState<Instructor[]>([])
   const [costs, setCosts] = useState<Record<string, InstructorCost>>({})
@@ -64,13 +64,11 @@ export default function InstructorsPage() {
   const [error, setError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
-  // Edit dialog
   const [showDialog, setShowDialog] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [dialogSaving, setDialogSaving] = useState(false)
 
-  // Delete confirm
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
 
   useEffect(() => {
@@ -84,7 +82,6 @@ export default function InstructorsPage() {
         const instrList = result.instructors ?? []
         setInstructors(instrList)
 
-        // Load costs for each instructor
         const costEntries: Record<string, InstructorCost> = {}
         try {
           const costResult = await financeApi.instructorCost(sid) as { total_cents: number; by_instructor: Array<{ user_id: string; name: string; classes: number; total_cents: number }> }
@@ -154,22 +151,14 @@ export default function InstructorsPage() {
 
   const totalMonthlyCost = Object.values(costs).reduce((sum, c) => sum + (c.monthly_cost_cents ?? 0), 0)
 
-  if (loading) return <div className="py-20 text-center text-muted-foreground" aria-busy="true" role="status">Loading instructors...</div>
+  if (loading) return <div className="py-12 text-center text-muted-foreground" aria-busy="true" role="status">Loading instructors...</div>
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Instructor Compensation</h1>
-          <p className="text-muted-foreground">Manage pay rates and track instructor costs</p>
-        </div>
-      </div>
-
       {error && (
         <div role="alert" className="text-sm px-4 py-3 rounded-md bg-red-50 text-red-700">{error}</div>
       )}
 
-      {/* Monthly summary */}
       {instructors.length > 0 && (
         <Card>
           <CardContent className="py-4">
@@ -186,7 +175,6 @@ export default function InstructorsPage() {
         </Card>
       )}
 
-      {/* Instructor cards */}
       <div className="grid gap-4">
         {instructors.map(instructor => {
           const cost = costs[instructor.id]
@@ -195,7 +183,6 @@ export default function InstructorsPage() {
               <CardContent className="py-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex items-center gap-3 min-w-0">
-                    {/* Avatar */}
                     <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0 overflow-hidden">
                       {instructor.avatar_url ? (
                         <img src={instructor.avatar_url} alt="" className="w-full h-full object-cover" />
@@ -247,7 +234,6 @@ export default function InstructorsPage() {
         </Card>
       )}
 
-      {/* Edit Dialog */}
       {showDialog && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-card border rounded-xl shadow-lg w-full max-w-md p-6 space-y-4">
@@ -347,7 +333,6 @@ export default function InstructorsPage() {
         </div>
       )}
 
-      {/* Action error toast */}
       {actionError && (
         <div role="alert" className="fixed bottom-4 right-4 z-50 text-sm px-4 py-3 rounded-md bg-red-50 text-red-700 shadow-lg">
           {actionError}
@@ -355,7 +340,6 @@ export default function InstructorsPage() {
         </div>
       )}
 
-      {/* Delete confirmation */}
       <ConfirmDialog
         open={deleteTarget !== null}
         onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}

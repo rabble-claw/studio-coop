@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { NetworkTab } from '@/components/settings/network-tab'
+import { MigrateTab } from '@/components/settings/migrate-tab'
 
 const COUNTRIES = [
   { code: 'NZ', name: 'New Zealand' },
@@ -341,6 +343,8 @@ export default function SettingsPage() {
           <TabsTrigger value="privacy" className="min-h-[44px] touch-manipulation">Privacy</TabsTrigger>
           <TabsTrigger value="skills" className="min-h-[44px] touch-manipulation">Skills</TabsTrigger>
           <TabsTrigger value="integrations" className="min-h-[44px] touch-manipulation">Integrations</TabsTrigger>
+          <TabsTrigger value="network" className="min-h-[44px] touch-manipulation">Network</TabsTrigger>
+          <TabsTrigger value="migrate" className="min-h-[44px] touch-manipulation">Migrate</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="mt-4">
@@ -883,6 +887,13 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+        <TabsContent value="network" className="mt-4">
+          <NetworkTab />
+        </TabsContent>
+
+        <TabsContent value="migrate" className="mt-4">
+          <MigrateTab />
         </TabsContent>
       </Tabs>
     </div>

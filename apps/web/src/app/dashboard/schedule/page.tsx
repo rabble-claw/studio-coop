@@ -11,6 +11,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatTime, formatDate } from '@/lib/utils'
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { BookingsTab } from '@/components/schedule/bookings-tab'
 
 interface ClassInstance {
   id: string
@@ -275,11 +277,23 @@ export default function SchedulePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">{t('title')}</h1>
-          <p className="text-muted-foreground">{t('subtitle')}</p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold">{t('title')}</h1>
+        <p className="text-muted-foreground">{t('subtitle')}</p>
+      </div>
+
+      <Tabs defaultValue="schedule">
+        <TabsList className="flex-wrap h-auto">
+          <TabsTrigger value="schedule" className="min-h-[44px] touch-manipulation">Schedule</TabsTrigger>
+          <TabsTrigger value="bookings" className="min-h-[44px] touch-manipulation">Bookings</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="bookings" className="mt-4">
+          <BookingsTab />
+        </TabsContent>
+
+        <TabsContent value="schedule" className="mt-4">
+      <div className="flex items-center justify-end">
         <Button onClick={() => setShowAddClass(!showAddClass)}>
           {showAddClass ? tc('cancel') : `+ ${t('addClassButton')}`}
         </Button>
@@ -505,6 +519,8 @@ export default function SchedulePage() {
           <button onClick={() => setActionError(null)} className="ml-2 font-bold">x</button>
         </div>
       )}
+        </TabsContent>
+      </Tabs>
 
       <ConfirmDialog
         open={restoreTarget !== null}

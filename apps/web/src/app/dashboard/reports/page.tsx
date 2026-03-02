@@ -7,7 +7,9 @@ import { reportApi } from '@/lib/api-client'
 import { useStudioId } from '@/hooks/use-studio-id'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import Link from 'next/link'
+import { PnlTab } from '@/components/reports/pnl-tab'
+import { HealthTab } from '@/components/reports/health-tab'
+import { ScenarioTab } from '@/components/reports/scenario-tab'
 
 interface TeacherWeeklyTrend {
   week: string
@@ -298,6 +300,9 @@ export default function ReportsPage() {
           <TabsTrigger value="revenue" className="min-h-[44px] touch-manipulation">Revenue</TabsTrigger>
           <TabsTrigger value="popular" className="min-h-[44px] touch-manipulation">Popular</TabsTrigger>
           <TabsTrigger value="retention" className="min-h-[44px] touch-manipulation">Retention</TabsTrigger>
+          <TabsTrigger value="pnl" className="min-h-[44px] touch-manipulation">P&L</TabsTrigger>
+          <TabsTrigger value="health" className="min-h-[44px] touch-manipulation">Health</TabsTrigger>
+          <TabsTrigger value="scenario" className="min-h-[44px] touch-manipulation">Scenario</TabsTrigger>
         </TabsList>
 
         <TabsContent value="attendance" className="mt-4">
@@ -361,10 +366,8 @@ export default function ReportsPage() {
                   ))}
                 </div>
               )}
-              <div className="mt-4 pt-4 border-t">
-                <Link href="/dashboard/finances" className="text-sm text-muted-foreground hover:text-foreground">
-                  See full financial analysis &rarr;
-                </Link>
+              <div className="mt-4 pt-4 border-t text-sm text-muted-foreground">
+                See the P&amp;L tab for full financial analysis.
               </div>
             </CardContent>
           </Card>
@@ -435,6 +438,18 @@ export default function ReportsPage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="pnl" className="mt-4">
+          <PnlTab />
+        </TabsContent>
+
+        <TabsContent value="health" className="mt-4">
+          <HealthTab />
+        </TabsContent>
+
+        <TabsContent value="scenario" className="mt-4">
+          <ScenarioTab />
         </TabsContent>
       </Tabs>
     </div>

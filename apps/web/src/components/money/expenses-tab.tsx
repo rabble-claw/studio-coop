@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -72,7 +73,7 @@ const EMPTY_FORM = {
   notes: '',
 }
 
-export default function ExpensesPage() {
+export function ExpensesTab() {
   const { studioId, loading: studioLoading } = useStudioId()
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [categories, setCategories] = useState<Category[]>(FALLBACK_CATEGORIES)
@@ -80,14 +81,13 @@ export default function ExpensesPage() {
   const [error, setError] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
   const [showEnded, setShowEnded] = useState(false)
+  const [hasExpenses, setHasExpenses] = useState(false)
 
-  // Dialog state
   const [showDialog, setShowDialog] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [dialogSaving, setDialogSaving] = useState(false)
 
-  // Delete confirm
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
 
   useEffect(() => {
@@ -103,6 +103,7 @@ export default function ExpensesPage() {
         ])
         if (expResult.status === 'fulfilled') {
           setExpenses(expResult.value.expenses ?? [])
+          setHasExpenses((expResult.value.expenses ?? []).length > 0)
         } else {
           setError('Failed to load expenses.')
         }
@@ -162,6 +163,7 @@ export default function ExpensesPage() {
       } else {
         const result = await financeApi.createExpense(studioId, data) as unknown as { expense: Expense }
         setExpenses(prev => [...prev, result.expense])
+        setHasExpenses(true)
       }
       setShowDialog(false)
     } catch (e) {
@@ -181,7 +183,6 @@ export default function ExpensesPage() {
     }
   }
 
-  // Filter and group
   const visibleExpenses = showEnded ? expenses : expenses.filter(e => e.active !== false)
   const grouped = new Map<string, Expense[]>()
   for (const exp of visibleExpenses) {
@@ -192,15 +193,30 @@ export default function ExpensesPage() {
 
   const monthlyTotal = visibleExpenses.reduce((sum, e) => sum + monthlyEquivalent(e), 0)
 
-  if (loading) return <div className="py-20 text-center text-muted-foreground" aria-busy="true" role="status">Loading expenses...</div>
+  if (loading) return <div className="py-12 text-center text-muted-foreground" aria-busy="true" role="status">Loading expenses...</div>
 
   return (
     <div className="space-y-6">
+      {!hasExpenses && (
+        <Card className="border-blue-200 bg-blue-50/50">
+          <CardContent className="py-6 text-center space-y-3">
+            <div className="text-4xl">💰</div>
+            <h3 className="font-semibold text-lg">No expenses tracked yet</h3>
+            <p className="text-muted-foreground max-w-md mx-auto">
+              Set up your finances to track expenses, instructor costs, and see your studio&apos;s financial health.
+            </p>
+            <Link
+              href="/dashboard/finances/setup"
+              className="inline-flex items-center justify-center rounded-md bg-primary px-6 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              Set Up Finances
+            </Link>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Expenses</h1>
-          <p className="text-muted-foreground">Track and manage your studio operating costs</p>
-        </div>
+        <p className="text-muted-foreground">Track and manage your studio operating costs</p>
         <Button onClick={openCreate}>+ New Expense</Button>
       </div>
 
@@ -208,7 +224,6 @@ export default function ExpensesPage() {
         <div role="alert" className="text-sm px-4 py-3 rounded-md bg-red-50 text-red-700">{error}</div>
       )}
 
-      {/* Monthly total banner */}
       <Card>
         <CardContent className="py-4">
           <div className="flex items-center justify-between">
@@ -229,7 +244,6 @@ export default function ExpensesPage() {
         </CardContent>
       </Card>
 
-      {/* Grouped expenses */}
       {Array.from(grouped.entries()).map(([catId, catExpenses]) => {
         const cat = getCategoryInfo(catId)
         const subtotal = catExpenses.reduce((sum, e) => sum + monthlyEquivalent(e), 0)
@@ -271,7 +285,7 @@ export default function ExpensesPage() {
         )
       })}
 
-      {grouped.size === 0 && (
+      {grouped.size === 0 && hasExpenses && (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
             No expenses yet. Add your first expense to start tracking costs.
@@ -279,7 +293,6 @@ export default function ExpensesPage() {
         </Card>
       )}
 
-      {/* Add/Edit Dialog */}
       {showDialog && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-card border rounded-xl shadow-lg w-full max-w-md p-6 space-y-4">
@@ -377,7 +390,6 @@ export default function ExpensesPage() {
         </div>
       )}
 
-      {/* Action error toast */}
       {actionError && (
         <div role="alert" className="fixed bottom-4 right-4 z-50 text-sm px-4 py-3 rounded-md bg-red-50 text-red-700 shadow-lg">
           {actionError}
@@ -385,7 +397,6 @@ export default function ExpensesPage() {
         </div>
       )}
 
-      {/* Delete confirmation */}
       <ConfirmDialog
         open={deleteTarget !== null}
         onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}

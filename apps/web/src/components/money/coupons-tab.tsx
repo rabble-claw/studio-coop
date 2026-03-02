@@ -42,7 +42,7 @@ function statusBadge(coupon: Coupon) {
   return <Badge>Active</Badge>
 }
 
-export default function CouponsPage() {
+export function CouponsTab() {
   const router = useRouter()
   const supabase = useRef(createClient()).current
 
@@ -52,7 +52,6 @@ export default function CouponsPage() {
   const [error, setError]             = useState<string | null>(null)
   const [showCreateForm, setShowCreateForm] = useState(false)
 
-  // Create form state
   const [newCode, setNewCode]               = useState('')
   const [newType, setNewType]               = useState<'percent_off' | 'amount_off' | 'free_classes'>('percent_off')
   const [newValue, setNewValue]             = useState('10')
@@ -69,7 +68,6 @@ export default function CouponsPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
 
-      // Get the user's studio (first admin/owner membership)
       const { data: membership } = await supabase
         .from('memberships')
         .select('studio_id, role')
@@ -149,7 +147,7 @@ export default function CouponsPage() {
   }
 
   if (loading) {
-    return <div className="text-muted-foreground py-20 text-center" aria-busy="true" role="status">Loading coupons...</div>
+    return <div className="text-muted-foreground py-12 text-center" aria-busy="true" role="status">Loading coupons...</div>
   }
 
   return (
@@ -159,16 +157,12 @@ export default function CouponsPage() {
       )}
 
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Coupons</h1>
-          <p className="text-muted-foreground">{couponList.length} coupon{couponList.length !== 1 ? 's' : ''}</p>
-        </div>
+        <p className="text-muted-foreground">{couponList.length} coupon{couponList.length !== 1 ? 's' : ''}</p>
         <Button onClick={() => { setShowCreateForm((v) => !v); setCreateError(null) }}>
           {showCreateForm ? 'Cancel' : '+ New Coupon'}
         </Button>
       </div>
 
-      {/* Create form */}
       {showCreateForm && (
         <Card>
           <CardHeader>
@@ -284,7 +278,6 @@ export default function CouponsPage() {
         </Card>
       )}
 
-      {/* Coupon list */}
       {couponList.length === 0 && !showCreateForm ? (
         <Card>
           <CardContent className="py-12 text-center text-muted-foreground">
@@ -299,12 +292,9 @@ export default function CouponsPage() {
               <CardContent className="py-4">
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-4 flex-1 min-w-0">
-                    {/* Code */}
                     <div className="font-mono font-bold text-lg tracking-wider min-w-[100px]">
                       {coupon.code}
                     </div>
-
-                    {/* Discount info */}
                     <div className="flex-1 min-w-0">
                       <div className="font-medium">{discountLabel(coupon)}</div>
                       <div className="text-xs text-muted-foreground space-x-2">
@@ -329,8 +319,6 @@ export default function CouponsPage() {
                       </div>
                     </div>
                   </div>
-
-                  {/* Status + actions */}
                   <div className="flex items-center gap-2 shrink-0">
                     {statusBadge(coupon)}
                     {coupon.active && (

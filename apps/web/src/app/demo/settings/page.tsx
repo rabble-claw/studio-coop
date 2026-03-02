@@ -5,6 +5,8 @@ import { demoStudio } from '@/lib/demo-data'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { DemoNetworkTab } from '@/components/demo/network-tab'
+import { DemoMigrateTab } from '@/components/demo/migrate-tab'
 
 function FormField({
   label,
@@ -143,6 +145,8 @@ export default function DemoSettingsPage() {
           <TabsTrigger value="cancellation">Cancellation Policy</TabsTrigger>
           <TabsTrigger value="privacy">Privacy</TabsTrigger>
           <TabsTrigger value="integrations">Integrations</TabsTrigger>
+          <TabsTrigger value="network">Network</TabsTrigger>
+          <TabsTrigger value="migrate">Migrate</TabsTrigger>
         </TabsList>
 
         {/* General Tab */}
@@ -329,6 +333,14 @@ export default function DemoSettingsPage() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="network" className="mt-4">
+          <DemoNetworkTab />
+        </TabsContent>
+
+        <TabsContent value="migrate" className="mt-4">
+          <DemoMigrateTab />
         </TabsContent>
       </Tabs>
     </div>

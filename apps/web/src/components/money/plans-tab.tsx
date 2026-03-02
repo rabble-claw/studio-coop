@@ -31,7 +31,7 @@ const PLAN_TYPES = [
   { value: 'intro', label: 'Intro Offer' },
 ]
 
-export default function PlansPage() {
+export function PlansTab() {
   const { studioId, loading: studioLoading } = useStudioId()
   const [plans, setPlans] = useState<Plan[]>([])
   const [loading, setLoading] = useState(true)
@@ -55,7 +55,6 @@ export default function PlansPage() {
     async function load() {
       const supabase = createClient()
 
-      // Fetch studio currency from settings
       const { data: studioData } = await supabase
         .from('studios')
         .select('settings')
@@ -105,7 +104,6 @@ export default function PlansPage() {
     if (!plan) return
 
     if (editingPlan === planId) {
-      // Save
       try {
         const result = await planApi.update(studioId, planId, plan) as { plan: Plan }
         setPlans(plans.map(p => p.id === planId ? result.plan : p))
@@ -132,15 +130,12 @@ export default function PlansPage() {
     setPlans(plans.map(p => p.id === planId ? { ...p, [field]: value } : p))
   }
 
-  if (loading) return <div className="py-20 text-center text-muted-foreground" aria-busy="true" role="status">Loading plans...</div>
+  if (loading) return <div className="py-12 text-center text-muted-foreground" aria-busy="true" role="status">Loading plans...</div>
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Membership Plans</h1>
-          <p className="text-muted-foreground">Manage pricing and membership options</p>
-        </div>
+        <p className="text-muted-foreground">Manage pricing and membership options</p>
         <Button onClick={() => setShowCreate(!showCreate)}>
           {showCreate ? 'Cancel' : '+ New Plan'}
         </Button>

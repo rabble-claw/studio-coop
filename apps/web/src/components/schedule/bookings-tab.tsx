@@ -23,7 +23,7 @@ interface PrivateBooking {
   notes: string
 }
 
-export default function PrivateBookingsPage() {
+export function BookingsTab() {
   const router = useRouter()
   const [studioId, setStudioId] = useState<string | null>(null)
   const [bookings, setBookings] = useState<PrivateBooking[]>([])
@@ -103,15 +103,12 @@ export default function PrivateBookingsPage() {
     cancelled: 'bg-red-100 text-red-800',
   }
 
-  if (loading) return <div className="py-20 text-center text-muted-foreground" aria-busy="true" role="status">Loading bookings...</div>
+  if (loading) return <div className="py-12 text-center text-muted-foreground" aria-busy="true" role="status">Loading bookings...</div>
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Private Bookings</h1>
-          <p className="text-muted-foreground">Parties, private lessons, and group bookings</p>
-        </div>
+        <p className="text-muted-foreground">Parties, private lessons, and group bookings</p>
         <Button onClick={() => setShowCreate(!showCreate)}>
           {showCreate ? 'Cancel' : '+ New Booking'}
         </Button>

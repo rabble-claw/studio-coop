@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { formatTime, formatDate } from '@/lib/utils'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { DemoBookingsTab } from '@/components/demo/bookings-tab'
 
 export default function DemoSchedulePage() {
   const [classes, setClasses] = useState<DemoClass[]>(demoClasses)
@@ -135,11 +137,23 @@ export default function DemoSchedulePage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Schedule</h1>
-          <p className="text-muted-foreground">{demoStudio.name} class schedule</p>
-        </div>
+      <div>
+        <h1 className="text-2xl font-bold">Schedule</h1>
+        <p className="text-muted-foreground">{demoStudio.name} class schedule</p>
+      </div>
+
+      <Tabs defaultValue="schedule">
+        <TabsList className="flex-wrap h-auto">
+          <TabsTrigger value="schedule" className="min-h-[44px] touch-manipulation">Schedule</TabsTrigger>
+          <TabsTrigger value="bookings" className="min-h-[44px] touch-manipulation">Bookings</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="bookings" className="mt-4">
+          <DemoBookingsTab />
+        </TabsContent>
+
+        <TabsContent value="schedule" className="mt-4">
+      <div className="flex items-center justify-end">
         <Button onClick={() => setShowAddModal(true)}>+ Add Class</Button>
       </div>
 
@@ -376,6 +390,8 @@ export default function DemoSchedulePage() {
           </div>
         ))}
       </div>
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

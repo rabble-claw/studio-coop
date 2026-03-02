@@ -1,8 +1,12 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+import { migrateApi } from '@/lib/api-client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 
 type MigrationStep = 'upload' | 'mapping' | 'preview' | 'confirm' | 'done'
 
@@ -22,96 +26,13 @@ const TARGET_OPTIONS = [
   { value: 'last_name', label: 'Last Name' },
   { value: 'email', label: 'Email' },
   { value: 'phone', label: 'Phone' },
-  { value: 'home_phone', label: 'Home Phone' },
   { value: 'membership_type', label: 'Membership Type' },
-  { value: 'status', label: 'Status' },
-  { value: 'join_date', label: 'Join Date' },
-  { value: 'last_visit', label: 'Last Visit' },
-  { value: 'client_id', label: 'Client ID' },
-  { value: 'notes', label: 'Notes' },
-  { value: 'address', label: 'Address' },
-  { value: 'city', label: 'City' },
-  { value: 'state', label: 'State' },
-  { value: 'zip', label: 'Zip' },
-  { value: 'birthday', label: 'Birthday' },
-  { value: 'gender', label: 'Gender' },
-  { value: 'source', label: 'Source' },
-  { value: 'account_balance', label: 'Account Balance' },
   { value: '', label: '-- Skip --' },
 ]
 
-const COLUMN_PATTERNS: { target: string; patterns: RegExp[]; required: boolean }[] = [
-  { target: 'name', patterns: [/^first\s*name$/i, /^full\s*name$/i, /^name$/i, /^client\s*name$/i, /^customer\s*name$/i], required: true },
-  { target: 'last_name', patterns: [/^last\s*name$/i, /^surname$/i, /^family\s*name$/i], required: false },
-  { target: 'email', patterns: [/^e?-?mail$/i, /^email[_\s]*address$/i, /^e-?mail[_\s]*address$/i], required: true },
-  { target: 'phone', patterns: [/^phone([_\s]*number)?$/i, /^mobile([_\s]*phone)?$/i, /^cell([_\s]*phone)?$/i, /^tel(ephone)?$/i], required: false },
-  { target: 'membership_type', patterns: [/^membership\s*type$/i, /^plan$/i, /^subscription$/i, /^active\s*memberships?$/i, /^pricing\s*option$/i], required: false },
-]
-
-function parseCSV(content: string): Record<string, string>[] {
-  const lines = content.trim().split(/\r?\n/)
-  if (lines.length < 2) return []
-  const headers = parseCSVLine(lines[0]!)
-  return lines.slice(1).filter(l => l.trim()).map(line => {
-    const values = parseCSVLine(line)
-    const row: Record<string, string> = {}
-    headers.forEach((h, i) => { row[h] = values[i] ?? '' })
-    return row
-  })
-}
-
-function parseCSVLine(line: string): string[] {
-  const fields: string[] = []
-  let current = ''
-  let inQuotes = false
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i]!
-    if (inQuotes) {
-      if (ch === '"') {
-        if (i + 1 < line.length && line[i + 1] === '"') { current += '"'; i++ }
-        else inQuotes = false
-      } else current += ch
-    } else {
-      if (ch === '"') inQuotes = true
-      else if (ch === ',') { fields.push(current.trim()); current = '' }
-      else current += ch
-    }
-  }
-  fields.push(current.trim())
-  return fields
-}
-
-function autoDetectColumns(headers: string[]): MigrationColumn[] {
-  const cols: MigrationColumn[] = []
-  const used = new Set<string>()
-  for (const mapping of COLUMN_PATTERNS) {
-    for (const header of headers) {
-      if (used.has(header)) continue
-      if (mapping.patterns.some(p => p.test(header))) {
-        cols.push({ source: header, target: mapping.target, required: mapping.required })
-        used.add(header)
-        break
-      }
-    }
-  }
-  return cols
-}
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
-function validateRows(rows: Record<string, string>[], columns: MigrationColumn[]): MigrationRow[] {
-  return rows.map(row => {
-    const errors: string[] = []
-    for (const col of columns) {
-      const val = (row[col.source] ?? '').trim()
-      if (col.required && !val) errors.push(`${col.target} is required`)
-      if (val && col.target === 'email' && !EMAIL_RE.test(val)) errors.push('Invalid email')
-    }
-    return { data: row, valid: errors.length === 0, errors }
-  })
-}
-
-export default function DemoMigratePage() {
+export function MigrateTab() {
+  const router = useRouter()
+  const [studioId, setStudioId] = useState<string | null>(null)
   const [step, setStep] = useState<MigrationStep>('upload')
   const [source, setSource] = useState<'mindbody' | 'vagaro' | 'csv'>('mindbody')
   const [csvContent, setCsvContent] = useState('')
@@ -119,137 +40,97 @@ export default function DemoMigratePage() {
   const [preview, setPreview] = useState<MigrationPreview | null>(null)
   const [result, setResult] = useState<MigrationResult | null>(null)
   const [executing, setExecuting] = useState(false)
+  const [error, setError] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    async function load() {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { router.push('/login'); return }
+      const { data: membership } = await supabase
+        .from('memberships')
+        .select('studio_id')
+        .eq('user_id', user.id)
+        .eq('status', 'active')
+        .limit(1)
+        .single()
+      if (membership) setStudioId(membership.studio_id)
+    }
+    load()
+  }, [])
 
   function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = (evt) => {
-      const text = evt.target?.result as string
-      setCsvContent(text)
-      analyzeCSV(text)
+    try {
+      const reader = new FileReader()
+      reader.onerror = () => {
+        console.error('Failed to read CSV file:', reader.error)
+        setError('Failed to read file. Please check the file format and try again.')
+      }
+      reader.onload = async (evt) => {
+        const text = evt.target?.result as string
+        setCsvContent(text)
+        await uploadCSV(text)
+      }
+      reader.readAsText(file)
+    } catch (err) {
+      console.error('Failed to read CSV file:', err)
+      setError('Failed to read file. Please check the file format and try again.')
     }
-    reader.readAsText(file)
   }
 
-  function analyzeCSV(csv: string) {
-    const rows = parseCSV(csv)
-    if (rows.length === 0) return
-    const headers = Object.keys(rows[0]!)
-    const detectedColumns = autoDetectColumns(headers)
-    const validated = validateRows(rows, detectedColumns)
-    setColumns(detectedColumns)
-    setPreview({
-      totalRows: rows.length,
-      validRows: validated.filter(r => r.valid).length,
-      invalidRows: validated.filter(r => !r.valid).length,
-      columns: detectedColumns,
-      sampleRows: validated.slice(0, 5),
-    })
-    setStep('mapping')
+  async function uploadCSV(csv: string) {
+    if (!studioId) return
+    setError('')
+    try {
+      const res = await migrateApi.upload(studioId, csv)
+      setPreview(res.preview)
+      setColumns(res.preview.columns)
+      setStep('mapping')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Upload failed')
+    }
   }
 
-  function handleRepreview() {
-    const rows = parseCSV(csvContent)
-    const validated = validateRows(rows, columns)
-    setPreview({
-      totalRows: rows.length,
-      validRows: validated.filter(r => r.valid).length,
-      invalidRows: validated.filter(r => !r.valid).length,
-      columns,
-      sampleRows: validated.slice(0, 5),
-    })
-    setStep('preview')
+  async function handleRepreview() {
+    if (!studioId) return
+    setError('')
+    try {
+      const res = await migrateApi.preview(studioId, csvContent, columns)
+      setPreview(res.preview)
+      setStep('preview')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Preview failed')
+    }
   }
 
-  function runImport() {
-    if (!preview) return
+  async function runImport() {
+    if (!studioId) return
     setExecuting(true)
-    // Simulate import with a brief delay
-    setTimeout(() => {
-      const created = preview.validRows
-      const skipped = Math.floor(preview.validRows * 0.1)
-      setResult({
-        totalProcessed: preview.totalRows,
-        created: created - skipped,
-        skipped,
-        failed: preview.invalidRows,
-        errors: preview.sampleRows
-          .filter(r => !r.valid)
-          .map((r, i) => ({ row: i + 1, email: r.data['Email'] ?? r.data['email'] ?? '', error: r.errors.join(', ') })),
-      })
+    setError('')
+    try {
+      const res = await migrateApi.execute(studioId, csvContent, columns)
+      setResult(res.result)
       setStep('done')
-      setExecuting(false)
-    }, 1500)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Import failed')
+    }
+    setExecuting(false)
   }
 
   function updateColumnTarget(index: number, target: string) {
     setColumns(prev => prev.map((col, i) => i === index ? { ...col, target } : col))
   }
 
-  function loadSampleData() {
-    let sample: string
-
-    if (source === 'mindbody') {
-      sample = `ID,First Name,Last Name,Email,Phone,Home Phone,Mobile Phone,Date Added,Last Visit,Status,Active Memberships,Account Balance
-1001,Sarah,Chen,sarah.chen@email.com,+64 21 555 0101,,+64 21 555 0101,2023-01-15,2024-12-20,Active,Unlimited Monthly,$0.00
-1002,James,Wilson,james.w@email.com,+64 22 555 0102,+64 9 555 0102,,2023-03-20,2024-12-18,Active,8-Class Pack,$15.00
-1003,Tina,Ruiz,tina.ruiz@email.com,+64 21 555 0103,,,2023-06-01,2024-11-30,Active,Unlimited Monthly,$0.00
-1004,Mike,Johnson,mike.j@email.com,+64 21 555 0104,,+64 21 555 0104,2023-02-10,2024-12-15,Active,Drop-In,$0.00
-1005,Emily,Brooks,emily.b@email.com,+64 22 555 0105,,,2023-08-22,2024-12-19,Active,8-Class Pack,$0.00
-1006,David,Kim,,+64 21 555 0106,,+64 21 555 0106,2023-04-05,2024-10-01,Inactive,,$0.00
-1007,Priya,Patel,priya.p@email.com,+64 22 555 0107,,,2023-07-12,2024-12-17,Active,Unlimited Monthly,$0.00
-1008,Alex,Turner,alex.turner@email.com,+64 21 555 0108,,+64 21 555 0108,2023-05-18,2024-12-20,Active,8-Class Pack,$0.00
-1009,Lisa,Martinez,invalid-email,+64 22 555 0109,,,2023-09-30,2024-11-15,Active,Drop-In,$25.00
-1010,Tom,Brown,tom.brown@email.com,+64 21 555 0110,,+64 21 555 0110,2023-01-08,2024-12-19,Active,Unlimited Monthly,$0.00
-1011,Nina,Kowalski,nina.k@email.com,+64 22 555 0111,,,2023-11-01,2024-12-10,Active,8-Class Pack,$0.00
-1012,Ryan,Foster,ryan.f@email.com,+64 22 555 0112,,,2023-03-15,2024-12-16,Active,Unlimited Monthly,$0.00`
-    } else if (source === 'vagaro') {
-      sample = `First Name,Last Name,Email,Mobile Phone,Home Phone,Address,City,State,Zip,Birthday,Gender,Notes,Last Appointment,Customer Since,Source
-Sarah,Chen,sarah.chen@email.com,+64 21 555 0101,,12 Queen St,Auckland,,1010,1990-05-15,Female,,2024-12-20,2023-01-15,Website
-James,Wilson,james.w@email.com,+64 22 555 0102,+64 9 555 0102,45 High St,Wellington,,6011,,Male,VIP client,2024-12-18,2023-03-20,Referral
-Tina,Ruiz,tina.ruiz@email.com,+64 21 555 0103,,8 Ponsonby Rd,Auckland,,1011,1985-11-22,Female,,2024-11-30,2023-06-01,Walk-in
-Mike,Johnson,mike.j@email.com,+64 21 555 0104,,,Christchurch,,8011,1992-03-08,Male,,2024-12-15,2023-02-10,Instagram
-Emily,Brooks,emily.b@email.com,+64 22 555 0105,,23 Cuba St,Wellington,,6011,1988-07-30,Female,Morning classes only,2024-12-19,2023-08-22,Website
-David,Kim,,+64 21 555 0106,,100 Symonds St,Auckland,,1010,,Male,,2024-10-01,2023-04-05,Referral
-Priya,Patel,priya.p@email.com,+64 22 555 0107,,5 Victoria St,Hamilton,,3204,1995-01-12,Female,,2024-12-17,2023-07-12,Google
-Alex,Turner,alex.turner@email.com,+64 21 555 0108,,67 Karangahape Rd,Auckland,,1010,1991-09-25,Male,,2024-12-20,2023-05-18,Website
-Lisa,Martinez,invalid-email,+64 22 555 0109,,34 Courtenay Pl,Wellington,,6011,1987-04-18,Female,Prefers evening classes,2024-11-15,2023-09-30,Walk-in
-Tom,Brown,tom.brown@email.com,+64 21 555 0110,,9 Lambton Quay,Wellington,,6011,1993-12-03,Male,,2024-12-19,2023-01-08,Website
-Nina,Kowalski,nina.k@email.com,+64 22 555 0111,,22 Mt Eden Rd,Auckland,,1024,,Female,,2024-12-10,2023-11-01,Referral
-Ryan,Foster,ryan.f@email.com,+64 22 555 0112,,18 Broadway,Newmarket,,1023,1989-06-14,Male,,2024-12-16,2023-03-15,Instagram`
-    } else {
-      sample = `First Name,Last Name,Email,Phone,Membership Type
-Sarah,Chen,sarah.chen@email.com,+64 21 555 0101,Unlimited Monthly
-James,Wilson,james.w@email.com,+64 22 555 0102,8-Class Pack
-Tina,Ruiz,tina.ruiz@email.com,,Unlimited Monthly
-Mike,Johnson,mike.j@email.com,+64 21 555 0104,Drop-In
-Emily,Brooks,emily.b@email.com,+64 22 555 0105,8-Class Pack
-David,Kim,,+64 21 555 0106,Unlimited Monthly
-Priya,Patel,priya.p@email.com,+64 22 555 0107,Unlimited Monthly
-Alex,Turner,alex.turner@email.com,+64 21 555 0108,8-Class Pack
-Lisa,Martinez,invalid-email,+64 22 555 0109,Drop-In
-Tom,Brown,tom.brown@email.com,+64 21 555 0110,Unlimited Monthly
-Nina,Kowalski,nina.k@email.com,,8-Class Pack
-Ryan,Foster,ryan.f@email.com,+64 22 555 0112,Unlimited Monthly`
-    }
-
-    setCsvContent(sample)
-    analyzeCSV(sample)
-  }
-
   const stepIndex = ['upload', 'mapping', 'preview', 'confirm', 'done'].indexOf(step)
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Migrate to Studio Co-op</h1>
-        <p className="text-muted-foreground">Import your members from your current platform</p>
-      </div>
+      <p className="text-muted-foreground">Import your members from your current platform</p>
 
-      {/* Progress */}
-      <div className="flex gap-2">
+      <div className="flex gap-2" aria-live="polite" aria-label="Migration progress">
         {['Upload', 'Map Columns', 'Validate', 'Confirm', 'Results'].map((label, i) => (
           <div key={label} className="flex items-center gap-2">
             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
@@ -262,6 +143,10 @@ Ryan,Foster,ryan.f@email.com,+64 22 555 0112,Unlimited Monthly`
         ))}
       </div>
 
+      {error && (
+        <div role="alert" className="text-sm px-4 py-2 rounded-md bg-red-50 text-red-700">{error}</div>
+      )}
+
       {step === 'upload' && (
         <Card>
           <CardHeader><CardTitle>Select your platform</CardTitle></CardHeader>
@@ -273,8 +158,9 @@ Ryan,Foster,ryan.f@email.com,+64 22 555 0112,Unlimited Monthly`
                 { id: 'csv' as const, label: 'Other (CSV)', desc: 'Upload any CSV file' },
               ].map(p => (
                 <button key={p.id}
-                  className={`p-4 rounded-lg border text-left ${source === p.id ? 'border-primary bg-primary/5' : 'border-border'}`}
+                  className={`p-4 rounded-lg border text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${source === p.id ? 'border-primary bg-primary/5' : 'border-border'}`}
                   onClick={() => setSource(p.id)}
+                  aria-pressed={source === p.id}
                 >
                   <div className="font-medium">{p.label}</div>
                   <div className="text-xs text-muted-foreground mt-1">{p.desc}</div>
@@ -294,43 +180,25 @@ Ryan,Foster,ryan.f@email.com,+64 22 555 0112,Unlimited Monthly`
               </div>
             )}
 
-            {source === 'vagaro' && (
-              <div className="bg-blue-50 p-4 rounded-lg text-sm">
-                <p className="font-medium text-blue-900 mb-2">How to export from Vagaro:</p>
-                <ol className="list-decimal ml-4 space-y-1 text-blue-800">
-                  <li>Log in to your Vagaro business account</li>
-                  <li>Go to Customers &rarr; Customer List</li>
-                  <li>Click the Export button (top-right)</li>
-                  <li>Select CSV format and choose the fields to include</li>
-                  <li>Click Export and save the file</li>
-                  <li>Upload the file below</li>
-                </ol>
-              </div>
-            )}
-
             <div>
-              <input ref={fileRef} type="file" accept=".csv,.txt" onChange={handleFileUpload} className="hidden" />
+              <input ref={fileRef} type="file" accept=".csv,.txt" onChange={handleFileUpload} className="hidden" aria-label="Upload CSV file" />
               <Button onClick={() => fileRef.current?.click()} className="w-full" size="lg">
                 Upload CSV File
               </Button>
             </div>
 
             <div>
-              <label className="text-sm font-medium text-muted-foreground">Or paste CSV content directly</label>
+              <label htmlFor="csv-paste" className="text-sm font-medium text-muted-foreground">Or paste CSV content directly</label>
               <textarea
+                id="csv-paste"
                 className="w-full border rounded-md px-3 py-2 text-sm min-h-[100px] font-mono mt-1"
                 value={csvContent}
                 onChange={e => setCsvContent(e.target.value)}
                 placeholder="First Name,Last Name,Email,Phone&#10;John,Doe,john@example.com,+1234567890"
               />
-              <div className="flex gap-2 mt-2">
-                <Button variant="outline" onClick={() => analyzeCSV(csvContent)} disabled={!csvContent.trim()}>
-                  Analyze CSV
-                </Button>
-                <Button variant="ghost" onClick={loadSampleData}>
-                  Load sample data
-                </Button>
-              </div>
+              <Button variant="outline" className="mt-2" onClick={() => uploadCSV(csvContent)} disabled={!csvContent.trim()}>
+                Analyze CSV
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -354,6 +222,7 @@ Ryan,Foster,ryan.f@email.com,+64 22 555 0112,Unlimited Monthly`
                   value={col.target}
                   onChange={e => updateColumnTarget(i, e.target.value)}
                   className="flex-1 border rounded-md px-3 py-2 text-sm"
+                  aria-label={`Map column "${col.source}" to field`}
                 >
                   {TARGET_OPTIONS.map(opt => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -394,11 +263,11 @@ Ryan,Foster,ryan.f@email.com,+64 22 555 0112,Unlimited Monthly`
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/50">
-                      <th className="px-3 py-2 text-left text-xs font-medium">Status</th>
+                      <th scope="col" className="px-3 py-2 text-left text-xs font-medium">Status</th>
                       {columns.map(col => (
-                        <th key={col.source} className="px-3 py-2 text-left text-xs font-medium">{col.source}</th>
+                        <th scope="col" key={col.source} className="px-3 py-2 text-left text-xs font-medium">{col.source}</th>
                       ))}
-                      <th className="px-3 py-2 text-left text-xs font-medium">Errors</th>
+                      <th scope="col" className="px-3 py-2 text-left text-xs font-medium">Errors</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -480,9 +349,9 @@ Ryan,Foster,ryan.f@email.com,+64 22 555 0112,Unlimited Monthly`
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b bg-muted/50">
-                      <th className="px-3 py-2 text-left text-xs font-medium">Row</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium">Email</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium">Error</th>
+                      <th scope="col" className="px-3 py-2 text-left text-xs font-medium">Row</th>
+                      <th scope="col" className="px-3 py-2 text-left text-xs font-medium">Email</th>
+                      <th scope="col" className="px-3 py-2 text-left text-xs font-medium">Error</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -506,7 +375,7 @@ Ryan,Foster,ryan.f@email.com,+64 22 555 0112,Unlimited Monthly`
                 <li>Test a booking flow end-to-end</li>
               </ul>
             </div>
-            <Button onClick={() => setStep('upload')} className="w-full">Start Another Import</Button>
+            <Button onClick={() => window.location.href = '/dashboard'} className="w-full">Go to Dashboard</Button>
           </CardContent>
         </Card>
       )}

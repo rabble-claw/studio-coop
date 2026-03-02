@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { demoReportsData, demoMembers } from '@/lib/demo-data'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { DemoPnlTab } from '@/components/demo/pnl-tab'
+import { DemoHealthTab } from '@/components/demo/health-tab'
 
 export default function DemoReportsPage() {
   const { summary, weeklyAttendance, monthlyRevenue, popularClasses, retention } = demoReportsData
@@ -63,6 +65,8 @@ export default function DemoReportsPage() {
           <TabsTrigger value="revenue">Revenue</TabsTrigger>
           <TabsTrigger value="classes">Popular Classes</TabsTrigger>
           <TabsTrigger value="retention">Retention</TabsTrigger>
+          <TabsTrigger value="pnl">P&amp;L</TabsTrigger>
+          <TabsTrigger value="health">Health</TabsTrigger>
         </TabsList>
 
         {/* Attendance Tab */}
@@ -215,6 +219,14 @@ export default function DemoReportsPage() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="pnl" className="mt-4">
+          <DemoPnlTab />
+        </TabsContent>
+
+        <TabsContent value="health" className="mt-4">
+          <DemoHealthTab />
         </TabsContent>
       </Tabs>
     </div>
