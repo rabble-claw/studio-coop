@@ -35,6 +35,7 @@ import achievements from './routes/achievements'
 import skills from './routes/skills'
 import subRequests from './routes/sub-requests'
 import finances from './routes/finances'
+import calendarFeed from './routes/calendar-feed'
 import { getConfig } from './lib/config'
 
 // Validate environment configuration at startup (best-effort).
@@ -74,6 +75,7 @@ app.use('/api/discover/*', rateLimit({ limit: 30, windowSeconds: 60 }))
 app.use('/api/studios/*/classes/*/book', rateLimit({ limit: 10, windowSeconds: 60 }))
 app.use('/api/studios/*/coupons/redeem', rateLimit({ limit: 5, windowSeconds: 60 }))
 app.use('/api/my/push-token', rateLimit({ limit: 5, windowSeconds: 60 }))
+app.use('/api/cal/*', rateLimit({ limit: 60, windowSeconds: 3600 }))
 
 // Health check (no auth)
 app.get('/health', (c) => c.json({
@@ -120,6 +122,7 @@ app.route('/api/studios', achievements)
 app.route('/api/studios', skills)
 app.route('/api/studios', subRequests)
 app.route('/api/studios', finances)
+app.route('/api', calendarFeed)
 
 export default app
 export { app }

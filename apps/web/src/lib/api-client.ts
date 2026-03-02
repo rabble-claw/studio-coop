@@ -332,4 +332,19 @@ export const financeApi = {
     api.post<{ ok: boolean }>(`/studios/${studioId}/finances/setup`, data),
 }
 
+export interface CalendarToken {
+  id: string
+  label: string
+  feedUrl?: string
+  createdAt?: string
+  created_at?: string
+  last_used_at?: string | null
+}
+
+export const calendarApi = {
+  getTokens: () => api.get<{ tokens: CalendarToken[] }>('/my/calendar-token'),
+  createToken: (label?: string) => api.post<CalendarToken>('/my/calendar-token', label ? { label } : {}),
+  revokeToken: (id: string) => api.delete(`/my/calendar-token/${id}`),
+}
+
 export { ApiError }

@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
-import { View, Text, TouchableOpacity, ScrollView, RefreshControl, Alert } from 'react-native'
+import { View, Text, TouchableOpacity, ScrollView, RefreshControl, Alert, Share } from 'react-native'
 import { useRouter } from 'expo-router'
 import { useAuth } from '@/lib/auth-context'
-import { profileApi, subscriptionApi } from '@/lib/api'
+import { profileApi, subscriptionApi, calendarApi } from '@/lib/api'
 
 interface Membership {
   id: string
@@ -331,6 +331,32 @@ export default function ProfileScreen() {
           >
             <Text className="text-foreground font-medium">Payment Methods</Text>
             <Text className="text-muted text-sm">Manage your saved cards</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            className="bg-card rounded-xl border border-border p-4"
+            onPress={async () => {
+              try {
+                const result = await calendarApi.createToken('My Classes')
+                Alert.alert(
+                  'Calendar Link Created',
+                  `Your feed URL:\n\n${result.feedUrl}\n\nCopy this URL, then open your calendar app → Add Subscription → paste the URL. Your classes will auto-update.`,
+                  [
+                    {
+                      text: 'Share',
+                      onPress: () => {
+                        Share.share({ message: result.feedUrl })
+                      },
+                    },
+                    { text: 'OK' },
+                  ],
+                )
+              } catch (e: any) {
+                Alert.alert('Error', e.message || 'Failed to generate calendar link.')
+              }
+            }}
+          >
+            <Text className="text-foreground font-medium">Calendar Subscription</Text>
+            <Text className="text-muted text-sm">Subscribe to your class schedule</Text>
           </TouchableOpacity>
           <TouchableOpacity className="bg-card rounded-xl border border-border p-4" onPress={signOut}>
             <Text className="text-red-500 font-medium">Sign Out</Text>

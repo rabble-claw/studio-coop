@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { studioApi, stripeApi, memberApi, skillApi } from '@/lib/api-client'
-import type { PrivacySettings } from '@/lib/api-client'
+import { studioApi, stripeApi, memberApi, skillApi, calendarApi } from '@/lib/api-client'
+import type { PrivacySettings, CalendarToken } from '@/lib/api-client'
 import { useStudioId } from '@/hooks/use-studio-id'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -86,6 +86,11 @@ export default function SettingsPage() {
   const [stripeStatus, setStripeStatus] = useState<{ connected: boolean; accountId?: string; dashboardUrl?: string }>({ connected: false })
   const [stripeLoading, setStripeLoading] = useState(false)
 
+  // Calendar subscription state
+  const [calTokens, setCalTokens] = useState<CalendarToken[]>([])
+  const [calLoading, setCalLoading] = useState(false)
+  const [calCopied, setCalCopied] = useState<string | null>(null)
+
   function handleUseMyLocation() {
     if (!navigator.geolocation) {
       setGeoError('Geolocation is not supported by your browser.')
@@ -160,6 +165,13 @@ export default function SettingsPage() {
           setSkillsGrouped(skillResult.grouped ?? {})
         } catch {
           // skills table may not exist yet
+        }
+        // Fetch calendar tokens
+        try {
+          const result = await calendarApi.getTokens()
+          setCalTokens(result.tokens ?? [])
+        } catch {
+          // calendar_tokens table may not exist yet
         }
       } catch {
         setError('Failed to load settings. Please try again.')
@@ -870,6 +882,80 @@ export default function SettingsPage() {
                     </Button>
                   )}
                 </div>
+              </div>
+              <div className="py-3 border-b space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-medium">Calendar Subscription</div>
+                    <div className="text-sm text-muted-foreground">Subscribe to your class schedule in Apple Calendar, Google Calendar, or Outlook</div>
+                  </div>
+                  <Button
+                    size="sm"
+                    disabled={calLoading}
+                    onClick={async () => {
+                      setCalLoading(true)
+                      try {
+                        const result = await calendarApi.createToken('My Classes')
+                        setCalTokens(prev => [{ id: result.id, label: result.label, feedUrl: result.feedUrl, createdAt: result.createdAt }, ...prev])
+                      } catch (e) {
+                        setSaveMessage(`Error: ${e instanceof Error ? e.message : 'Failed to generate calendar link'}`)
+                        setTimeout(() => setSaveMessage(''), 3000)
+                      }
+                      setCalLoading(false)
+                    }}
+                  >
+                    {calLoading ? 'Generating...' : 'Generate Calendar Link'}
+                  </Button>
+                </div>
+                {calTokens.length > 0 && (
+                  <div className="space-y-2">
+                    {calTokens.map(tok => (
+                      <div key={tok.id} className="flex items-center gap-2 bg-muted/50 rounded-lg p-2 text-sm">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-xs text-muted-foreground">{tok.label}</div>
+                          {tok.feedUrl ? (
+                            <code className="block truncate text-xs">{tok.feedUrl}</code>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Created {tok.created_at ? new Date(tok.created_at).toLocaleDateString() : ''}</span>
+                          )}
+                          {tok.last_used_at && (
+                            <span className="text-xs text-muted-foreground">Last synced: {new Date(tok.last_used_at).toLocaleString()}</span>
+                          )}
+                        </div>
+                        {tok.feedUrl && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              navigator.clipboard.writeText(tok.feedUrl!)
+                              setCalCopied(tok.id)
+                              setTimeout(() => setCalCopied(null), 2000)
+                            }}
+                          >
+                            {calCopied === tok.id ? 'Copied!' : 'Copy'}
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-500 hover:text-red-600"
+                          onClick={async () => {
+                            try {
+                              await calendarApi.revokeToken(tok.id)
+                              setCalTokens(prev => prev.filter(t => t.id !== tok.id))
+                            } catch (e) {
+                              setSaveMessage(`Error: ${e instanceof Error ? e.message : 'Failed to revoke token'}`)
+                              setTimeout(() => setSaveMessage(''), 3000)
+                            }
+                          }}
+                        >
+                          Revoke
+                        </Button>
+                      </div>
+                    ))}
+                    <p className="text-xs text-muted-foreground">Paste the URL into your calendar app&apos;s &quot;Add Subscription&quot; feature. Your schedule will auto-update.</p>
+                  </div>
+                )}
               </div>
               <div className="flex items-center justify-between py-3 border-b">
                 <div>

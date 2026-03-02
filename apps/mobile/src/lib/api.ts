@@ -175,4 +175,11 @@ export const discoverApi = {
   studioBySlug: (slug: string) => api.get<{ studio: { id: string; name: string; slug: string; discipline: string; description: string | null; logo_url: string | null; address: string | null; phone: string | null; website: string | null; email: string | null; instagram: string | null; facebook: string | null; city: string | null; country_code: string | null; region: string | null; latitude: number | null; longitude: number | null }; classes: Array<{ id: string; date: string; start_time: string; end_time: string; max_capacity: number; booked_count: number | null; teacher: { name: string } | null; template: { name: string; description: string | null } | null }>; plans: Array<{ id: string; name: string; description: string | null; type: string; price_cents: number; currency: string; interval: string; class_limit: number | null; validity_days: number | null }>; member_count: number }>(`/api/discover/studios/${slug}`),
 }
 
+// Calendar subscription
+export const calendarApi = {
+  getTokens: () => api.get<{ tokens: Array<{ id: string; label: string; created_at: string; last_used_at: string | null }> }>('/api/my/calendar-token'),
+  createToken: (label?: string) => api.post<{ id: string; label: string; feedUrl: string; createdAt: string }>('/api/my/calendar-token', label ? { label } : {}),
+  revokeToken: (id: string) => api.delete(`/api/my/calendar-token/${id}`),
+}
+
 export { ApiError }

@@ -28,10 +28,95 @@ export interface CalendarEventParams {
   now?: Date
 }
 
+export interface ICalFeedEvent {
+  /** Booking ID — used to build UID */
+  bookingId: string
+  /** Class name */
+  summary: string
+  /** ISO date string: YYYY-MM-DD */
+  date: string
+  /** HH:MM:SS or HH:MM — local time in the studio's timezone */
+  startTime: string
+  /** Duration in minutes */
+  durationMinutes: number
+  /** IANA timezone name */
+  timezone: string
+  /** Physical or virtual location */
+  location?: string
+  /** Class description / teacher info */
+  description?: string
+  /** Studio display name */
+  organizerName?: string
+  /** Studio contact email */
+  organizerEmail?: string
+  /** Event status */
+  status?: 'CONFIRMED' | 'CANCELLED'
+}
+
+/**
+ * Generate a multi-event VCALENDAR feed for calendar subscriptions.
+ * Produces RFC 5545-compliant output with METHOD:PUBLISH.
+ */
+export function generateICalFeed(params: {
+  calendarName: string
+  events: ICalFeedEvent[]
+  now?: Date
+}): string {
+  const { calendarName, events, now = new Date() } = params
+  const dtStamp = toICalUTC(now)
+
+  const lines: string[] = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Studio Co-op//Calendar Feed//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    foldLine(`X-WR-CALNAME:${escapeText(calendarName)}`),
+  ]
+
+  for (const evt of events) {
+    const localStart = toICalLocal(evt.date, evt.startTime)
+
+    // Compute end time
+    const [startH, startM] = evt.startTime.split(':').map(Number)
+    const endMinutes = (startH ?? 0) * 60 + (startM ?? 0) + evt.durationMinutes
+    const endH = Math.floor(endMinutes / 60) % 24
+    const endM = endMinutes % 60
+    const endTimeStr = `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}:00`
+    const localEnd = toICalLocal(evt.date, endTimeStr)
+
+    lines.push(
+      'BEGIN:VEVENT',
+      foldLine(`UID:booking-${evt.bookingId}@studiocoop`),
+      `DTSTAMP:${dtStamp}`,
+      foldLine(`DTSTART;TZID=${evt.timezone}:${localStart}`),
+      foldLine(`DTEND;TZID=${evt.timezone}:${localEnd}`),
+      foldLine(`SUMMARY:${escapeText(evt.summary)}`),
+    )
+
+    if (evt.location) {
+      lines.push(foldLine(`LOCATION:${escapeText(evt.location)}`))
+    }
+    if (evt.description) {
+      lines.push(foldLine(`DESCRIPTION:${escapeText(evt.description)}`))
+    }
+    if (evt.organizerEmail) {
+      const cn = evt.organizerName ? `CN=${escapeText(evt.organizerName)}:` : ''
+      lines.push(foldLine(`ORGANIZER;${cn}mailto:${evt.organizerEmail}`))
+    }
+
+    lines.push(`STATUS:${evt.status ?? 'CONFIRMED'}`)
+    lines.push('END:VEVENT')
+  }
+
+  lines.push('END:VCALENDAR')
+  return lines.join('\r\n') + '\r\n'
+}
+
 /**
  * Format a Date as a UTC iCal datetime string: YYYYMMDDTHHmmssZ
  */
-function toICalUTC(d: Date): string {
+export function toICalUTC(d: Date): string {
   return d
     .toISOString()
     .replace(/[-:]/g, '')
