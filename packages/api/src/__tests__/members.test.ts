@@ -71,11 +71,11 @@ describe('GET /api/studios/:studioId/members', () => {
   it('returns paginated members with default filters', async () => {
     const memberships = [
       {
-        id: 'mem-1', role: 'member', status: 'active', created_at: '2026-01-01T00:00:00Z', notes: null,
+        id: 'mem-1', role: 'member', status: 'active', joined_at: '2026-01-01T00:00:00Z', notes: null,
         user: { id: 'u1', name: 'Alice', email: 'alice@e.com', avatar_url: null, phone: null },
       },
       {
-        id: 'mem-2', role: 'teacher', status: 'active', created_at: '2026-01-15T00:00:00Z', notes: 'Great teacher',
+        id: 'mem-2', role: 'teacher', status: 'active', joined_at: '2026-01-15T00:00:00Z', notes: 'Great teacher',
         user: { id: 'u2', name: 'Bob', email: 'bob@e.com', avatar_url: 'https://img.com/bob.jpg', phone: '+1234' },
       },
     ]
@@ -102,7 +102,7 @@ describe('GET /api/studios/:studioId/members', () => {
   it('filters by role when query param provided', async () => {
     const memberships = [
       {
-        id: 'mem-2', role: 'teacher', status: 'active', created_at: '2026-01-15T00:00:00Z', notes: null,
+        id: 'mem-2', role: 'teacher', status: 'active', joined_at: '2026-01-15T00:00:00Z', notes: null,
         user: { id: 'u2', name: 'Bob', email: 'bob@e.com', avatar_url: null, phone: null },
       },
     ]
@@ -148,7 +148,7 @@ describe('GET /api/studios/:studioId/members', () => {
     const userSearchChain = makeAsyncChain({ data: [{ id: 'u1' }], error: null })
     const membershipChain = makeAsyncChain({
       data: [{
-        id: 'mem-1', role: 'member', status: 'active', created_at: '2026-01-01T00:00:00Z', notes: null,
+        id: 'mem-1', role: 'member', status: 'active', joined_at: '2026-01-01T00:00:00Z', notes: null,
         user: { id: 'u1', name: 'Alice', email: 'alice@e.com', avatar_url: null, phone: null },
       }],
       error: null,
@@ -224,7 +224,7 @@ describe('GET /api/studios/:studioId/members', () => {
   it('handles FK join returning user as array', async () => {
     const memberships = [
       {
-        id: 'mem-1', role: 'member', status: 'active', created_at: '2026-01-01T00:00:00Z', notes: null,
+        id: 'mem-1', role: 'member', status: 'active', joined_at: '2026-01-01T00:00:00Z', notes: null,
         user: [{ id: 'u1', name: 'Alice', email: 'alice@e.com', avatar_url: null, phone: null }],
       },
     ]
@@ -251,7 +251,7 @@ describe('GET /api/studios/:studioId/members/:memberId', () => {
 
   it('returns full member detail with history', async () => {
     const memberData = {
-      id: 'mem-1', role: 'admin', status: 'active', created_at: '2026-01-01T00:00:00Z', notes: 'VIP',
+      id: 'mem-1', role: 'admin', status: 'active', joined_at: '2026-01-01T00:00:00Z', notes: 'VIP',
       user: { id: 'u1', name: 'Alice', email: 'alice@e.com', avatar_url: 'https://img.com/a.jpg', phone: '+1234' },
     }
 
@@ -270,7 +270,7 @@ describe('GET /api/studios/:studioId/members/:memberId', () => {
     ]
 
     const compData = [
-      { id: 'comp-1', remaining: 3, reason: 'Welcome gift', granted_at: '2026-01-01T00:00:00Z', expires_at: '2026-06-01T00:00:00Z' },
+      { id: 'comp-1', remaining_classes: 3, reason: 'Welcome gift', created_at: '2026-01-01T00:00:00Z', expires_at: '2026-06-01T00:00:00Z' },
     ]
 
     const bookingsData = [
@@ -355,7 +355,7 @@ describe('GET /api/studios/:studioId/members/:memberId', () => {
 
   it('returns member with no subscription or attendance', async () => {
     const memberData = {
-      id: 'mem-3', role: 'member', status: 'active', created_at: '2026-02-01T00:00:00Z', notes: null,
+      id: 'mem-3', role: 'member', status: 'active', joined_at: '2026-02-01T00:00:00Z', notes: null,
       user: { id: 'u3', name: 'Charlie', email: 'charlie@e.com', avatar_url: null, phone: null },
     }
 
@@ -386,7 +386,7 @@ describe('GET /api/studios/:studioId/members/:memberId', () => {
 
   it('handles FK joins returning arrays for detail view', async () => {
     const memberData = {
-      id: 'mem-1', role: 'member', status: 'active', created_at: '2026-01-01T00:00:00Z', notes: null,
+      id: 'mem-1', role: 'member', status: 'active', joined_at: '2026-01-01T00:00:00Z', notes: null,
       user: [{ id: 'u1', name: 'Alice', email: 'alice@e.com', avatar_url: null, phone: null }],
     }
 

@@ -56,10 +56,10 @@ my.delete('/bookings/:bookingId', authMiddleware, async (c) => {
   const teacher  = Array.isArray(classInstance?.teacher)  ? classInstance.teacher[0]  : classInstance?.teacher
 
   // ── 2. Cancellation window check ──────────────────────────────────────────
-  // studio.settings.cancellationWindowHours — default 12h if not set
   const settings = (studio?.settings ?? {}) as Record<string, unknown>
-  const windowHours = typeof settings.cancellationWindowHours === 'number'
-    ? settings.cancellationWindowHours
+  const cancellation = (settings.cancellation ?? {}) as Record<string, unknown>
+  const windowHours = typeof cancellation.hours_before === 'number'
+    ? cancellation.hours_before
     : 12
 
   const classDateTime = new Date(`${classInstance?.date}T${classInstance?.start_time}`)
@@ -94,10 +94,16 @@ my.delete('/bookings/:bookingId', authMiddleware, async (c) => {
       try {
         const connectedAccountId = await getConnectedAccountId(classInstance.studio_id)
         if (connectedAccountId) {
+          const { data: studioData } = await supabase
+            .from('studios')
+            .select('currency')
+            .eq('id', classInstance.studio_id)
+            .single()
+          const currency = (studioData?.currency ?? 'USD').toLowerCase()
           const customer = await getOrCreateStripeCustomer(user.id, classInstance.studio_id, '')
           const pi = await createPaymentIntent({
             amount: lateCancelFeeCents,
-            currency: 'usd',
+            currency,
             customerId: customer.id,
             connectedAccountId,
             metadata: {

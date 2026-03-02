@@ -32,10 +32,24 @@ for (const mod of ['react', 'react/jsx-runtime', 'react/jsx-dev-runtime']) {
   reactResolves[mod] = require.resolve(mod, { paths: [projectRoot] })
 }
 
+// Stub out native-only packages on web
+const webStubs = {
+  '@stripe/stripe-react-native': path.resolve(projectRoot, 'src/lib/stripe-web-stub.js'),
+  '@sentry/react-native': path.resolve(projectRoot, 'src/lib/web-stubs/sentry-react-native.js'),
+  'expo-notifications': path.resolve(projectRoot, 'src/lib/web-stubs/expo-notifications.js'),
+  'expo-camera': path.resolve(projectRoot, 'src/lib/web-stubs/expo-camera.js'),
+  'expo-image-picker': path.resolve(projectRoot, 'src/lib/web-stubs/expo-image-picker.js'),
+  'expo-location': path.resolve(projectRoot, 'src/lib/web-stubs/expo-location.js'),
+}
+
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   // Redirect React imports to app's React 18 (exact match only)
   if (reactResolves[moduleName]) {
     return { type: 'sourceFile', filePath: reactResolves[moduleName] }
+  }
+  // Stub native-only packages on web
+  if (platform === 'web' && webStubs[moduleName]) {
+    return { type: 'sourceFile', filePath: webStubs[moduleName] }
   }
   // Default resolution
   return context.resolveRequest(

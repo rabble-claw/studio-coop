@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native'
-import { Link } from 'expo-router'
+import { Link, useLocalSearchParams } from 'expo-router'
 import { useAuth } from '@/lib/auth-context'
 
 export default function SignUpScreen() {
+  const { studio } = useLocalSearchParams<{ studio?: string }>()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -33,7 +34,9 @@ export default function SignUpScreen() {
             <Text className="text-white text-2xl font-bold">SC</Text>
           </View>
           <Text className="text-3xl font-bold text-foreground">Create Account</Text>
-          <Text className="text-muted mt-1">Join your studio community</Text>
+          <Text className="text-muted mt-1">
+            {studio ? `Join ${studio}` : 'Join your studio community'}
+          </Text>
         </View>
 
         <View className="space-y-4">

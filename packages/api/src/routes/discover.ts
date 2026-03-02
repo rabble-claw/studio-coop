@@ -118,7 +118,6 @@ discover.get('/studios', async (c) => {
   const { data: studios, count, error } = await query
 
   if (error) {
-    console.error('discover studios error:', error)
     return c.json({ studios: [], total: 0, page, limit })
   }
 

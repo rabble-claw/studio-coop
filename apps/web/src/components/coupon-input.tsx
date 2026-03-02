@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useRef } from 'react'
-import { createClient } from '@/lib/supabase/client'
+import { useState } from 'react'
+import { api } from '@/lib/api-client'
 
 interface Discount {
   type: 'percent_off' | 'amount_off' | 'free_classes'
@@ -25,8 +25,6 @@ interface CouponInputProps {
  * shows a discount preview before payment.
  */
 export function CouponInput({ studioId, onApplied, onCleared }: CouponInputProps) {
-  const supabase = useRef(createClient()).current
-
   const [open, setOpen]           = useState(false)
   const [code, setCode]           = useState('')
   const [loading, setLoading]     = useState(false)
@@ -42,22 +40,10 @@ export function CouponInput({ studioId, onApplied, onCleared }: CouponInputProps
     setDiscount(null)
 
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        setError('Sign in to apply a coupon code.')
-        return
-      }
-
-      const res = await fetch(`/api/studios/${studioId}/coupons/validate`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ code: trimmed }),
-      })
-
-      const data = await res.json() as { valid: boolean; discount?: Discount; reason?: string }
+      const data = await api.post<{ valid: boolean; discount?: Discount; reason?: string }>(
+        `/studios/${studioId}/coupons/validate`,
+        { code: trimmed },
+      )
 
       if (!data.valid) {
         setError(data.reason ?? 'Invalid coupon code.')

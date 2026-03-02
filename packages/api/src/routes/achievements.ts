@@ -150,7 +150,7 @@ achievements.post('/:studioId/achievements', authMiddleware, requireMember, asyn
       .single()
 
     if (feedError) {
-      console.error('Failed to create feed post for achievement:', feedError.message)
+      // Feed post creation failed — continue without it
     } else if (feedPost) {
       feedPostId = feedPost.id
     }

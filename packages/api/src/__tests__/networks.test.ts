@@ -172,7 +172,8 @@ describe('POST /api/networks/:networkId/invite — invite studio to network', ()
   })
 
   it('invites a studio to the network', async () => {
-    const network = { id: NETWORK_ID, created_by_studio_id: STUDIO_ID }
+    const network = { id: NETWORK_ID, name: 'Wellington Studios' }
+    const founderMember = { studio_id: STUDIO_ID }
     const userMembership = { studio_id: STUDIO_ID, role: 'owner' }
     const invitation = {
       id: 'mem-1',
@@ -190,10 +191,14 @@ describe('POST /api/networks/:networkId/invite — invite studio to network', ()
         return makeMockTerminal(network)
       }
       if (callNum === 2) {
-        // Check user membership
-        return makeMockTerminal(userMembership)
+        // Find founder member
+        return makeMockTerminal(founderMember)
       }
       if (callNum === 3) {
+        // Check user membership in founder studio
+        return makeMockTerminal(userMembership)
+      }
+      if (callNum === 4) {
         // Check existing network membership
         return makeMockTerminal(null)
       }
@@ -314,21 +319,25 @@ describe('PUT /api/networks/:networkId/policy — update cross-booking policy', 
   })
 
   it('updates network policy', async () => {
-    const network = { id: NETWORK_ID, created_by_studio_id: STUDIO_ID }
+    const network = { id: NETWORK_ID, name: 'Wellington Studios' }
+    const founderMember = { studio_id: STUDIO_ID }
     const userMembership = { studio_id: STUDIO_ID, role: 'owner' }
-    const policy = {
+    const updatedMember = {
+      id: 'mem-1',
       network_id: NETWORK_ID,
-      allow_cross_booking: true,
-      credit_sharing: true,
+      studio_id: STUDIO_ID,
+      cross_booking_policy: 'discounted',
+      discount_percent: 20,
     }
 
     const fromFn = vi.fn()
     let callNum = 0
     fromFn.mockImplementation(() => {
       callNum++
-      if (callNum === 1) return makeMockTerminal(network)
-      if (callNum === 2) return makeMockTerminal(userMembership)
-      return makeMockTerminal(policy)
+      if (callNum === 1) return makeMockTerminal(network)       // fetch network
+      if (callNum === 2) return makeMockTerminal(founderMember)  // find founder
+      if (callNum === 3) return makeMockTerminal(userMembership) // check user role
+      return makeMockTerminal(updatedMember)                     // update member
     })
 
     vi.mocked(createServiceClient).mockReturnValue({ from: fromFn } as any)
@@ -342,13 +351,13 @@ describe('PUT /api/networks/:networkId/policy — update cross-booking policy', 
       },
       body: JSON.stringify({
         studioId: STUDIO_ID,
-        allow_cross_booking: true,
-        credit_sharing: true,
+        cross_booking_policy: 'discounted',
+        discount_percent: 20,
       }),
     })
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.policy.allow_cross_booking).toBe(true)
+    expect(body.policy.cross_booking_policy).toBe('discounted')
   })
 })
 
@@ -407,16 +416,18 @@ describe('Authorization checks', () => {
   })
 
   it('only network creator studio can invite', async () => {
-    const network = { id: NETWORK_ID, created_by_studio_id: 'different-studio' }
-    // User is not owner/admin of the creator studio
+    const network = { id: NETWORK_ID, name: 'Wellington Studios' }
+    const founderMember = { studio_id: 'different-studio' }
+    // User is not owner/admin of the founder studio
     const noMembership = null
 
     const fromFn = vi.fn()
     let callNum = 0
     fromFn.mockImplementation(() => {
       callNum++
-      if (callNum === 1) return makeMockTerminal(network)  // fetch network
-      if (callNum === 2) return makeMockTerminal(noMembership)  // user not member of creator studio
+      if (callNum === 1) return makeMockTerminal(network)         // fetch network
+      if (callNum === 2) return makeMockTerminal(founderMember)   // find founder (different studio)
+      if (callNum === 3) return makeMockTerminal(noMembership)    // user not member of founder studio
       return makeMockTerminal(null)
     })
 

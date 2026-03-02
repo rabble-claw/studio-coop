@@ -67,7 +67,7 @@ members.get('/:studioId/members', authMiddleware, requireStaff, async (c) => {
   // Build the memberships query
   let query = supabase
     .from('memberships')
-    .select('id, role, status, created_at, notes, user:users!memberships_user_id_fkey(id, name, email, avatar_url, phone)', { count: 'exact' })
+    .select('id, role, status, joined_at, notes, user:users!memberships_user_id_fkey(id, name, email, avatar_url, phone)', { count: 'exact' })
     .eq('studio_id', studioId)
     .in('status', statusFilter)
 
@@ -80,7 +80,7 @@ members.get('/:studioId/members', authMiddleware, requireStaff, async (c) => {
   }
 
   const { data: memberships, count, error } = await query
-    .order('created_at', { ascending: false })
+    .order('joined_at', { ascending: false })
     .range(offset, offset + limit - 1)
 
   if (error) throw error
@@ -97,7 +97,7 @@ members.get('/:studioId/members', authMiddleware, requireStaff, async (c) => {
       phone: u?.phone ?? null,
       role: m.role,
       status: m.status,
-      joined_at: m.created_at,
+      joined_at: m.joined_at,
       notes: m.notes ?? null,
     }
   })
@@ -126,7 +126,7 @@ members.get('/:studioId/members/:memberId', authMiddleware, requireMember, async
     // Membership + user data
     supabase
       .from('memberships')
-      .select('id, role, status, created_at, notes, user:users!memberships_user_id_fkey(id, name, email, avatar_url, phone)')
+      .select('id, role, status, joined_at, notes, user:users!memberships_user_id_fkey(id, name, email, avatar_url, phone)')
       .eq('id', memberId)
       .eq('studio_id', studioId)
       .single(),
@@ -150,7 +150,7 @@ members.get('/:studioId/members/:memberId', authMiddleware, requireMember, async
     // Comp grants
     supabase
       .from('comp_classes')
-      .select('id, remaining, reason, granted_at, expires_at')
+      .select('id, remaining_classes, reason, created_at, expires_at')
       .eq('studio_id', studioId),
 
     // Recent bookings (last 20)
@@ -204,9 +204,9 @@ members.get('/:studioId/members/:memberId', authMiddleware, requireMember, async
 
   const compGrants = (compResult.data ?? []).map((comp: any) => ({
     id: comp.id,
-    remaining: comp.remaining,
+    remaining: comp.remaining_classes,
     reason: comp.reason,
-    granted_at: comp.granted_at,
+    granted_at: comp.created_at,
     expires_at: comp.expires_at,
   }))
 
@@ -251,7 +251,7 @@ members.get('/:studioId/members/:memberId', authMiddleware, requireMember, async
       phone: shouldRedact && !privacy.show_phone ? null : u.phone,
       role: m.role,
       status: m.status,
-      joined_at: m.created_at,
+      joined_at: m.joined_at,
       notes: isStaff ? (m.notes ?? null) : null,
     },
     privacy: shouldRedact ? privacy : undefined,

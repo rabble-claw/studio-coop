@@ -211,7 +211,7 @@ jobs.post('/reengagement', async (c) => {
     }
   }
 
-  return c.json({ studiосProcessed: (studios ?? []).length, reengagementSent: totalSent })
+  return c.json({ studiosProcessed: (studios ?? []).length, reengagementSent: totalSent })
 })
 
 // ─────────────────────────────────────────────────────────────────────────────

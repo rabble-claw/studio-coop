@@ -8,6 +8,11 @@ vi.mock('../middleware/auth', () => ({
     await next()
   }),
 }))
+vi.mock('../middleware/platform-admin', () => ({
+  requirePlatformAdmin: vi.fn().mockImplementation(async (_c: any, next: any) => {
+    await next()
+  }),
+}))
 vi.mock('../middleware/studio-access', () => ({
   requireOwner: vi.fn().mockImplementation(async (c: any, next: any) => {
     c.set('studioId', c.req.param('studioId'))

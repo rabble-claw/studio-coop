@@ -3,7 +3,7 @@
   "main": ".open-next/worker.js",
   "compatibility_date": "2024-09-23",
   "compatibility_flags": ["nodejs_compat"],
-  "workers_dev": true,
+  "workers_dev": false,
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
@@ -12,7 +12,9 @@
   "vars": {
     "NEXT_PUBLIC_APP_NAME": "Studio Co-op",
     "NEXT_PUBLIC_APP_URL": "https://studio.coop",
-    "NEXT_PUBLIC_API_URL": "https://api.studio.coop"
+    "NEXT_PUBLIC_API_URL": "https://api.studio.coop",
+    "NEXT_PUBLIC_SUPABASE_URL": "https://lomrjhkneodiowwarrzz.supabase.co",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxvbXJqaGtuZW9kaW93d2Fycnp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxNDU3MTgsImV4cCI6MjA4NzcyMTcxOH0.og8khaCHXvD2Dl2hkqyl6BI3Ucuy8hst6m8dnKX8TT8"
   },
   "routes": [
     { "pattern": "studio.coop/*", "zone_name": "studio.coop" },

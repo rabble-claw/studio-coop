@@ -74,7 +74,15 @@ webhooks.post('/stripe', async (c) => {
 
         // Record coupon redemption if one was used
         if (couponCode) {
-          await supabase.rpc('increment_coupon_redemptions', { coupon_code: couponCode, studio: studioId })
+          const { data: coupon } = await supabase
+            .from('coupons')
+            .select('id')
+            .eq('studio_id', studioId)
+            .eq('code', couponCode)
+            .single()
+          if (coupon) {
+            await supabase.rpc('increment_coupon_redemptions', { coupon_id: coupon.id })
+          }
         }
       }
       break
@@ -124,7 +132,7 @@ webhooks.post('/stripe', async (c) => {
           })
         }
       } else if (type === 'drop_in') {
-        // Drop-in payment handled separately (booking created by the drop-in route)
+        // Drop-in payment record
         await supabase.from('payments').insert({
           user_id: userId,
           studio_id: studioId,
@@ -133,6 +141,34 @@ webhooks.post('/stripe', async (c) => {
           stripe_payment_intent_id: pi.id,
           type: 'drop_in',
         })
+
+        // Create booking row and increment booked_count
+        const classId = pi.metadata.classId ?? pi.metadata.class_id
+        if (classId) {
+          await supabase.from('bookings').insert({
+            class_instance_id: classId,
+            user_id: userId,
+            status: 'booked',
+            booked_at: new Date().toISOString(),
+          })
+
+          // Increment booked_count atomically
+          const { error: rpcError } = await supabase.rpc('increment_booked_count', { instance_id: classId })
+          if (rpcError) {
+            // Fallback: manual increment if RPC doesn't exist
+            const { data: ci } = await supabase
+              .from('class_instances')
+              .select('booked_count')
+              .eq('id', classId)
+              .single()
+            if (ci) {
+              await supabase
+                .from('class_instances')
+                .update({ booked_count: (ci.booked_count ?? 0) + 1 })
+                .eq('id', classId)
+            }
+          }
+        }
       } else if (type === 'private_booking_deposit') {
         const privateBookingId = pi.metadata.bookingId ?? pi.metadata.private_booking_id
         if (privateBookingId) {

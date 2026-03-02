@@ -183,9 +183,11 @@ export default async function PublicStudioPage({ params }: { params: Promise<{ s
           <h2 className="text-3xl font-bold text-center mb-3" style={{ color: '#3d2e47', fontVariant: 'small-caps' }}>
             Upcoming Classes
           </h2>
-          <p className="text-center mb-10" style={{ color: '#9e8da8' }}>
-            Weekday evenings & weekend daytimes
-          </p>
+          {(studio.settings as any)?.schedule_subtitle && (
+            <p className="text-center mb-10" style={{ color: '#9e8da8' }}>
+              {(studio.settings as any).schedule_subtitle}
+            </p>
+          )}
 
           {Object.keys(classesByDate).length === 0 ? (
             <p className="text-center py-12" style={{ color: '#9e8da8' }}>No upcoming classes scheduled.</p>

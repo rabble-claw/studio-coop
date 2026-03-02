@@ -191,7 +191,7 @@ export default function FinanceSetupPage() {
       }))
 
       await financeApi.setup(studioId, { expenses, instructors })
-      router.push('/dashboard/finances')
+      router.push('/dashboard/money')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save. Please try again.')
     } finally {

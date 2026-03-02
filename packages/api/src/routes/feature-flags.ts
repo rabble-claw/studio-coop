@@ -11,6 +11,7 @@
 
 import { Hono } from 'hono'
 import { authMiddleware } from '../middleware/auth'
+import { requirePlatformAdmin } from '../middleware/platform-admin'
 import { requireMember } from '../middleware/studio-access'
 import { createServiceClient } from '../lib/supabase'
 import { badRequest, notFound } from '../lib/errors'
@@ -47,7 +48,7 @@ featureFlags.get('/feature-flags', authMiddleware, async (c) => {
 // Admin: POST /feature-flags — create a new flag
 // ─────────────────────────────────────────────────────────────────────────────
 
-featureFlags.post('/feature-flags', authMiddleware, async (c) => {
+featureFlags.post('/feature-flags', authMiddleware, requirePlatformAdmin, async (c) => {
   const supabase = createServiceClient()
   const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
 
@@ -97,7 +98,7 @@ featureFlags.post('/feature-flags', authMiddleware, async (c) => {
 // Admin: PUT /feature-flags/:id — update a flag
 // ─────────────────────────────────────────────────────────────────────────────
 
-featureFlags.put('/feature-flags/:id', authMiddleware, async (c) => {
+featureFlags.put('/feature-flags/:id', authMiddleware, requirePlatformAdmin, async (c) => {
   const supabase = createServiceClient()
   const id = c.req.param('id')
   const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
@@ -140,7 +141,7 @@ featureFlags.put('/feature-flags/:id', authMiddleware, async (c) => {
 // Admin: DELETE /feature-flags/:id — remove a flag
 // ─────────────────────────────────────────────────────────────────────────────
 
-featureFlags.delete('/feature-flags/:id', authMiddleware, async (c) => {
+featureFlags.delete('/feature-flags/:id', authMiddleware, requirePlatformAdmin, async (c) => {
   const supabase = createServiceClient()
   const id = c.req.param('id')
 

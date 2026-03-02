@@ -175,7 +175,7 @@ export default function ReportsPage() {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
-          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Monthly Revenue</CardTitle></CardHeader>
+          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Total Revenue</CardTitle></CardHeader>
           <CardContent>
             <div className="text-3xl font-bold">{formatCurrency(overview.totalRevenue)}</div>
             <p className="text-xs text-muted-foreground mt-1">all time</p>

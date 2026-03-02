@@ -45,7 +45,7 @@ export const api = {
 // Studios
 export const studioApi = {
   myStudios: () => api.get<unknown[]>('/api/me/studios'),
-  get: (id: string) => api.get(`/api/studios/${id}`),
+  get: (id: string) => api.get(`/api/discover/studios/${id}`),
 }
 
 // Schedule
@@ -74,8 +74,8 @@ export const checkinApi = {
 
 // Feed
 export const feedApi = {
-  getFeed: (classId: string) => api.get(`/api/classes/${classId}/feed`),
-  createPost: (classId: string, data: { content: string; class_instance_id?: string; media_urls?: string[] }) => api.post(`/api/classes/${classId}/feed`, data),
+  getFeed: (studioId: string) => api.get(`/api/studios/${studioId}/feed`),
+  createPost: (studioId: string, data: { content: string; class_instance_id?: string; media_urls?: string[] }) => api.post(`/api/studios/${studioId}/feed`, data),
   react: (postId: string, emoji: string) => api.post(`/api/feed/${postId}/react`, { emoji }),
 }
 
@@ -117,7 +117,7 @@ export const profileApi = {
   update: (data: unknown) => api.put('/api/me/profile', data),
   memberships: () => api.get('/api/me/memberships'),
   attendance: () => api.get('/api/my/attendance'),
-  classPasses: (studioId: string) => api.get(`/api/studios/${studioId}/me/passes`),
+  classPasses: (studioId: string) => api.get<{ subscription: unknown | null; classPasses: unknown[] }>(`/api/studios/${studioId}/my-subscription`).then(r => r?.classPasses ?? []),
   comps: () => api.get('/api/my/comps'),
 }
 

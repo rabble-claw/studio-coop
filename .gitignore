@@ -7,9 +7,9 @@ dist/
 .env
 .env.local
 .env.*.local
+.env.production
 ios/
 android/
-pnpm-lock.yaml
 .open-next/
 .vercel/
 playwright-report/

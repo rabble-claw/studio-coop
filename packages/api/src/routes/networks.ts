@@ -360,18 +360,29 @@ networks.post('/:networkId/invite', authMiddleware, async (c) => {
   // Fetch the network
   const { data: network } = await supabase
     .from('studio_networks')
-    .select('id, created_by_studio_id')
+    .select('id, name')
     .eq('id', networkId)
     .single()
 
   if (!network) throw notFound('Network')
 
-  // Check user is admin/owner of the creator studio
+  // Find the founder studio (first member by joined_at)
+  const { data: founderMember } = await supabase
+    .from('studio_network_members')
+    .select('studio_id')
+    .eq('network_id', networkId)
+    .order('joined_at', { ascending: true })
+    .limit(1)
+    .single()
+
+  if (!founderMember) throw notFound('Network founder')
+
+  // Check user is admin/owner of the founder studio
   const { data: userMembership } = await supabase
     .from('memberships')
     .select('studio_id, role')
     .eq('user_id', user.id)
-    .eq('studio_id', network.created_by_studio_id)
+    .eq('studio_id', founderMember.studio_id)
     .in('role', ['admin', 'owner'])
     .maybeSingle()
 
@@ -517,21 +528,32 @@ networks.put('/:networkId/policy', authMiddleware, async (c) => {
 
   if (!studioId) throw badRequest('studioId is required')
 
-  // Fetch the network to check creator
+  // Fetch the network
   const { data: network } = await supabase
     .from('studio_networks')
-    .select('id, created_by_studio_id')
+    .select('id, name')
     .eq('id', networkId)
     .single()
 
   if (!network) throw notFound('Network')
 
-  // Check user is admin/owner of the creator studio
+  // Find the founder studio (first member by joined_at)
+  const { data: founderMember } = await supabase
+    .from('studio_network_members')
+    .select('studio_id')
+    .eq('network_id', networkId)
+    .order('joined_at', { ascending: true })
+    .limit(1)
+    .single()
+
+  if (!founderMember) throw notFound('Network founder')
+
+  // Check user is admin/owner of the founder studio
   const { data: userMembership } = await supabase
     .from('memberships')
     .select('studio_id, role')
     .eq('user_id', user.id)
-    .eq('studio_id', network.created_by_studio_id)
+    .eq('studio_id', founderMember.studio_id)
     .in('role', ['admin', 'owner'])
     .maybeSingle()
 
@@ -539,12 +561,6 @@ networks.put('/:networkId/policy', authMiddleware, async (c) => {
 
   // Build update payload
   const updates: Record<string, unknown> = {}
-  if (typeof body.allow_cross_booking === 'boolean') {
-    updates.allow_cross_booking = body.allow_cross_booking
-  }
-  if (typeof body.credit_sharing === 'boolean') {
-    updates.credit_sharing = body.credit_sharing
-  }
   if (typeof body.cross_booking_policy === 'string') {
     updates.cross_booking_policy = body.cross_booking_policy
   }
@@ -552,19 +568,22 @@ networks.put('/:networkId/policy', authMiddleware, async (c) => {
     updates.discount_percent = body.discount_percent
   }
 
-  // Upsert or update the network policy
-  const { data: policy, error } = await supabase
-    .from('network_policies')
-    .upsert({
-      network_id: networkId,
-      ...updates,
-    })
+  if (Object.keys(updates).length === 0) {
+    throw badRequest('No fields to update')
+  }
+
+  // Update the member record for the specified studio
+  const { data: updated, error } = await supabase
+    .from('studio_network_members')
+    .update(updates)
+    .eq('network_id', networkId)
+    .eq('studio_id', studioId)
     .select('*')
     .single()
 
-  if (error || !policy) throw badRequest('Failed to update policy')
+  if (error || !updated) throw badRequest('Failed to update policy')
 
-  return c.json({ policy })
+  return c.json({ policy: updated })
 })
 
 // ---------------------------------------------------------------------------

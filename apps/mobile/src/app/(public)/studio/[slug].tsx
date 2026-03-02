@@ -152,17 +152,23 @@ export default function PublicStudioProfileScreen() {
             {/* Social links */}
             <View className="flex-row items-center gap-4 mt-3">
               {studio.instagram && (
-                <TouchableOpacity onPress={() => Linking.openURL(studio.instagram!)}>
+                <TouchableOpacity onPress={async () => {
+                  try { await Linking.openURL(studio.instagram!) } catch { /* invalid URL */ }
+                }}>
                   <Text className="text-primary text-sm">Instagram</Text>
                 </TouchableOpacity>
               )}
               {studio.facebook && (
-                <TouchableOpacity onPress={() => Linking.openURL(studio.facebook!)}>
+                <TouchableOpacity onPress={async () => {
+                  try { await Linking.openURL(studio.facebook!) } catch { /* invalid URL */ }
+                }}>
                   <Text className="text-primary text-sm">Facebook</Text>
                 </TouchableOpacity>
               )}
               {studio.website && (
-                <TouchableOpacity onPress={() => Linking.openURL(studio.website!)}>
+                <TouchableOpacity onPress={async () => {
+                  try { await Linking.openURL(studio.website!) } catch { /* invalid URL */ }
+                }}>
                   <Text className="text-primary text-sm">Website</Text>
                 </TouchableOpacity>
               )}
