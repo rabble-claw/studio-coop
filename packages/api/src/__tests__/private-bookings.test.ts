@@ -156,6 +156,72 @@ describe('POST /api/studios/:studioId/private-bookings', () => {
     expect(body.booking.status).toBe('pending')
   })
 
+  it('maps "Corporate Event" type to group', async () => {
+    let insertedData: Record<string, unknown> = {}
+    const mock = {
+      from: vi.fn(() => ({
+        ...makeAsyncChain({ data: null, error: null }),
+        insert: vi.fn((data: any) => {
+          insertedData = data
+          return {
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: { ...data, id: 'pb-new', status: 'requested' }, error: null }),
+            }),
+          }
+        }),
+      })),
+    }
+    vi.mocked(createServiceClient).mockReturnValue(mock as any)
+
+    const app = makeApp()
+    const res = await app.request(`/api/studios/${STUDIO_ID}/private-bookings`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer tok', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_name: 'Acme Corp',
+        type: 'Corporate Event',
+        date: '2026-05-01',
+        start_time: '09:00',
+        end_time: '17:00',
+      }),
+    })
+    expect(res.status).toBe(201)
+    expect(insertedData).toHaveProperty('type', 'group')
+  })
+
+  it('maps "Pole Party" type to party', async () => {
+    let insertedData: Record<string, unknown> = {}
+    const mock = {
+      from: vi.fn(() => ({
+        ...makeAsyncChain({ data: null, error: null }),
+        insert: vi.fn((data: any) => {
+          insertedData = data
+          return {
+            select: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({ data: { ...data, id: 'pb-new', status: 'requested' }, error: null }),
+            }),
+          }
+        }),
+      })),
+    }
+    vi.mocked(createServiceClient).mockReturnValue(mock as any)
+
+    const app = makeApp()
+    const res = await app.request(`/api/studios/${STUDIO_ID}/private-bookings`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer tok', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_name: 'Jane',
+        type: 'Pole Party',
+        date: '2026-05-01',
+        start_time: '14:00',
+        end_time: '16:00',
+      }),
+    })
+    expect(res.status).toBe(201)
+    expect(insertedData).toHaveProperty('type', 'party')
+  })
+
   it('returns 400 when title is missing', async () => {
     const mock = {
       from: vi.fn(() => makeAsyncChain({ data: null, error: null })),

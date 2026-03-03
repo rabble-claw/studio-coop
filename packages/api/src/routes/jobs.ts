@@ -105,7 +105,7 @@ jobs.post('/reminders', async (c) => {
       title: 'Class tomorrow',
       body: `Your ${template?.name ?? 'class'} is tomorrow. See you there!`,
       data: { classInstanceId: ci.id, bookingId: b.id },
-      channels: ['push', 'in_app'],
+      channels: ['push', 'email', 'in_app'],
     })
     sent24++
   }
@@ -124,7 +124,7 @@ jobs.post('/reminders', async (c) => {
       title: 'Class starting soon',
       body: `Your ${template?.name ?? 'class'} starts in 2 hours. Get ready!`,
       data: { classInstanceId: ci.id, bookingId: b.id },
-      channels: ['push', 'in_app'],
+      channels: ['push', 'email', 'in_app'],
     })
     sent2++
   }

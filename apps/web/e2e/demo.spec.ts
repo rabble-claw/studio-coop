@@ -40,21 +40,22 @@ test.describe('Demo mode', () => {
     await expect(page.getByText(/owner|admin|teacher|member/i).first()).toBeVisible()
   })
 
-  test('sidebar nav: Plans page renders plan cards', async ({ demoPage: page }) => {
-    await page.getByRole('link', { name: /Plans/i }).first().click()
+  test('Money page: Plans tab renders plan cards', async ({ demoPage: page }) => {
+    await page.getByRole('link', { name: /Money/i }).first().click()
     await waitForPageLoad(page)
 
-    await expect(page.getByRole('heading', { name: /Membership Plans/i })).toBeVisible()
+    // Plans tab is default
     await expect(page.getByRole('button', { name: /Create Plan/i })).toBeVisible()
     // Plan names
     await expect(page.getByText(/Unlimited Monthly/i)).toBeVisible()
   })
 
-  test('sidebar nav: Coupons page renders', async ({ demoPage: page }) => {
-    await page.getByRole('link', { name: /Coupons/i }).first().click()
+  test('Money page: Coupons tab renders', async ({ demoPage: page }) => {
+    await page.getByRole('link', { name: /Money/i }).first().click()
     await waitForPageLoad(page)
 
-    await expect(page.getByRole('heading', { name: /Coupons/i })).toBeVisible()
+    await page.getByRole('tab', { name: /Coupons/i }).click()
+    await expect(page.locator('[role="tabpanel"][data-state="active"]')).toBeVisible()
   })
 
   test('sidebar nav: Reports page renders', async ({ demoPage: page }) => {

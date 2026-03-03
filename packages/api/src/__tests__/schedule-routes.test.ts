@@ -165,15 +165,17 @@ describe('PUT /api/studios/:studioId/classes/:classId', () => {
   })
 
   it('sends cancellation notifications when status set to cancelled', async () => {
+    const { sendNotification } = await import('../lib/notifications')
     const updated = { id: CLASS_ID, studio_id: STUDIO_ID, status: 'cancelled' }
     const bookings = [{ user_id: 'user-a' }, { user_id: 'user-b' }]
-
-    const insertMock = vi.fn().mockResolvedValue({ error: null })
 
     const mock = {
       from: vi.fn((table: string) => {
         if (table === 'class_instances') {
-          const chain = makeAsyncChain({ data: { id: CLASS_ID, studio_id: STUDIO_ID, status: 'scheduled' }, error: null })
+          const chain = makeAsyncChain({
+            data: { id: CLASS_ID, studio_id: STUDIO_ID, status: 'scheduled', date: '2026-03-15', template: { name: 'Yoga Flow' } },
+            error: null,
+          })
           chain.update = vi.fn().mockReturnValue({
             eq: vi.fn().mockReturnValue({
               select: vi.fn().mockReturnValue({
@@ -185,9 +187,6 @@ describe('PUT /api/studios/:studioId/classes/:classId', () => {
         }
         if (table === 'bookings') {
           return makeAsyncChain({ data: bookings, error: null })
-        }
-        if (table === 'notifications') {
-          return { insert: insertMock }
         }
         return makeAsyncChain({ data: null, error: null })
       }),
@@ -202,10 +201,19 @@ describe('PUT /api/studios/:studioId/classes/:classId', () => {
     })
 
     expect(res.status).toBe(200)
-    expect(insertMock).toHaveBeenCalledTimes(1)
-    const notifications = insertMock.mock.calls[0][0]
-    expect(notifications).toHaveLength(2)
-    expect(notifications[0].type).toBe('class_cancelled')
+    expect(sendNotification).toHaveBeenCalledTimes(2)
+    expect(sendNotification).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'user-a',
+      studioId: STUDIO_ID,
+      type: 'class_cancelled',
+      title: 'Class Cancelled',
+      body: 'Yoga Flow on 2026-03-15 has been cancelled.',
+      channels: ['push', 'email', 'in_app'],
+    }))
+    expect(sendNotification).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'user-b',
+      type: 'class_cancelled',
+    }))
   })
 })
 

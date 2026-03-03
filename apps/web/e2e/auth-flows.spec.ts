@@ -6,7 +6,7 @@ test.describe('Auth Flows @auth', () => {
     await page.goto('/login')
     await waitForPageLoad(page)
 
-    await page.getByPlaceholder(/email/i).fill(SEED.owner.email)
+    await page.getByPlaceholder(/example\.com/i).fill(SEED.owner.email)
     await page.getByPlaceholder(/password/i).fill(SEED.owner.password)
     await page.getByRole('button', { name: /sign in$/i }).click()
 
@@ -20,7 +20,7 @@ test.describe('Auth Flows @auth', () => {
     await page.goto('/login')
     await waitForPageLoad(page)
 
-    await page.getByPlaceholder(/email/i).fill(SEED.owner.email)
+    await page.getByPlaceholder(/example\.com/i).fill(SEED.owner.email)
     await page.getByPlaceholder(/password/i).fill('wrongpassword123')
     await page.getByRole('button', { name: /sign in$/i }).click()
 
@@ -46,7 +46,7 @@ test.describe('Auth Flows @auth', () => {
     await waitForPageLoad(page)
 
     await page.getByPlaceholder(/name/i).fill('E2E Test User')
-    await page.getByPlaceholder(/email/i).fill(email)
+    await page.getByPlaceholder(/example\.com/i).fill(email)
     await page.getByPlaceholder(/password/i).fill('testpass123!')
     await page.getByRole('button', { name: /create account/i }).click()
 

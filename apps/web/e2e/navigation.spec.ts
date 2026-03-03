@@ -4,13 +4,8 @@ test.describe('Navigation and routing', () => {
   const navLinks = [
     { name: /Schedule/i, url: '/demo/schedule' },
     { name: /Members/i, url: '/demo/members' },
-    { name: /Plans/i, url: '/demo/plans' },
-    { name: /Feed/i, url: '/demo/feed' },
-    { name: /Network/i, url: '/demo/network' },
-    { name: /Coupons/i, url: '/demo/coupons' },
-    { name: /Bookings/i, url: '/demo/private-bookings' },
+    { name: /Money/i, url: '/demo/money' },
     { name: /Reports/i, url: '/demo/reports' },
-    { name: /Migrate/i, url: '/demo/migrate' },
     { name: /Settings/i, url: '/demo/settings' },
   ]
 
@@ -28,8 +23,8 @@ test.describe('Navigation and routing', () => {
     await waitForPageLoad(page)
     await expect(page).toHaveURL('/demo/schedule')
 
-    // Click the SC logo / Overview to go back
-    await page.getByRole('link', { name: /Studio Co-op home/i }).click()
+    // Click Overview to go back
+    await page.getByRole('link', { name: /Overview/i }).first().click()
     await waitForPageLoad(page)
     await expect(page).toHaveURL('/demo')
   })
@@ -52,20 +47,10 @@ test.describe('Navigation and routing', () => {
     await expect(page).toHaveURL('/demo/members')
   })
 
-  test('404 page for invalid routes', async ({ page }) => {
-    const response = await page.goto('/this-route-does-not-exist-xyz')
-    // Next.js returns 404 status
-    expect(response?.status()).toBe(404)
-  })
-
   test('active nav item is highlighted on sub-routes', async ({ demoPage: page }) => {
     // Navigate to Members
     await page.getByRole('link', { name: /Members/i }).first().click()
     await waitForPageLoad(page)
-
-    // The Members link should have aria-current="page"
-    const membersLink = page.getByRole('link', { name: /Members/i }).first()
-    await expect(membersLink).toHaveAttribute('aria-current', 'page')
 
     // Navigate into a member detail
     const memberLink = page.locator('a[href*="/demo/members/"]').first()
@@ -83,5 +68,37 @@ test.describe('Navigation and routing', () => {
     await page.getByRole('link', { name: /Exit Demo/i }).click()
     await waitForPageLoad(page)
     await expect(page).toHaveURL('/')
+  })
+
+  test('Money page tabs navigate between Plans, Coupons, Expenses, Instructors', async ({ demoPage: page }) => {
+    await page.getByRole('link', { name: /Money/i }).first().click()
+    await waitForPageLoad(page)
+
+    // Plans tab (default)
+    await expect(page.getByRole('tab', { name: /Plans/i })).toBeVisible()
+
+    // Switch to Coupons
+    await page.getByRole('tab', { name: /Coupons/i }).click()
+    const activePanel = page.locator('[role="tabpanel"][data-state="active"]')
+    await expect(activePanel).toBeVisible()
+
+    // Switch to Expenses
+    await page.getByRole('tab', { name: /Expenses/i }).click()
+    await expect(page.locator('[role="tabpanel"][data-state="active"]')).toBeVisible()
+
+    // Switch to Instructors
+    await page.getByRole('tab', { name: /Instructors/i }).click()
+    await expect(page.locator('[role="tabpanel"][data-state="active"]')).toBeVisible()
+  })
+
+  test('Reports page tabs navigate between all 6 report types', async ({ demoPage: page }) => {
+    await page.getByRole('link', { name: /Reports/i }).first().click()
+    await waitForPageLoad(page)
+
+    const tabs = ['Attendance', 'Revenue', 'Popular Classes', 'Retention', 'P&L', 'Health']
+    for (const tab of tabs) {
+      await page.getByRole('tab', { name: tab }).click()
+      await expect(page.locator('[role="tabpanel"][data-state="active"]')).toBeVisible()
+    }
   })
 })

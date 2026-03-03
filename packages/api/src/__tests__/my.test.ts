@@ -78,7 +78,7 @@ describe('DELETE /api/bookings/:bookingId', () => {
       studio_id: 'studio-abc',
       date: futureDate,
       start_time: '18:00:00',
-      studio: { settings: { cancellationWindowHours: 12 }, timezone: 'Pacific/Auckland', name: 'Studio A' },
+      studio: { settings: { cancellation: { hours_before: 12, late_cancel_fee_cents: 0 } }, timezone: 'Pacific/Auckland', name: 'Studio A' },
       template: { name: 'Yoga', location: 'Room 1', duration_min: 60 },
       teacher: { name: 'Jane' },
     },
@@ -188,7 +188,7 @@ describe('DELETE /api/bookings/:bookingId', () => {
                   studio_id: 'studio-abc',
                   date: dateStr,
                   start_time: timeStr,
-                  studio: { settings: { cancellationWindowHours: 12 }, timezone: 'UTC', name: 'Studio A' },
+                  studio: { settings: { cancellation: { hours_before: 12, late_cancel_fee_cents: 0 } }, timezone: 'UTC', name: 'Studio A' },
                   template: { name: 'Yoga', location: 'Room 1', duration_min: 60 },
                   teacher: { name: 'Jane' },
                 },
@@ -215,6 +215,66 @@ describe('DELETE /api/bookings/:bookingId', () => {
     expect(body.creditRefunded).toBe(false)
     expect(body.withinCancellationWindow).toBe(false)
     expect(refundCredit).not.toHaveBeenCalled()
+  })
+
+  it('reads late cancel fee from settings.cancellation (M8 fix)', async () => {
+    // Class starts in 1 hour (< 12 hour window = late cancel)
+    const soonDate = new Date(Date.now() + 60 * 60 * 1000)
+    const dateStr = soonDate.toISOString().split('T')[0]
+    const timeStr = soonDate.toISOString().split('T')[1].slice(0, 8)
+
+    const { createPaymentIntent } = await import('../lib/stripe')
+
+    const updateChain = {
+      eq: vi.fn().mockResolvedValue({ error: null }),
+    }
+    const mock = {
+      from: vi.fn((table: string) => {
+        if (table === 'bookings') {
+          return {
+            ...makeAsyncChain({
+              data: makeBookingData({
+                class_instance: {
+                  id: 'ci-soon',
+                  studio_id: 'studio-abc',
+                  date: dateStr,
+                  start_time: timeStr,
+                  studio: {
+                    settings: { cancellation: { hours_before: 12, late_cancel_fee_cents: 500 } },
+                    timezone: 'UTC',
+                    name: 'Studio A',
+                  },
+                  template: { name: 'Yoga', location: 'Room 1', duration_min: 60 },
+                  teacher: { name: 'Jane' },
+                },
+              }),
+              error: null,
+            }),
+            update: vi.fn().mockReturnValue(updateChain),
+          }
+        }
+        if (table === 'studios') {
+          return makeAsyncChain({ data: { currency: 'NZD' }, error: null })
+        }
+        return makeAsyncChain({ data: null, error: null })
+      }),
+    }
+    vi.mocked(createServiceClient).mockReturnValue(mock as any)
+    vi.mocked(promoteFromWaitlist).mockResolvedValue()
+    vi.mocked(createPaymentIntent).mockResolvedValue({ id: 'pi_test', client_secret: 'secret' } as any)
+
+    const app = makeApp()
+    const res = await app.request('/api/bookings/booking-1', {
+      method: 'DELETE',
+      headers: { Authorization: 'Bearer tok' },
+    })
+    expect(res.status).toBe(200)
+    const body = await res.json() as any
+    expect(body.withinCancellationWindow).toBe(false)
+    expect(body.lateCancelFeeCharged).toBe(true)
+    expect(createPaymentIntent).toHaveBeenCalledWith(
+      expect.objectContaining({ amount: 500 }),
+    )
   })
 })
 

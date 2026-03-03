@@ -7,9 +7,11 @@ vi.mock('../lib/supabase', () => ({ createServiceClient: vi.fn() }))
 vi.mock('../lib/stripe', () => ({
   constructWebhookEvent: vi.fn(),
 }))
+vi.mock('../lib/notifications', () => ({ sendNotification: vi.fn().mockResolvedValue(undefined) }))
 
 import { createServiceClient } from '../lib/supabase'
 import { constructWebhookEvent } from '../lib/stripe'
+import { sendNotification } from '../lib/notifications'
 
 function makeApp() {
   const app = new Hono()
@@ -108,6 +110,96 @@ describe('POST /api/webhooks/stripe', () => {
     expect(body.received).toBe(true)
     // Should have inserted subscription and payment
     expect(chain.insert).toHaveBeenCalledTimes(2)
+  })
+
+  it('sends payment receipt after checkout.session.completed', async () => {
+    const event = {
+      id: 'evt_receipt',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_test',
+          subscription: 'sub_test',
+          payment_intent: 'pi_test',
+          customer: 'cus_test',
+          amount_total: 18000,
+          currency: 'nzd',
+          metadata: {
+            userId: 'user-123',
+            studioId: 'studio-abc',
+            planId: 'plan-xyz',
+            type: 'subscription',
+            couponCode: '',
+          },
+        },
+      },
+    }
+    vi.mocked(constructWebhookEvent).mockReturnValue(event as any)
+
+    const chain = makeChain()
+    vi.mocked(createServiceClient).mockReturnValue(chain as any)
+
+    const app = makeApp()
+    await app.request('/api/webhooks/stripe', {
+      method: 'POST',
+      headers: { 'stripe-signature': 'valid-sig' },
+      body: JSON.stringify(event),
+    })
+
+    expect(vi.mocked(sendNotification)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user-123',
+        studioId: 'studio-abc',
+        type: 'payment_receipt',
+        title: 'Payment Receipt',
+        body: 'Your payment of $180.00 has been processed.',
+        channels: ['email', 'in_app'],
+      }),
+    )
+  })
+
+  it('sends payment receipt after payment_intent.succeeded', async () => {
+    const plan = { class_limit: 8, validity_days: 60 }
+    const event = {
+      id: 'evt_pi_receipt',
+      type: 'payment_intent.succeeded',
+      data: {
+        object: {
+          id: 'pi_test',
+          amount: 16000,
+          currency: 'nzd',
+          customer: 'cus_test',
+          metadata: {
+            userId: 'user-123',
+            studioId: 'studio-abc',
+            planId: 'plan-xyz',
+            type: 'class_pack',
+          },
+        },
+      },
+    }
+    vi.mocked(constructWebhookEvent).mockReturnValue(event as any)
+
+    const chain = makeChain({ single: plan })
+    vi.mocked(createServiceClient).mockReturnValue(chain as any)
+
+    const app = makeApp()
+    await app.request('/api/webhooks/stripe', {
+      method: 'POST',
+      headers: { 'stripe-signature': 'valid-sig' },
+      body: JSON.stringify(event),
+    })
+
+    expect(vi.mocked(sendNotification)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'user-123',
+        studioId: 'studio-abc',
+        type: 'payment_receipt',
+        title: 'Payment Receipt',
+        body: 'Your payment of $160.00 has been processed.',
+        channels: ['email', 'in_app'],
+      }),
+    )
   })
 
   it('handles invoice.payment_succeeded (resets usage counters)', async () => {

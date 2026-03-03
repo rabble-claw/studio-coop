@@ -701,6 +701,40 @@ export default function SettingsPage() {
               <Button onClick={handleSavePrivacy} disabled={saving}>{saving ? 'Saving...' : 'Save Privacy Settings'}</Button>
             </CardContent>
           </Card>
+
+          <Card className="mt-4">
+            <CardHeader><CardTitle>Your Data</CardTitle></CardHeader>
+            <CardContent className="space-y-2">
+              <p className="text-sm text-muted-foreground">Download a copy of all personal data we hold about you (NZ Privacy Act / GDPR).</p>
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  try {
+                    const { createClient } = await import('@/lib/supabase/client')
+                    const supabase = createClient()
+                    const { data: { session } } = await supabase.auth.getSession()
+                    if (!session?.access_token) return
+                    const apiUrl = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001') + '/api/my/export'
+                    const res = await fetch(apiUrl, {
+                      headers: { Authorization: `Bearer ${session.access_token}` },
+                    })
+                    if (!res.ok) throw new Error('Export failed')
+                    const blob = await res.blob()
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = 'studio-coop-data-export.json'
+                    a.click()
+                    URL.revokeObjectURL(url)
+                  } catch {
+                    setError('Failed to download data export. Please try again.')
+                  }
+                }}
+              >
+                Download My Data
+              </Button>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="skills" className="mt-4">

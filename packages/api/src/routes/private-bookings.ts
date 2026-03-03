@@ -104,8 +104,8 @@ privateBookings.post('/:studioId/private-bookings', authMiddleware, requireStaff
   if (type) {
     const typeLower = type.toLowerCase()
     if (VALID_TYPES.includes(typeLower)) dbType = typeLower
-    else if (typeLower.includes('corporate') || typeLower.includes('group')) dbType = 'group'
-    else if (typeLower.includes('party') || typeLower.includes('event')) dbType = 'party'
+    else if (typeLower.includes('corporate') || typeLower.includes('group') || typeLower.includes('event')) dbType = 'group'
+    else if (typeLower.includes('party')) dbType = 'party'
   }
 
   // If client_email is provided, try to look up the user to link the booking

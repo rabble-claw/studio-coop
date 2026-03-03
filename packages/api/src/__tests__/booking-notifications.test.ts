@@ -142,7 +142,7 @@ describe('Booking confirmation notification', () => {
         studioId: STUDIO_ID,
         type: 'booking_confirmed',
         title: 'Booking Confirmed',
-        channels: expect.arrayContaining(['push', 'in_app']),
+        channels: expect.arrayContaining(['push', 'email', 'in_app']),
       }),
     )
   })
@@ -249,7 +249,7 @@ describe('Staff cancel notification', () => {
         userId: 'member-1',
         studioId: STUDIO_ID,
         type: 'booking_cancelled',
-        channels: expect.arrayContaining(['push', 'in_app']),
+        channels: expect.arrayContaining(['push', 'email', 'in_app']),
       }),
     )
   })

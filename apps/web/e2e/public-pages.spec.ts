@@ -44,7 +44,7 @@ test.describe('Public Pages', () => {
     await expect(page.getByPlaceholder('Your name')).toBeVisible()
   })
 
-  test('explore page renders heading and search form', async ({ page }) => {
+  test('explore page renders heading and search form @auth', async ({ page }) => {
     await page.goto('/explore')
     // Explore is a server component — may take a moment
     await page.waitForLoadState('domcontentloaded')
@@ -54,7 +54,7 @@ test.describe('Public Pages', () => {
     await expect(page.getByPlaceholder(/search studios/i)).toBeVisible()
   })
 
-  test('explore page Near Me button and discipline filters exist', async ({ page }) => {
+  test('explore page Near Me button and discipline filters exist @auth', async ({ page }) => {
     await page.goto('/explore')
     await page.waitForLoadState('domcontentloaded')
 

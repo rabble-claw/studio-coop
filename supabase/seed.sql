@@ -23,49 +23,59 @@ truncate public.coupon_redemptions, public.coupons, public.comp_classes,
 insert into auth.users (
   instance_id, id, aud, role, email, encrypted_password,
   email_confirmed_at, raw_app_meta_data, raw_user_meta_data,
-  created_at, updated_at, confirmation_token, recovery_token
+  created_at, updated_at, confirmation_token, recovery_token,
+  email_change, email_change_token_new, email_change_token_current,
+  phone, phone_change, phone_change_token, reauthentication_token,
+  is_sso_user, is_anonymous
 ) values
   -- Owner: Alex Rivera
   ('00000000-0000-0000-0000-000000000000',
    'aa000000-0000-0000-0000-000000000001', 'authenticated', 'authenticated',
    'alex@empireaerialarts.com',
-   '$2a$10$ZwGSmtT.2KLZSt4RUDz6eO1iz2XdXuJ9bIAnSRDHBnliFf9v6AQAC',
+   '$2a$10$74LIzcKS9qbxzuI2VugmcO0VBo0VxH6CYctLjO36xek8CKxl8GyAS',
    now(), '{"provider":"email","providers":["email"]}',
-   '{"name":"Alex Rivera"}', now(), now(), '', ''),
+   '{"name":"Alex Rivera"}', now(), now(), '', '',
+   '', '', '', null, '', '', '',
+   false, false),
   -- Teacher: Jade Nguyen
   ('00000000-0000-0000-0000-000000000000',
    'aa000000-0000-0000-0000-000000000002', 'authenticated', 'authenticated',
    'jade@empireaerialarts.com',
-   '$2a$10$ZwGSmtT.2KLZSt4RUDz6eO1iz2XdXuJ9bIAnSRDHBnliFf9v6AQAC',
+   '$2a$10$74LIzcKS9qbxzuI2VugmcO0VBo0VxH6CYctLjO36xek8CKxl8GyAS',
    now(), '{"provider":"email","providers":["email"]}',
-   '{"name":"Jade Nguyen"}', now(), now(), '', ''),
+   '{"name":"Jade Nguyen"}', now(), now(), '', '',
+   '', '', '', null, '', '', '',
+   false, false),
   -- Member: Aroha Patel
   ('00000000-0000-0000-0000-000000000000',
    'aa000000-0000-0000-0000-000000000010', 'authenticated', 'authenticated',
    'aroha@gmail.com',
-   '$2a$10$ZwGSmtT.2KLZSt4RUDz6eO1iz2XdXuJ9bIAnSRDHBnliFf9v6AQAC',
+   '$2a$10$74LIzcKS9qbxzuI2VugmcO0VBo0VxH6CYctLjO36xek8CKxl8GyAS',
    now(), '{"provider":"email","providers":["email"]}',
-   '{"name":"Aroha Patel"}', now(), now(), '', '');
+   '{"name":"Aroha Patel"}', now(), now(), '', '',
+   '', '', '', null, '', '', '',
+   false, false);
 
--- Auth identities (required for email login to work)
+-- Auth identities (provider_id must be UUID for Supabase v2 auth)
 insert into auth.identities (id, user_id, provider_id, identity_data, provider, last_sign_in_at, created_at, updated_at) values
-  (gen_random_uuid(), 'aa000000-0000-0000-0000-000000000001', 'alex@empireaerialarts.com',
-   '{"sub":"aa000000-0000-0000-0000-000000000001","email":"alex@empireaerialarts.com"}',
+  (gen_random_uuid(), 'aa000000-0000-0000-0000-000000000001', 'aa000000-0000-0000-0000-000000000001',
+   '{"sub":"aa000000-0000-0000-0000-000000000001","email":"alex@empireaerialarts.com","email_verified":true}',
    'email', now(), now(), now()),
-  (gen_random_uuid(), 'aa000000-0000-0000-0000-000000000002', 'jade@empireaerialarts.com',
-   '{"sub":"aa000000-0000-0000-0000-000000000002","email":"jade@empireaerialarts.com"}',
+  (gen_random_uuid(), 'aa000000-0000-0000-0000-000000000002', 'aa000000-0000-0000-0000-000000000002',
+   '{"sub":"aa000000-0000-0000-0000-000000000002","email":"jade@empireaerialarts.com","email_verified":true}',
    'email', now(), now(), now()),
-  (gen_random_uuid(), 'aa000000-0000-0000-0000-000000000010', 'aroha@gmail.com',
-   '{"sub":"aa000000-0000-0000-0000-000000000010","email":"aroha@gmail.com"}',
+  (gen_random_uuid(), 'aa000000-0000-0000-0000-000000000010', 'aa000000-0000-0000-0000-000000000010',
+   '{"sub":"aa000000-0000-0000-0000-000000000010","email":"aroha@gmail.com","email_verified":true}',
    'email', now(), now(), now());
 
 -- ============================================================
 -- USERS (fixed UUIDs for cross-referencing)
 -- ============================================================
--- Owner
+-- Owner (ON CONFLICT because auth trigger may have already created the row)
 insert into public.users (id, email, name, avatar_url) values
   ('aa000000-0000-0000-0000-000000000001', 'alex@empireaerialarts.com', 'Alex Rivera',
-   'https://api.dicebear.com/9.x/avataaars/svg?seed=Alex&backgroundColor=ffd5dc');
+   'https://api.dicebear.com/9.x/avataaars/svg?seed=Alex&backgroundColor=ffd5dc')
+  on conflict (id) do update set name = excluded.name, avatar_url = excluded.avatar_url;
 
 -- Teachers
 insert into public.users (id, email, name, avatar_url) values
@@ -76,7 +86,8 @@ insert into public.users (id, email, name, avatar_url) values
   ('aa000000-0000-0000-0000-000000000004', 'sophie@empireaerialarts.com', 'Sophie Chen',
    'https://api.dicebear.com/9.x/avataaars/svg?seed=Sophie&backgroundColor=ffd5dc'),
   ('aa000000-0000-0000-0000-000000000005', 'maia@empireaerialarts.com', 'Maia Robinson',
-   'https://api.dicebear.com/9.x/avataaars/svg?seed=Maia&backgroundColor=d1d4f9');
+   'https://api.dicebear.com/9.x/avataaars/svg?seed=Maia&backgroundColor=d1d4f9')
+  on conflict (id) do update set name = excluded.name, avatar_url = excluded.avatar_url;
 
 -- Members (15)
 insert into public.users (id, email, name, avatar_url) values
@@ -109,7 +120,8 @@ insert into public.users (id, email, name, avatar_url) values
   ('aa000000-0000-0000-0000-000000000023', 'freya.j@icloud.com', 'Freya Jones',
    'https://api.dicebear.com/9.x/avataaars/svg?seed=Freya&backgroundColor=b6e3f4'),
   ('aa000000-0000-0000-0000-000000000024', 'hana.m@gmail.com', 'Hana Moana',
-   'https://api.dicebear.com/9.x/avataaars/svg?seed=Hana&backgroundColor=ffd5dc');
+   'https://api.dicebear.com/9.x/avataaars/svg?seed=Hana&backgroundColor=ffd5dc')
+  on conflict (id) do update set name = excluded.name, avatar_url = excluded.avatar_url;
 
 -- ============================================================
 -- STUDIO

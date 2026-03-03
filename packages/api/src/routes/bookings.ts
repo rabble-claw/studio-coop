@@ -175,7 +175,7 @@ bookings.post(
       title: 'Booking Confirmed',
       body: `You're booked for ${template?.name ?? 'class'} on ${cls.date}`,
       data: { classId, bookingId: booking.id, screen: 'BookingDetail' },
-      channels: ['push', 'in_app'],
+      channels: ['push', 'email', 'in_app'],
     }).catch(() => {}) // fire-and-forget — don't block the booking response
 
     return c.json({
@@ -372,7 +372,7 @@ bookings.delete(
       title: 'Booking Cancelled',
       body: 'Your booking has been cancelled by staff.',
       data: { classId, bookingId, screen: 'BookingDetail' },
-      channels: ['push', 'in_app'],
+      channels: ['push', 'email', 'in_app'],
     }).catch(() => {}) // fire-and-forget
 
     // Trigger waitlist promotion
@@ -457,7 +457,7 @@ bookings.post(
       title: 'Booking Restored',
       body: 'Your cancelled booking has been restored by staff.',
       data: { classId, bookingId, screen: 'BookingDetail' },
-      channels: ['push', 'in_app'],
+      channels: ['push', 'email', 'in_app'],
     }).catch(() => {}) // fire-and-forget
 
     return c.json({ bookingId, status: 'booked' })

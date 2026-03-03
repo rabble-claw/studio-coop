@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { createServiceClient } from '../lib/supabase'
 import { constructWebhookEvent } from '../lib/stripe'
 import { badRequest } from '../lib/errors'
+import { sendNotification } from '../lib/notifications'
 
 // Mounted at /api/webhooks
 const webhooks = new Hono()
@@ -83,6 +84,18 @@ webhooks.post('/stripe', async (c) => {
           if (coupon) {
             await supabase.rpc('increment_coupon_redemptions', { coupon_id: coupon.id })
           }
+        }
+
+        // Send payment receipt (fire-and-forget)
+        if (userId && studioId) {
+          sendNotification({
+            userId,
+            studioId,
+            type: 'payment_receipt',
+            title: 'Payment Receipt',
+            body: `Your payment of $${((session.amount_total ?? 0) / 100).toFixed(2)} has been processed.`,
+            channels: ['email', 'in_app'],
+          }).catch(() => {})
         }
       }
       break
@@ -209,6 +222,18 @@ webhooks.post('/stripe', async (c) => {
             metadata: { sub_type: 'balance', private_booking_id: privateBookingId },
           })
         }
+      }
+
+      // Send payment receipt (fire-and-forget)
+      if (userId && studioId && pi.amount > 0) {
+        sendNotification({
+          userId,
+          studioId,
+          type: 'payment_receipt',
+          title: 'Payment Receipt',
+          body: `Your payment of $${(pi.amount / 100).toFixed(2)} has been processed.`,
+          channels: ['email', 'in_app'],
+        }).catch(() => {})
       }
       break
     }

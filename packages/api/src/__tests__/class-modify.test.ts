@@ -5,6 +5,9 @@ import { errorHandler } from '../middleware/error-handler'
 
 vi.mock('../lib/supabase', () => ({ createServiceClient: vi.fn() }))
 vi.mock('../lib/class-generator', () => ({ generateClassInstances: vi.fn() }))
+vi.mock('../lib/notifications', () => ({
+  sendNotification: vi.fn().mockResolvedValue(undefined),
+}))
 vi.mock('../middleware/auth', () => ({
   authMiddleware: vi.fn(async (c: any, next: any) => {
     c.set('user', { id: 'user-123', email: 'admin@example.com' })
@@ -94,6 +97,7 @@ describe('PUT /api/studios/:studioId/classes/:classId', () => {
             select: vi.fn().mockReturnThis(),
             eq: vi.fn().mockReturnThis(),
             neq: vi.fn().mockResolvedValue({ data: bookings, error: null }),
+            in: vi.fn().mockResolvedValue({ data: bookings, error: null }),
           }
         }
         if (table === 'notifications') {
@@ -139,11 +143,13 @@ describe('PUT /api/studios/:studioId/classes/:classId', () => {
   })
 
   it('cancels class and sends notifications to booked members', async () => {
+    const { sendNotification } = await import('../lib/notifications')
     const bookedMembers = [
       { user_id: 'member-1' },
       { user_id: 'member-2' },
     ]
     const mock = makeChain({
+      classData: { ...existingClass, date: '2026-03-15', template: { name: 'Yoga Flow' } },
       updated: { ...existingClass, status: 'cancelled' },
       bookings: bookedMembers,
     })
@@ -157,12 +163,19 @@ describe('PUT /api/studios/:studioId/classes/:classId', () => {
     })
 
     expect(res.status).toBe(200)
-    // Notifications should have been inserted
-    expect(mock._insertMock).toHaveBeenCalledTimes(1)
-    const insertCall = mock._insertMock.mock.calls[0][0] as any[]
-    expect(insertCall).toHaveLength(2)
-    expect(insertCall[0].user_id).toBe('member-1')
-    expect(insertCall[0].type).toBe('class_cancelled')
+    // sendNotification should have been called for each booked member
+    expect(sendNotification).toHaveBeenCalledTimes(2)
+    expect(sendNotification).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'member-1',
+      type: 'class_cancelled',
+      title: 'Class Cancelled',
+      body: 'Yoga Flow on 2026-03-15 has been cancelled.',
+      channels: ['push', 'email', 'in_app'],
+    }))
+    expect(sendNotification).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'member-2',
+      type: 'class_cancelled',
+    }))
   })
 
   it('returns 404 when class not found', async () => {

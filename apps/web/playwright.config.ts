@@ -1,4 +1,9 @@
 import { defineConfig, devices } from '@playwright/test'
+import { config } from 'dotenv'
+import path from 'path'
+
+// Load env from monorepo root (Supabase URL, service role key, etc.)
+config({ path: path.resolve(__dirname, '../../.env.local') })
 
 export default defineConfig({
   testDir: './e2e',
@@ -29,10 +34,19 @@ export default defineConfig({
       testIgnore: /global-setup/,
     },
   ],
-  webServer: {
-    command: 'pnpm dev',
-    url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  webServer: [
+    {
+      command: 'pnpm dev',
+      url: 'http://localhost:3000',
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+    },
+    {
+      command: 'pnpm --filter api dev',
+      url: 'http://localhost:3001/health',
+      cwd: path.resolve(__dirname, '../..'),
+      reuseExistingServer: !process.env.CI,
+      timeout: 60_000,
+    },
+  ],
 })

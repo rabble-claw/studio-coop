@@ -11,6 +11,7 @@ import { authMiddleware } from '../middleware/auth'
 import { requireAdmin, requireOwner } from '../middleware/studio-access'
 import { createServiceClient } from '../lib/supabase'
 import { badRequest, notFound } from '../lib/errors'
+import { sendNotification } from '../lib/notifications'
 
 const invitations = new Hono()
 
@@ -90,6 +91,18 @@ invitations.post('/:studioId/members/invite', authMiddleware, requireAdmin, asyn
         sent_at: new Date().toISOString(),
       })
 
+    // Send welcome email (fire-and-forget)
+    const studioName = studio?.name ?? 'the studio'
+    sendNotification({
+      userId: existingUser.id,
+      studioId,
+      type: 'welcome',
+      title: `Welcome to ${studioName}!`,
+      body: 'You are now a member. Check out the class schedule and book your first class!',
+      data: { studioId },
+      channels: ['email', 'in_app'],
+    }).catch(() => {})
+
     return c.json({
       invited: true,
       userExists: true,
@@ -126,6 +139,18 @@ invitations.post('/:studioId/members/invite', authMiddleware, requireAdmin, asyn
           role,
           status: 'active',
         })
+
+      // Send welcome email (fire-and-forget)
+      const studioName = studio?.name ?? 'the studio'
+      sendNotification({
+        userId: newUser.user.id,
+        studioId,
+        type: 'welcome',
+        title: `Welcome to ${studioName}!`,
+        body: 'You are now a member. Check out the class schedule and book your first class!',
+        data: { studioId },
+        channels: ['email', 'in_app'],
+      }).catch(() => {})
     }
 
     return c.json({

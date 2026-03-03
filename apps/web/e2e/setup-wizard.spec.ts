@@ -9,7 +9,7 @@ test.describe('Setup Wizard @auth', () => {
     await waitForPageLoad(page)
 
     await page.getByPlaceholder(/name/i).fill('Wizard Test')
-    await page.getByPlaceholder(/email/i).fill(`wizard-${timestamp}@e2e.test`)
+    await page.getByPlaceholder(/example\.com/i).fill(`wizard-${timestamp}@e2e.test`)
     await page.getByPlaceholder(/password/i).fill('testpass123!')
     await page.getByRole('button', { name: /create account/i }).click()
 
@@ -19,15 +19,15 @@ test.describe('Setup Wizard @auth', () => {
     // Step 1: Studio info
     await expect(page.getByText(/tell us about your studio/i)).toBeVisible()
 
-    // Fill studio name
-    await page.getByLabel(/studio name/i).fill(`Test Studio ${timestamp}`)
+    // Fill studio name (label lacks htmlFor, use placeholder)
+    await page.getByPlaceholder('Empire Aerial Arts').fill(`Test Studio ${timestamp}`)
 
     // Select discipline
     const disciplineSelect = page.locator('select').first()
     await disciplineSelect.selectOption('pole')
 
     // Fill city
-    await page.getByLabel(/city/i).fill('Wellington')
+    await page.getByPlaceholder('Wellington').first().fill('Wellington')
 
     // Click Create Studio
     await page.getByRole('button', { name: /create studio/i }).click()
@@ -43,14 +43,14 @@ test.describe('Setup Wizard @auth', () => {
     await page.goto('/login?mode=signup')
     await waitForPageLoad(page)
     await page.getByPlaceholder(/name/i).fill('Skip Test')
-    await page.getByPlaceholder(/email/i).fill(`skip-${timestamp}@e2e.test`)
+    await page.getByPlaceholder(/example\.com/i).fill(`skip-${timestamp}@e2e.test`)
     await page.getByPlaceholder(/password/i).fill('testpass123!')
     await page.getByRole('button', { name: /create account/i }).click()
     await page.waitForURL('**/dashboard/setup**', { timeout: 15_000 })
     await waitForPageLoad(page)
 
     // Create studio
-    await page.getByLabel(/studio name/i).fill(`Skip Studio ${timestamp}`)
+    await page.getByPlaceholder('Empire Aerial Arts').fill(`Skip Studio ${timestamp}`)
     await page.getByRole('button', { name: /create studio/i }).click()
     await expect(page.getByText(/connect payments/i)).toBeVisible({ timeout: 15_000 })
 
@@ -72,14 +72,14 @@ test.describe('Setup Wizard @auth', () => {
     await page.goto('/login?mode=signup')
     await waitForPageLoad(page)
     await page.getByPlaceholder(/name/i).fill('Done Test')
-    await page.getByPlaceholder(/email/i).fill(`done-${timestamp}@e2e.test`)
+    await page.getByPlaceholder(/example\.com/i).fill(`done-${timestamp}@e2e.test`)
     await page.getByPlaceholder(/password/i).fill('testpass123!')
     await page.getByRole('button', { name: /create account/i }).click()
     await page.waitForURL('**/dashboard/setup**', { timeout: 15_000 })
     await waitForPageLoad(page)
 
     // Quick setup: create → skip stripe → skip class
-    await page.getByLabel(/studio name/i).fill(`Done Studio ${timestamp}`)
+    await page.getByPlaceholder('Empire Aerial Arts').fill(`Done Studio ${timestamp}`)
     await page.getByRole('button', { name: /create studio/i }).click()
     await expect(page.getByText(/connect payments/i)).toBeVisible({ timeout: 15_000 })
     await page.getByRole('button', { name: /skip for now/i }).click()

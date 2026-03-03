@@ -36,6 +36,7 @@ import skills from './routes/skills'
 import subRequests from './routes/sub-requests'
 import finances from './routes/finances'
 import calendarFeed from './routes/calendar-feed'
+import exportRoute from './routes/export'
 import { getConfig } from './lib/config'
 
 // Validate environment configuration at startup (best-effort).
@@ -52,6 +53,17 @@ const app = new Hono()
 // Global middleware
 app.use('*', sentryMiddleware)
 app.use('*', logger())
+
+// Security headers — applied before CORS so they appear on all responses
+app.use('*', async (c, next) => {
+  await next()
+  c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+  c.header('X-Content-Type-Options', 'nosniff')
+  c.header('X-Frame-Options', 'DENY')
+  c.header('Referrer-Policy', 'strict-origin-when-cross-origin')
+  c.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+})
+
 const corsOrigins = [
   'https://studio.coop',
   process.env.WEB_URL ?? '',
@@ -123,6 +135,26 @@ app.route('/api/studios', skills)
 app.route('/api/studios', subRequests)
 app.route('/api/studios', finances)
 app.route('/api', calendarFeed)
+app.route('/api', exportRoute)
 
-export default app
+export default {
+  fetch: app.fetch,
+  async scheduled(event: { scheduledTime: number; cron: string }, env: Record<string, string>, ctx: { waitUntil: (p: Promise<unknown>) => void }) {
+    const cronSecret = env.CRON_SECRET || process.env.CRON_SECRET
+    if (!cronSecret) return
+
+    const baseUrl = 'http://localhost'
+    const headers = { 'Authorization': `Bearer ${cronSecret}`, 'Content-Type': 'application/json' }
+
+    // Reminders — every hour
+    ctx.waitUntil(Promise.resolve(app.fetch(new Request(`${baseUrl}/api/jobs/reminders`, { method: 'POST', headers }))))
+
+    // Daily jobs — run at midnight UTC (hour 0)
+    const hour = new Date(event.scheduledTime).getUTCHours()
+    if (hour === 0) {
+      ctx.waitUntil(Promise.resolve(app.fetch(new Request(`${baseUrl}/api/jobs/reengagement`, { method: 'POST', headers }))))
+      ctx.waitUntil(Promise.resolve(app.fetch(new Request(`${baseUrl}/api/jobs/generate-classes`, { method: 'POST', headers }))))
+    }
+  },
+}
 export { app }

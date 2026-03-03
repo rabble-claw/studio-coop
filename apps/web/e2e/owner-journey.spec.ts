@@ -124,12 +124,12 @@ test.describe('Owner Journey (Demo)', () => {
     await expect(page.getByText('Rabble', { exact: true })).toBeHidden()
   })
 
-  test('plans page: plan cards with prices and Create Plan button', async ({ demoPage: page }) => {
-    await page.getByRole('link', { name: /plans/i }).first().click()
+  test('money page: plan cards with prices and Create Plan button', async ({ demoPage: page }) => {
+    await page.getByRole('link', { name: /money/i }).first().click()
     await waitForPageLoad(page)
 
-    await expect(page).toHaveURL('/demo/plans')
-    await expect(page.getByRole('heading', { level: 1 })).toContainText('Membership Plans')
+    await expect(page).toHaveURL('/demo/money')
+    // Plans tab is default on Money page
     await expect(page.getByRole('button', { name: /create plan/i })).toBeVisible()
 
     // Plan names visible

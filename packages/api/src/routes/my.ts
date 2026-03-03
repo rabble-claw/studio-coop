@@ -86,8 +86,8 @@ my.delete('/bookings/:bookingId', authMiddleware, async (c) => {
   let lateCancelFeeCharged = false
   let lateCancelPaymentIntentId: string | null = null
   if (!withinWindow) {
-    const lateCancelFeeCents = typeof settings.late_cancel_fee_cents === 'number'
-      ? settings.late_cancel_fee_cents
+    const lateCancelFeeCents = typeof cancellation.late_cancel_fee_cents === 'number'
+      ? cancellation.late_cancel_fee_cents
       : 0
 
     if (lateCancelFeeCents > 0 && classInstance?.studio_id) {
@@ -267,7 +267,7 @@ my.post('/my/bookings/reminders', async (c) => {
         title: 'Still coming tomorrow?',
         body: `${template?.name ?? 'Your class'} at ${studio.name} is tomorrow at ${ci.start_time}`,
         data: { classInstanceId: ci.id, screen: 'ClassDetail' },
-        channels: ['push', 'in_app'],
+        channels: ['push', 'email', 'in_app'],
       })
       sent24h++
     } catch {
@@ -289,7 +289,7 @@ my.post('/my/bookings/reminders', async (c) => {
         title: 'Class starts in 2 hours!',
         body: `${template?.name ?? 'Your class'} at ${studio.name} starts at ${ci.start_time}`,
         data: { classInstanceId: ci.id, screen: 'ClassDetail' },
-        channels: ['push', 'in_app'],
+        channels: ['push', 'email', 'in_app'],
       })
       sent2h++
     } catch {

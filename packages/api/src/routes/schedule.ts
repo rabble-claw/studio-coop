@@ -128,7 +128,7 @@ schedule.put('/:studioId/classes/:classId', authMiddleware, requireAdmin, async 
   // Verify the class instance exists and belongs to this studio
   const { data: existing } = await supabase
     .from('class_instances')
-    .select('id, studio_id, status')
+    .select('id, studio_id, status, date, template:class_templates(name)')
     .eq('id', classId)
     .eq('studio_id', studioId)
     .single()
@@ -164,27 +164,30 @@ schedule.put('/:studioId/classes/:classId', authMiddleware, requireAdmin, async 
 
   if (error) throw error
 
-  // When cancelling — notify all booked members
+  // When cancelling — notify all booked members via push, email, and in_app
   if (updates.status === 'cancelled') {
     const { data: bookings } = await supabase
       .from('bookings')
       .select('user_id')
       .eq('class_instance_id', classId)
-      .neq('status', 'cancelled')
+      .in('status', ['booked', 'confirmed'])
 
     if (bookings && bookings.length > 0) {
-      const notifications = bookings.map((b) => ({
-        user_id: b.user_id,
-        studio_id: studioId,
-        type: 'class_cancelled',
-        title: 'Class Cancelled',
-        body: body.notes
-          ? `Class cancelled: ${body.notes}`
-          : 'A class you booked has been cancelled.',
-        data: { classInstanceId: classId },
-      }))
+      const template = Array.isArray(existing.template) ? existing.template[0] : existing.template
+      const className = (template as any)?.name ?? 'Your class'
+      const date = existing.date ?? ''
 
-      await supabase.from('notifications').insert(notifications)
+      for (const booking of bookings) {
+        sendNotification({
+          userId: booking.user_id,
+          studioId,
+          type: 'class_cancelled',
+          title: 'Class Cancelled',
+          body: `${className} on ${date} has been cancelled.`,
+          data: { classInstanceId: classId },
+          channels: ['push', 'email', 'in_app'],
+        }).catch(() => {})
+      }
     }
   }
 
@@ -430,7 +433,7 @@ schedule.post('/:studioId/classes/:classId/restore', authMiddleware, requireAdmi
         title: 'Class Restored',
         body: 'A previously cancelled class has been restored to the schedule.',
         data: { classInstanceId: classId, screen: 'ClassDetail' },
-        channels: ['push'],
+        channels: ['push', 'email', 'in_app'],
       }).catch(() => {})
     }
   }

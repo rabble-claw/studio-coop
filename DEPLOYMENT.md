@@ -148,6 +148,53 @@ eas submit --platform android
 
 ---
 
+## Error Monitoring (Sentry)
+
+Sentry is configured for all three platforms: API, web app, and mobile.
+
+### API (Cloudflare Workers)
+
+The API uses [toucan-js](https://github.com/robertcepa/toucan-js) for Sentry in Workers.
+The middleware is at `packages/api/src/middleware/sentry.ts`.
+
+```bash
+cd packages/api
+wrangler secret put SENTRY_DSN
+# Paste your Sentry DSN for the API project
+```
+
+### Web App (Next.js)
+
+The web app uses `@sentry/nextjs`. Configuration files:
+- `apps/web/sentry.client.config.ts` — browser-side
+- `apps/web/sentry.server.config.ts` — server-side (SSR)
+- `apps/web/sentry.edge.config.ts` — edge runtime
+
+Error boundaries (`apps/web/src/app/error.tsx` and `global-error.tsx`) automatically
+report uncaught exceptions to Sentry.
+
+Set the DSN as an environment variable:
+```bash
+cd apps/web
+wrangler secret put NEXT_PUBLIC_SENTRY_DSN
+# Paste your Sentry DSN for the web project
+```
+
+### Mobile (Expo / React Native)
+
+The mobile app uses `@sentry/react-native`. Configure the DSN in the Expo environment
+or in `apps/mobile/app.json` under the Sentry plugin section.
+
+### Recommended Production Sample Rates
+
+| Setting | Value | Notes |
+|---------|-------|-------|
+| `tracesSampleRate` | `0.1` (10%) | Keeps costs low while capturing enough data |
+| `replaysSessionSampleRate` | `0` | Disable session replay by default |
+| `replaysOnErrorSampleRate` | `1.0` (100%) | Capture replay on every error |
+
+---
+
 ## Environment Variables Reference
 
 | Variable | Required | Where | Description |
@@ -165,6 +212,8 @@ eas submit --platform android
 | `NEXT_PUBLIC_APP_NAME` | No | Web Worker var | App display name (default: "Studio Co-op") |
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Web Worker secret | Supabase URL for client-side |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Web Worker secret | Supabase anon key for client-side |
+| `SENTRY_DSN` | Recommended | API Worker secret | Sentry DSN for API error monitoring |
+| `NEXT_PUBLIC_SENTRY_DSN` | Recommended | Web Worker secret | Sentry DSN for web app error monitoring |
 
 ---
 

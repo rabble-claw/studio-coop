@@ -64,9 +64,7 @@ function LoginForm() {
       if (err) {
         setError(err.message)
       } else {
-        setMessage(t('accountCreated'))
-        // After signup confirmation, they'll be redirected to setup
-        router.push('/dashboard/setup')
+        setMessage(t('checkEmailToVerify'))
       }
       setLoading(false)
       return
@@ -75,7 +73,11 @@ function LoginForm() {
     // Login
     const { error: err } = await supabase.auth.signInWithPassword({ email, password })
     if (err) {
-      setError(err.message)
+      if (err.message.toLowerCase().includes('email not confirmed')) {
+        setError(t('emailNotConfirmed'))
+      } else {
+        setError(err.message)
+      }
     } else {
       router.push('/dashboard')
     }
@@ -138,8 +140,15 @@ function LoginForm() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    minLength={6}
+                    minLength={8}
                   />
+                  {mode === 'login' && (
+                    <div className="text-right mt-1">
+                      <Link href="/reset-password" className="text-xs text-primary hover:underline">
+                        {t('forgotPassword')}
+                      </Link>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -175,12 +184,20 @@ function LoginForm() {
                 </>
               )}
               {mode === 'signup' && (
-                <p className="text-muted-foreground">
-                  {t('alreadyHaveAccount')}{' '}
-                  <button onClick={() => setMode('login')} className="text-primary hover:underline">
-                    {t('signIn')}
-                  </button>
-                </p>
+                <>
+                  <p className="text-muted-foreground text-xs">
+                    By signing up, you agree to our{' '}
+                    <Link href="/legal/terms" className="text-primary hover:underline">Terms of Service</Link>
+                    {' '}and{' '}
+                    <Link href="/legal/privacy" className="text-primary hover:underline">Privacy Policy</Link>.
+                  </p>
+                  <p className="text-muted-foreground">
+                    {t('alreadyHaveAccount')}{' '}
+                    <button onClick={() => setMode('login')} className="text-primary hover:underline">
+                      {t('signIn')}
+                    </button>
+                  </p>
+                </>
               )}
               {mode === 'magic' && (
                 <button onClick={() => setMode('login')} className="text-primary hover:underline">

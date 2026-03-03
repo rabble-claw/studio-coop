@@ -40,76 +40,81 @@ function getDisciplineMeta(discipline: string) {
 }
 
 async function getStudios(searchParams: { q?: string; discipline?: string; city?: string; country?: string; region?: string }) {
-  const { createClient } = await import('@/lib/supabase/server')
-  const supabase = await createClient()
+  try {
+    const { createClient } = await import('@/lib/supabase/server')
+    const supabase = await createClient()
 
-  let query = supabase
-    .from('studios')
-    .select('id, name, slug, discipline, description, logo_url, country_code, region, city, address, latitude, longitude')
+    let query = supabase
+      .from('studios')
+      .select('id, name, slug, discipline, description, logo_url, country_code, region, city, address, latitude, longitude')
 
-  if (searchParams.discipline) {
-    query = query.eq('discipline', searchParams.discipline)
+    if (searchParams.discipline) {
+      query = query.eq('discipline', searchParams.discipline)
+    }
+    if (searchParams.city) {
+      query = query.ilike('city', `%${searchParams.city}%`)
+    }
+    if (searchParams.country) {
+      query = query.eq('country_code', searchParams.country)
+    }
+    if (searchParams.region) {
+      query = query.eq('region', searchParams.region)
+    }
+    if (searchParams.q) {
+      query = query.or(
+        `name.ilike.%${searchParams.q}%,description.ilike.%${searchParams.q}%,discipline.ilike.%${searchParams.q}%`
+      )
+    }
+
+    const { data: studios } = await query
+
+    if (!studios || studios.length === 0) return []
+
+    const studioIds = studios.map((s) => s.id)
+
+    const { data: memberships } = await supabase
+      .from('memberships')
+      .select('studio_id')
+      .in('studio_id', studioIds)
+      .eq('status', 'active')
+
+    const memberCountMap: Record<string, number> = {}
+    for (const m of memberships ?? []) {
+      memberCountMap[m.studio_id] = (memberCountMap[m.studio_id] ?? 0) + 1
+    }
+
+    const today = new Date().toISOString().split('T')[0]
+    const { data: classInstances } = await supabase
+      .from('class_instances')
+      .select('studio_id')
+      .in('studio_id', studioIds)
+      .eq('status', 'scheduled')
+      .gte('date', today)
+
+    const classCountMap: Record<string, number> = {}
+    for (const ci of classInstances ?? []) {
+      classCountMap[ci.studio_id] = (classCountMap[ci.studio_id] ?? 0) + 1
+    }
+
+    return studios
+      .map((s: StudioRow) => ({
+        id: s.id,
+        name: s.name,
+        slug: s.slug,
+        discipline: s.discipline,
+        description: s.description,
+        logo_url: s.logo_url,
+        city: s.city ?? null,
+        country_code: s.country_code ?? null,
+        region: s.region ?? null,
+        member_count: memberCountMap[s.id] ?? 0,
+        upcoming_class_count: classCountMap[s.id] ?? 0,
+      }))
+      .sort((a, b) => b.member_count - a.member_count)
+  } catch {
+    console.error('Failed to fetch studios — Supabase may be unavailable')
+    return []
   }
-  if (searchParams.city) {
-    query = query.ilike('city', `%${searchParams.city}%`)
-  }
-  if (searchParams.country) {
-    query = query.eq('country_code', searchParams.country)
-  }
-  if (searchParams.region) {
-    query = query.eq('region', searchParams.region)
-  }
-  if (searchParams.q) {
-    query = query.or(
-      `name.ilike.%${searchParams.q}%,description.ilike.%${searchParams.q}%,discipline.ilike.%${searchParams.q}%`
-    )
-  }
-
-  const { data: studios } = await query
-
-  if (!studios || studios.length === 0) return []
-
-  const studioIds = studios.map((s) => s.id)
-
-  const { data: memberships } = await supabase
-    .from('memberships')
-    .select('studio_id')
-    .in('studio_id', studioIds)
-    .eq('status', 'active')
-
-  const memberCountMap: Record<string, number> = {}
-  for (const m of memberships ?? []) {
-    memberCountMap[m.studio_id] = (memberCountMap[m.studio_id] ?? 0) + 1
-  }
-
-  const today = new Date().toISOString().split('T')[0]
-  const { data: classInstances } = await supabase
-    .from('class_instances')
-    .select('studio_id')
-    .in('studio_id', studioIds)
-    .eq('status', 'scheduled')
-    .gte('date', today)
-
-  const classCountMap: Record<string, number> = {}
-  for (const ci of classInstances ?? []) {
-    classCountMap[ci.studio_id] = (classCountMap[ci.studio_id] ?? 0) + 1
-  }
-
-  return studios
-    .map((s: StudioRow) => ({
-      id: s.id,
-      name: s.name,
-      slug: s.slug,
-      discipline: s.discipline,
-      description: s.description,
-      logo_url: s.logo_url,
-      city: s.city ?? null,
-      country_code: s.country_code ?? null,
-      region: s.region ?? null,
-      member_count: memberCountMap[s.id] ?? 0,
-      upcoming_class_count: classCountMap[s.id] ?? 0,
-    }))
-    .sort((a, b) => b.member_count - a.member_count)
 }
 
 type LocationGroup = {
@@ -119,32 +124,37 @@ type LocationGroup = {
 }
 
 async function getLocations(): Promise<LocationGroup[]> {
-  const { createClient } = await import('@/lib/supabase/server')
-  const supabase = await createClient()
-  const { data: studios } = await supabase.from('studios').select('country_code, region, city')
+  try {
+    const { createClient } = await import('@/lib/supabase/server')
+    const supabase = await createClient()
+    const { data: studios } = await supabase.from('studios').select('country_code, region, city')
 
-  const countryMap = new Map<string, { regions: Set<string>; cities: Set<string> }>()
+    const countryMap = new Map<string, { regions: Set<string>; cities: Set<string> }>()
 
-  for (const s of studios ?? []) {
-    const cc = (s as Record<string, unknown>).country_code as string | null
-    if (!cc) continue
-    if (!countryMap.has(cc)) {
-      countryMap.set(cc, { regions: new Set(), cities: new Set() })
+    for (const s of studios ?? []) {
+      const cc = (s as Record<string, unknown>).country_code as string | null
+      if (!cc) continue
+      if (!countryMap.has(cc)) {
+        countryMap.set(cc, { regions: new Set(), cities: new Set() })
+      }
+      const entry = countryMap.get(cc)!
+      const region = (s as Record<string, unknown>).region as string | null
+      const city = (s as Record<string, unknown>).city as string | null
+      if (region) entry.regions.add(region)
+      if (city) entry.cities.add(city)
     }
-    const entry = countryMap.get(cc)!
-    const region = (s as Record<string, unknown>).region as string | null
-    const city = (s as Record<string, unknown>).city as string | null
-    if (region) entry.regions.add(region)
-    if (city) entry.cities.add(city)
-  }
 
-  return Array.from(countryMap.entries())
-    .map(([country_code, { regions, cities }]) => ({
-      country_code,
-      regions: Array.from(regions).sort(),
-      cities: Array.from(cities).sort(),
-    }))
-    .sort((a, b) => a.country_code.localeCompare(b.country_code))
+    return Array.from(countryMap.entries())
+      .map(([country_code, { regions, cities }]) => ({
+        country_code,
+        regions: Array.from(regions).sort(),
+        cities: Array.from(cities).sort(),
+      }))
+      .sort((a, b) => a.country_code.localeCompare(b.country_code))
+  } catch {
+    console.error('Failed to fetch locations — Supabase may be unavailable')
+    return []
+  }
 }
 
 export default async function ExplorePage({

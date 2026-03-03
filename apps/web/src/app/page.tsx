@@ -219,7 +219,11 @@ export default function LandingPage() {
             </div>
             <span>Studio Co-op</span>
           </div>
-          <span>Community-first studio management. Made in Aotearoa.</span>
+          <div className="flex items-center gap-4">
+            <Link href="/legal/terms" className="hover:text-foreground transition-colors">Terms</Link>
+            <Link href="/legal/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
+            <span>Made in Aotearoa</span>
+          </div>
         </div>
       </footer>
     </div>

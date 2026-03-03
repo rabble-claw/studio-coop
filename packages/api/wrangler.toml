@@ -26,6 +26,9 @@ WEB_URL = "https://studio.coop"
 pattern = "api.studio.coop/*"
 zone_name = "studio.coop"
 
+[triggers]
+crons = ["0 * * * *"]
+
 [env.staging]
 name = "studio-coop-api-staging"
 [env.staging.vars]

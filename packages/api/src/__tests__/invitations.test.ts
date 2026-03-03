@@ -4,6 +4,7 @@ import invitations from '../routes/invitations'
 import { errorHandler } from '../middleware/error-handler'
 
 vi.mock('../lib/supabase', () => ({ createServiceClient: vi.fn() }))
+vi.mock('../lib/notifications', () => ({ sendNotification: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('../middleware/auth', () => ({
   authMiddleware: vi.fn(async (c: any, next: any) => {
     c.set('user', { id: 'user-admin', email: 'admin@example.com' })
@@ -30,6 +31,7 @@ vi.mock('../middleware/studio-access', () => ({
 }))
 
 import { createServiceClient } from '../lib/supabase'
+import { sendNotification } from '../lib/notifications'
 
 const STUDIO_ID = 'studio-abc'
 
@@ -131,6 +133,93 @@ describe('POST /api/studios/:studioId/members/invite', () => {
     expect(body.invited).toBe(true)
     expect(body.userExists).toBe(true)
     expect(body.role).toBe('member')
+  })
+
+  it('sends welcome notification when existing user is invited', async () => {
+    const mock = {
+      from: vi.fn((table: string) => {
+        if (table === 'studios') {
+          return makeAsyncChain({ data: { name: 'Test Studio' }, error: null })
+        }
+        if (table === 'users') {
+          return makeAsyncChain({ data: { id: 'existing-user', name: 'Alice', email: 'alice@example.com' }, error: null })
+        }
+        if (table === 'memberships') {
+          const chain = makeAsyncChain({ data: null, error: null })
+          chain.insert = vi.fn().mockResolvedValue({ error: null })
+          return chain
+        }
+        if (table === 'notifications') {
+          return { insert: vi.fn().mockResolvedValue({ error: null }) }
+        }
+        return makeAsyncChain({ data: null, error: null })
+      }),
+    }
+    vi.mocked(createServiceClient).mockReturnValue(mock as any)
+
+    const app = makeApp()
+    await app.request(`/api/studios/${STUDIO_ID}/members/invite`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer tok', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'alice@example.com', role: 'member' }),
+    })
+
+    expect(vi.mocked(sendNotification)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'existing-user',
+        studioId: STUDIO_ID,
+        type: 'welcome',
+        channels: ['email', 'in_app'],
+      }),
+    )
+  })
+
+  it('sends welcome notification when new user is invited', async () => {
+    const mock = {
+      from: vi.fn((table: string) => {
+        if (table === 'studios') {
+          return makeAsyncChain({ data: { name: 'Test Studio' }, error: null })
+        }
+        if (table === 'users') {
+          return {
+            ...makeAsyncChain({ data: null, error: null }),
+            upsert: vi.fn().mockResolvedValue({ error: null }),
+          }
+        }
+        if (table === 'memberships') {
+          const chain = makeAsyncChain({ data: null, error: null })
+          chain.insert = vi.fn().mockResolvedValue({ error: null })
+          return chain
+        }
+        return makeAsyncChain({ data: null, error: null })
+      }),
+      auth: {
+        admin: {
+          inviteUserByEmail: vi.fn().mockResolvedValue({
+            data: { user: { id: 'new-user-id' } },
+            error: null,
+          }),
+        },
+      },
+    }
+    vi.mocked(createServiceClient).mockReturnValue(mock as any)
+
+    const app = makeApp()
+    await app.request(`/api/studios/${STUDIO_ID}/members/invite`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer tok', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'newuser@example.com', name: 'New User', role: 'member' }),
+    })
+
+    expect(vi.mocked(sendNotification)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'new-user-id',
+        studioId: STUDIO_ID,
+        type: 'welcome',
+        title: 'Welcome to Test Studio!',
+        channels: ['email', 'in_app'],
+      }),
+    )
   })
 
   it('returns 400 when user is already an active member', async () => {

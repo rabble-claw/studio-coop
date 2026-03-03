@@ -2,10 +2,12 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { api, stripeApi } from '@/lib/api-client'
+import { stripeApi } from '@/lib/api-client'
+import { createClient } from '@/lib/supabase/client'
 
 const DISCIPLINES = [
   'aerial', 'pole', 'yoga', 'pilates', 'dance', 'boxing', 'crossfit',
@@ -69,13 +71,34 @@ export default function SetupWizardPage() {
     setLoading(true)
     setSetupError(null)
     try {
-      const payload = {
-        ...studioData,
-        latitude: studioData.latitude !== '' ? Number(studioData.latitude) : undefined,
-        longitude: studioData.longitude !== '' ? Number(studioData.longitude) : undefined,
-      }
-      const result = await api.post<{ studio: { id: string } }>('/studios', payload)
-      setCreatedStudioId(result.studio.id)
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) throw new Error('Not authenticated')
+
+      const { data: studio, error } = await supabase.from('studios').insert({
+        name: studioData.name,
+        slug: studioData.slug,
+        discipline: studioData.discipline,
+        description: studioData.description || null,
+        city: studioData.city || null,
+        country_code: studioData.country || 'NZ',
+        region: studioData.region || null,
+        timezone: studioData.timezone || 'Pacific/Auckland',
+        latitude: studioData.latitude !== '' ? Number(studioData.latitude) : null,
+        longitude: studioData.longitude !== '' ? Number(studioData.longitude) : null,
+      }).select('id').single()
+
+      if (error) throw new Error(error.message)
+
+      // Create owner membership
+      await supabase.from('memberships').insert({
+        user_id: user.id,
+        studio_id: studio.id,
+        role: 'owner',
+        status: 'active',
+      })
+
+      setCreatedStudioId(studio.id)
       setStep('stripe')
     } catch (e) {
       setSetupError(e instanceof Error ? e.message : 'Error creating studio')
@@ -102,7 +125,9 @@ export default function SetupWizardPage() {
     if (!createdStudioId) { setStep('done'); return }
     setLoading(true)
     try {
-      await api.post(`/studios/${createdStudioId}/templates`, {
+      const supabase = createClient()
+      await supabase.from('class_templates').insert({
+        studio_id: createdStudioId,
         name: templateData.name,
         day_of_week: DAYS.indexOf(templateData.day),
         start_time: templateData.startTime,
@@ -213,6 +238,11 @@ export default function SetupWizardPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-muted-foreground">Connect your Stripe account to accept payments from members. You can skip this and set it up later.</p>
+            <p className="text-xs text-muted-foreground">
+              By connecting Stripe, you agree to our{' '}
+              <Link href="/legal/terms" className="text-primary hover:underline">Terms of Service</Link>
+              {' '}including the 2.5% platform fee on transactions.
+            </p>
             <div className="flex gap-3">
               <Button onClick={connectStripe} disabled={loading}>
                 {loading ? 'Connecting...' : '\u{1F4B3}\u0020Connect Stripe'}

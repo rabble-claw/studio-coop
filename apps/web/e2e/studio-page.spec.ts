@@ -8,8 +8,8 @@ test.describe('Studio public page', () => {
   })
 
   test('shows plans section with pricing', async ({ demoPage: page }) => {
-    // Navigate to plans — linked from the dashboard
-    await page.getByRole('link', { name: /Plans/i }).first().click()
+    // Navigate to Money page — Plans tab is default
+    await page.getByRole('link', { name: /Money/i }).first().click()
     await waitForPageLoad(page)
 
     // Verify at least one price is shown (contains $ or currency symbol)

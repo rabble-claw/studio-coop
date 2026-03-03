@@ -188,7 +188,7 @@ export async function promoteFromWaitlist(classId: string): Promise<void> {
         title: 'You\'re In!',
         body: 'A spot opened up and you\'ve been moved off the waitlist.',
         data: { classId, bookingId: booking.id, screen: 'BookingDetail' },
-        channels: ['push', 'in_app'],
+        channels: ['push', 'email', 'in_app'],
       }).catch(() => {}) // fire-and-forget
       console.log(`[waitlist] Promoted booking ${booking.id} (user ${booking.user_id})`)
 
