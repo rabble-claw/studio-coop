@@ -15,6 +15,63 @@ import { notFound } from '../lib/errors'
 
 const studioSettings = new Hono()
 
+function asCleanString(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+function normalizeTeacherSpotlights(value: unknown) {
+  if (!Array.isArray(value)) return []
+
+  return value
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null
+      const raw = item as Record<string, unknown>
+      const name = asCleanString(raw.name)
+      if (!name) return null
+
+      const mediaUrls = Array.isArray(raw.media_urls)
+        ? raw.media_urls
+          .map((url) => asCleanString(url))
+          .filter((url): url is string => Boolean(url))
+          .slice(0, 12)
+        : []
+
+      return {
+        name,
+        role: asCleanString(raw.role) ?? '',
+        bio: asCleanString(raw.bio) ?? '',
+        photo_url: asCleanString(raw.photo_url) ?? '',
+        instagram: asCleanString(raw.instagram) ?? '',
+        tiktok: asCleanString(raw.tiktok) ?? '',
+        facebook: asCleanString(raw.facebook) ?? '',
+        youtube: asCleanString(raw.youtube) ?? '',
+        media_urls: mediaUrls,
+      }
+    })
+    .filter((profile): profile is {
+      name: string
+      role: string
+      bio: string
+      photo_url: string
+      instagram: string
+      tiktok: string
+      facebook: string
+      youtube: string
+      media_urls: string[]
+    } => Boolean(profile))
+    .slice(0, 16)
+}
+
+function normalizeSocialGallery(value: unknown) {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((url) => asCleanString(url))
+    .filter((url): url is string => Boolean(url))
+    .slice(0, 32)
+}
+
 // Default notification settings returned when a studio hasn't configured them
 const DEFAULT_NOTIFICATION_SETTINGS = {
   reminderHours: [24, 2],
@@ -75,6 +132,14 @@ studioSettings.get('/:studioId/settings', authMiddleware, requireMember, async (
       phone: settings.phone ?? '',
       email: settings.email ?? '',
       website: settings.website ?? '',
+      instagram: settings.instagram ?? '',
+      tiktok: settings.tiktok ?? '',
+      facebook: settings.facebook ?? '',
+      youtube: settings.youtube ?? '',
+      logo_url: settings.logo_url ?? '',
+      hero_image_url: settings.hero_image_url ?? '',
+      teacher_spotlights: Array.isArray(settings.teacher_spotlights) ? settings.teacher_spotlights : [],
+      social_gallery: Array.isArray(settings.social_gallery) ? settings.social_gallery : [],
     },
     notifications: {
       ...DEFAULT_NOTIFICATION_SETTINGS,
@@ -142,10 +207,16 @@ studioSettings.put('/:studioId/settings/general', authMiddleware, requireOwner, 
 
   // Update settings JSONB for contact fields only (timezone, phone, email, website)
   const newSettings = { ...currentSettings }
-  for (const key of ['timezone', 'phone', 'email', 'website']) {
+  for (const key of ['timezone', 'phone', 'email', 'website', 'instagram', 'tiktok', 'facebook', 'youtube', 'logo_url', 'hero_image_url']) {
     if (typeof body[key] === 'string') {
       newSettings[key] = body[key]
     }
+  }
+  if ('teacher_spotlights' in body) {
+    newSettings.teacher_spotlights = normalizeTeacherSpotlights(body.teacher_spotlights)
+  }
+  if ('social_gallery' in body) {
+    newSettings.social_gallery = normalizeSocialGallery(body.social_gallery)
   }
   studioUpdates.settings = newSettings
 

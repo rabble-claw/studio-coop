@@ -1,0 +1,22 @@
+studio_name,segment,is_active,monthly_subscription_nzd,annual_subscription_nzd,usage_events,referral_activations,subscription_unit_weight,usage_unit_weight,referral_unit_weight,subscription_units,usage_units_weighted,referral_units_weighted,total_participation_units,participation_share,patronage_pool_nzd,estimated_rebate_nzd,net_contribution_nzd,notes
+CONFIG,set_weights_and_pool_here,1,"","","","",1,0,0,"","","","","",15000,"","",Edit H2 I2 J2 and P2 only
+Empire Aerial,pole_aerial,1,139,=D3*12,1200,2,=$H$2,=$I$2,=$J$2,=E3*H3,=F3*I3,=G3*J3,=K3+L3+M3,=N3/SUM($N$3:$N$22),=$P$2,=O3*P3,=E3-Q3,Founding studio sample
+Studio Dance Co,dance,1,139,=D4*12,900,1,=$H$2,=$I$2,=$J$2,=E4*H4,=F4*I4,=G4*J4,=K4+L4+M4,=N4/SUM($N$3:$N$22),=$P$2,=O4*P4,=E4-Q4,Dance segment sample
+Harbor Yoga,yoga,1,99,=D5*12,750,0,=$H$2,=$I$2,=$J$2,=E5*H5,=F5*I5,=G5*J5,=K5+L5+M5,=N5/SUM($N$3:$N$22),=$P$2,=O5*P5,=E5-Q5,Yoga segment sample
+Endorphinz Legacy,mixed_bjj_gym,1,189,=D6*12,1400,1,=$H$2,=$I$2,=$J$2,=E6*H6,=F6*I6,=G6*J6,=K6+L6+M6,=N6/SUM($N$3:$N$22),=$P$2,=O6*P6,=E6-Q6,Mixed segment sample
+Pilates Works,pilates,1,139,=D7*12,1000,3,=$H$2,=$I$2,=$J$2,=E7*H7,=F7*I7,=G7*J7,=K7+L7+M7,=N7/SUM($N$3:$N$22),=$P$2,=O7*P7,=E7-Q7,Referral-heavy sample
+"","",1,"",=D8*12,"","",=$H$2,=$I$2,=$J$2,=E8*H8,=F8*I8,=G8*J8,=K8+L8+M8,=N8/SUM($N$3:$N$22),=$P$2,=O8*P8,=E8-Q8,Set D F G; leave formulas
+"","",1,"",=D9*12,"","",=$H$2,=$I$2,=$J$2,=E9*H9,=F9*I9,=G9*J9,=K9+L9+M9,=N9/SUM($N$3:$N$22),=$P$2,=O9*P9,=E9-Q9,Set D F G; leave formulas
+"","",1,"",=D10*12,"","",=$H$2,=$I$2,=$J$2,=E10*H10,=F10*I10,=G10*J10,=K10+L10+M10,=N10/SUM($N$3:$N$22),=$P$2,=O10*P10,=E10-Q10,Set D F G; leave formulas
+"","",1,"",=D11*12,"","",=$H$2,=$I$2,=$J$2,=E11*H11,=F11*I11,=G11*J11,=K11+L11+M11,=N11/SUM($N$3:$N$22),=$P$2,=O11*P11,=E11-Q11,Set D F G; leave formulas
+"","",1,"",=D12*12,"","",=$H$2,=$I$2,=$J$2,=E12*H12,=F12*I12,=G12*J12,=K12+L12+M12,=N12/SUM($N$3:$N$22),=$P$2,=O12*P12,=E12-Q12,Set D F G; leave formulas
+"","",1,"",=D13*12,"","",=$H$2,=$I$2,=$J$2,=E13*H13,=F13*I13,=G13*J13,=K13+L13+M13,=N13/SUM($N$3:$N$22),=$P$2,=O13*P13,=E13-Q13,Set D F G; leave formulas
+"","",1,"",=D14*12,"","",=$H$2,=$I$2,=$J$2,=E14*H14,=F14*I14,=G14*J14,=K14+L14+M14,=N14/SUM($N$3:$N$22),=$P$2,=O14*P14,=E14-Q14,Set D F G; leave formulas
+"","",1,"",=D15*12,"","",=$H$2,=$I$2,=$J$2,=E15*H15,=F15*I15,=G15*J15,=K15+L15+M15,=N15/SUM($N$3:$N$22),=$P$2,=O15*P15,=E15-Q15,Set D F G; leave formulas
+"","",1,"",=D16*12,"","",=$H$2,=$I$2,=$J$2,=E16*H16,=F16*I16,=G16*J16,=K16+L16+M16,=N16/SUM($N$3:$N$22),=$P$2,=O16*P16,=E16-Q16,Set D F G; leave formulas
+"","",1,"",=D17*12,"","",=$H$2,=$I$2,=$J$2,=E17*H17,=F17*I17,=G17*J17,=K17+L17+M17,=N17/SUM($N$3:$N$22),=$P$2,=O17*P17,=E17-Q17,Set D F G; leave formulas
+"","",1,"",=D18*12,"","",=$H$2,=$I$2,=$J$2,=E18*H18,=F18*I18,=G18*J18,=K18+L18+M18,=N18/SUM($N$3:$N$22),=$P$2,=O18*P18,=E18-Q18,Set D F G; leave formulas
+"","",1,"",=D19*12,"","",=$H$2,=$I$2,=$J$2,=E19*H19,=F19*I19,=G19*J19,=K19+L19+M19,=N19/SUM($N$3:$N$22),=$P$2,=O19*P19,=E19-Q19,Set D F G; leave formulas
+"","",1,"",=D20*12,"","",=$H$2,=$I$2,=$J$2,=E20*H20,=F20*I20,=G20*J20,=K20+L20+M20,=N20/SUM($N$3:$N$22),=$P$2,=O20*P20,=E20-Q20,Set D F G; leave formulas
+"","",1,"",=D21*12,"","",=$H$2,=$I$2,=$J$2,=E21*H21,=F21*I21,=G21*J21,=K21+L21+M21,=N21/SUM($N$3:$N$22),=$P$2,=O21*P21,=E21-Q21,Set D F G; leave formulas
+"","",1,"",=D22*12,"","",=$H$2,=$I$2,=$J$2,=E22*H22,=F22*I22,=G22*J22,=K22+L22+M22,=N22/SUM($N$3:$N$22),=$P$2,=O22*P22,=E22-Q22,Set D F G; leave formulas

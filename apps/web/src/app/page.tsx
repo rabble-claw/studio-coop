@@ -1,227 +1,373 @@
+import type { ReactNode } from 'react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 
+const HERO_METRICS = [
+  { value: '5 min', label: 'Setup from scratch' },
+  { value: '30 sec', label: 'Average class check-in' },
+  { value: '$0', label: 'To launch your studio page' },
+]
+
+const OUTCOME_PILLARS = [
+  {
+    title: 'No corporate bloat',
+    description: 'Scheduling, check-in, and community in one workflow built for independents.',
+    stat: 'Lean stack',
+  },
+  {
+    title: 'Community-first retention',
+    description: 'Private class feeds keep connection inside your studio after every session.',
+    stat: 'Higher return visits',
+  },
+  {
+    title: 'Mobile by default',
+    description: 'Teachers and members both run daily operations from a phone, not a front desk.',
+    stat: 'No app install needed',
+  },
+]
+
+const STEPS = [
+  {
+    step: '1',
+    title: 'Set up your studio',
+    description: 'Add your studio details, schedule, and teachers. Your public page goes live instantly.',
+  },
+  {
+    step: '2',
+    title: 'Members book classes',
+    description: 'Share your link and let members join, browse classes, and book from their phone.',
+  },
+  {
+    step: '3',
+    title: 'Teach and connect',
+    description: 'Check in students with a photo grid, then keep momentum with class-only community posts.',
+  },
+]
+
+const FEATURES = [
+  {
+    icon: <CalendarIcon />,
+    title: 'Class Scheduling',
+    description: 'Recurring templates, one-offs, waitlists, capacity controls, and instant updates for members.',
+  },
+  {
+    icon: <UsersIcon />,
+    title: 'Member Community',
+    description: 'Post-class feeds visible only to attendees so your people connect without public social noise.',
+  },
+  {
+    icon: <CheckCircleIcon />,
+    title: 'Photo Check-in',
+    description: 'Tap faces to mark attendance and move from arrivals to class start in under 30 seconds.',
+  },
+  {
+    icon: <PhoneIcon />,
+    title: 'Mobile First',
+    description: 'Built for the way studios actually run: quick actions, clear cards, and no desktop dependency.',
+  },
+  {
+    icon: <ShieldIcon />,
+    title: 'Privacy by Default',
+    description: 'Class conversations stay between attendees and teachers, with no public profile pressure.',
+  },
+  {
+    icon: <SparklesIcon />,
+    title: 'Built for Indies',
+    description: 'Pole, aerial, BJJ, yoga, dance, pilates, and hybrid studios all fit naturally on Co-op.',
+  },
+]
+
 export default function LandingPage() {
   return (
-    <div className="min-h-screen">
-      {/* Nav */}
-      <nav className="flex items-center justify-between px-6 py-4 max-w-6xl mx-auto">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-sm">SC</span>
-          </div>
-          <span className="font-bold text-lg">Studio Co-op</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <Link href="/explore" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-            Explore Studios
-          </Link>
-          <Link href="/login" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-            Log in
-          </Link>
-          <Button asChild size="sm">
-            <Link href="/login">Get started</Link>
-          </Button>
-        </div>
-      </nav>
+    <div className="marketing-page relative isolate min-h-screen overflow-x-clip">
+      <div className="pointer-events-none absolute inset-x-0 top-[-14rem] h-[32rem] marketing-glow" />
+      <div className="pointer-events-none absolute left-[-8rem] top-[22rem] h-72 w-72 rounded-full bg-[#F1B074]/25 blur-3xl" />
+      <div className="pointer-events-none absolute right-[-10rem] top-[40rem] h-[24rem] w-[24rem] rounded-full bg-[#2E7D6D]/20 blur-3xl" />
 
-      {/* Hero */}
-      <section className="max-w-6xl mx-auto px-6 pt-16 pb-24 sm:pt-24 sm:pb-32">
-        <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+      <header className="sticky top-0 z-30 border-b border-white/50 bg-background/85 backdrop-blur">
+        <nav className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
+          <Link href="/" className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary shadow-sm">
+              <span className="text-sm font-bold text-white">SC</span>
+            </div>
+            <span className="marketing-display text-lg font-semibold tracking-tight">Studio Co-op</span>
+          </Link>
+
+          <div className="flex items-center gap-4">
+            <Link href="/explore" className="hidden text-sm text-muted-foreground transition-colors hover:text-foreground sm:inline-flex">
+              Explore Studios
+            </Link>
+            <Link href="/login" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
+              Log in
+            </Link>
+            <Button asChild size="sm" className="rounded-full px-5">
+              <Link href="/login">Get started</Link>
+            </Button>
+          </div>
+        </nav>
+      </header>
+
+      <main>
+        <section className="mx-auto grid w-full max-w-6xl gap-12 px-6 pb-16 pt-14 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:gap-16 lg:pt-20">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full bg-secondary px-4 py-1.5 text-sm text-muted-foreground mb-6">
-              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            <div className="marketing-reveal inline-flex items-center gap-2 rounded-full border border-primary/20 bg-card/75 px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-primary">
+              <span className="h-2 w-2 rounded-full bg-primary animate-pulse" />
               Built for indie studios
             </div>
-            <h1 className="text-5xl sm:text-7xl font-extrabold tracking-tight leading-[1.05] mb-6">
-              Your studio,{' '}
-              <br className="hidden sm:block" />
-              your community,{' '}
-              <br className="hidden sm:block" />
+
+            <h1 className="marketing-display marketing-reveal mt-6 text-5xl font-bold leading-[1.02] tracking-tight text-foreground [animation-delay:110ms] sm:text-6xl lg:text-7xl">
+              Your studio,
+              <br />
+              your community,
+              <br />
               your <span className="text-primary">platform</span>.
             </h1>
-            <p className="text-xl text-muted-foreground leading-relaxed mb-10 max-w-2xl">
-              Studio Co-op is the management platform that puts community first.
-              Schedule classes, check in members with a tap, and build a real
-              community around your studio — without the corporate overhead.
+
+            <p className="marketing-reveal mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground [animation-delay:210ms] sm:text-xl">
+              Studio Co-op is the management platform that puts relationships first. Run scheduling,
+              attendance, and private community in one place without enterprise software overhead.
             </p>
-            <div className="flex flex-wrap gap-4">
-              <Button asChild size="lg" className="text-base px-8 h-12">
+
+            <div className="marketing-reveal mt-9 flex flex-wrap items-center gap-4 [animation-delay:310ms]">
+              <Button asChild size="lg" className="h-12 rounded-full px-8">
                 <Link href="/login?mode=signup">Start free</Link>
               </Button>
-              <Button variant="outline" size="lg" asChild className="text-base px-8 h-12">
+              <Button variant="outline" size="lg" asChild className="h-12 rounded-full border-2 px-8">
+                <Link href="/demo">See the demo</Link>
+              </Button>
+            </div>
+
+            <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
+              {HERO_METRICS.map((metric, index) => (
+                <div
+                  key={metric.label}
+                  className="marketing-reveal rounded-2xl border border-white/70 bg-card/75 p-4 shadow-sm [animation-delay:420ms]"
+                  style={{ animationDelay: `${420 + index * 90}ms` }}
+                >
+                  <div className="marketing-display text-2xl font-semibold text-foreground">{metric.value}</div>
+                  <p className="mt-1 text-xs uppercase tracking-[0.12em] text-muted-foreground">{metric.label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="marketing-reveal relative [animation-delay:260ms]">
+            <div className="relative overflow-hidden rounded-[2rem] border border-white/70 bg-card p-3 shadow-[0_30px_80px_-42px_rgba(17,25,40,0.5)]">
+              <img
+                src="/empire/hero.jpg"
+                alt="Aerial arts class at Empire Aerial Arts with pole, silks, and hoop"
+                className="aspect-[4/3] w-full rounded-[1.5rem] object-cover"
+              />
+
+              <div className="absolute left-7 top-7 max-w-[13rem] rounded-2xl border border-white/70 bg-white/92 p-3 shadow-lg backdrop-blur">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Today</p>
+                <p className="mt-1 text-sm font-semibold text-foreground">5 classes running</p>
+                <p className="text-xs text-muted-foreground">Check-ins flowing in real time</p>
+              </div>
+            </div>
+
+            <div className="marketing-float absolute -bottom-8 -left-7 hidden w-48 overflow-hidden rounded-2xl border border-white/80 bg-card/95 shadow-xl sm:block">
+              <img
+                src="/assets/marketing/schedule-clean.png"
+                alt="Class schedule on Studio Co-op"
+                className="h-auto w-full"
+              />
+            </div>
+            <div className="marketing-float absolute -right-8 bottom-6 hidden w-44 overflow-hidden rounded-2xl border border-white/80 bg-card/95 shadow-xl [animation-delay:350ms] md:block">
+              <img
+                src="/assets/marketing/members-clean.png"
+                alt="Member roster in Studio Co-op"
+                className="h-auto w-full"
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className="border-y border-border/60 bg-card/70">
+          <div className="mx-auto grid w-full max-w-6xl gap-5 px-6 py-12 md:grid-cols-3">
+            {OUTCOME_PILLARS.map((pillar, index) => (
+              <div
+                key={pillar.title}
+                className="marketing-reveal rounded-2xl border border-white/70 bg-background/75 p-6 shadow-sm [animation-delay:120ms]"
+                style={{ animationDelay: `${160 + index * 80}ms` }}
+              >
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">{pillar.stat}</p>
+                <h2 className="marketing-display mt-3 text-2xl font-semibold tracking-tight text-foreground">
+                  {pillar.title}
+                </h2>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{pillar.description}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="mx-auto w-full max-w-6xl px-6 py-20">
+          <div className="mb-10 max-w-3xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Product tour</p>
+            <h2 className="marketing-display mt-3 text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
+              The full studio flow in one calm dashboard
+            </h2>
+            <p className="mt-4 text-base leading-relaxed text-muted-foreground">
+              Keep classes full, reduce front-desk bottlenecks, and follow member engagement without jumping
+              between disconnected tools.
+            </p>
+          </div>
+
+          <div className="marketing-reveal grid gap-4 sm:grid-cols-2 lg:grid-cols-12 [animation-delay:180ms]">
+            <ScreenshotCard
+              className="sm:col-span-2 lg:col-span-7"
+              imageSrc="/assets/marketing/dashboard-clean.png"
+              imageAlt="Studio Co-op dashboard overview"
+              title="Operations at a glance"
+            />
+            <ScreenshotCard
+              className="sm:col-span-2 lg:col-span-5"
+              imageSrc="/assets/marketing/feed-clean.png"
+              imageAlt="Private class feed on Studio Co-op"
+              title="Private community feed"
+            />
+            <ScreenshotCard
+              className="lg:col-span-5"
+              imageSrc="/assets/marketing/schedule-clean.png"
+              imageAlt="Studio schedule management on Studio Co-op"
+              title="Class schedule control"
+            />
+            <ScreenshotCard
+              className="lg:col-span-7"
+              imageSrc="/assets/marketing/members-clean.png"
+              imageAlt="Member list and check-in workflow on Studio Co-op"
+              title="Member management"
+            />
+          </div>
+        </section>
+
+        <section className="relative border-y border-border/60 bg-card/80">
+          <div className="mx-auto w-full max-w-6xl px-6 py-20">
+            <div className="mb-14 text-center">
+              <h2 className="marketing-display text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+                How it works
+              </h2>
+              <p className="mx-auto mt-3 max-w-xl text-base text-muted-foreground">
+                Get your studio running on Co-op in under 5 minutes.
+              </p>
+            </div>
+            <div className="grid gap-6 md:grid-cols-3">
+              {STEPS.map((item, index) => (
+                <StepCard key={item.title} step={item.step} title={item.title} description={item.description} delay={index} />
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="mx-auto w-full max-w-6xl px-6 py-20">
+          <div className="mb-12 text-center">
+            <h2 className="marketing-display text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+              Everything your studio needs
+            </h2>
+            <p className="mx-auto mt-3 max-w-xl text-base text-muted-foreground">
+              No bloat. No enterprise pricing. Just the tools that actually matter.
+            </p>
+          </div>
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {FEATURES.map((feature, index) => (
+              <FeatureCard
+                key={feature.title}
+                icon={feature.icon}
+                title={feature.title}
+                description={feature.description}
+                delay={index}
+              />
+            ))}
+          </div>
+        </section>
+
+        <section className="mx-auto w-full max-w-6xl px-6 pb-20">
+          <div className="grid gap-8 rounded-[2rem] border border-white/75 bg-gradient-to-br from-[#FFF3E8] via-card to-[#EAF6F2] p-8 shadow-[0_24px_80px_-48px_rgba(24,34,53,0.45)] lg:grid-cols-[1.1fr_0.9fr] lg:items-center sm:p-12">
+            <article className="marketing-reveal [animation-delay:90ms]">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Empire case study</p>
+              <h2 className="marketing-display mt-4 text-3xl font-semibold leading-tight tracking-tight text-foreground sm:text-4xl">
+                Emma built Empire for aerial arts and community, not software firefighting
+              </h2>
+              <p className="mt-5 text-base leading-relaxed text-muted-foreground">
+                Emma has run Empire Aerial Arts on Mindbody for 5 years. The platform has been a constant headache:
+                too much friction, too many workarounds, and too much time spent managing software instead of members.
+              </p>
+              <p className="mt-4 text-base leading-relaxed text-muted-foreground">
+                Rabble built Studio Co-op after living the same pain from the member side: booking in Mindbody felt
+                hard, confusing, and slow. Hearing Emma and the other teachers share the same frustration made it clear
+                this was not just a user problem or an owner problem. It was both.
+              </p>
+              <p className="mt-4 text-base leading-relaxed text-muted-foreground">
+                Empire exists to help people grow through aerial arts and real community. Studio Co-op is being shaped
+                around that mission from both ends of the room: simple operations for teachers, fast booking for
+                members, and private class spaces that feel personal.
+              </p>
+              <blockquote className="marketing-display mt-7 max-w-2xl text-xl font-medium leading-snug tracking-tight text-foreground sm:text-2xl">
+                &ldquo;We wanted something that felt like our studio: warm, personal, and community-first.
+                Not another generic gym platform.&rdquo;
+              </blockquote>
+              <p className="mt-6 text-sm uppercase tracking-[0.14em] text-muted-foreground">
+                <span className="font-semibold text-foreground">Empire Aerial Arts</span>
+                <span className="mx-2">&middot;</span>
+                Cuba Street, Wellington NZ
+              </p>
+            </article>
+
+            <div className="marketing-reveal grid gap-4 [animation-delay:180ms]">
+              <div className="overflow-hidden rounded-2xl border border-white/80 bg-card shadow-sm">
+                <img
+                  src="/empire/pole-technique.jpg"
+                  alt="Empire Aerial Arts class in session"
+                  className="h-52 w-full object-cover sm:h-64"
+                />
+              </div>
+              <div className="grid grid-cols-[auto_1fr] items-center gap-4 rounded-2xl border border-white/80 bg-card/90 p-4 shadow-sm">
+                <img
+                  src="/empire/logo.jpg"
+                  alt="Empire Aerial Arts logo"
+                  className="h-14 w-14 rounded-full object-cover"
+                />
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Empire Aerial Arts</p>
+                  <p className="text-sm text-muted-foreground">Community-first studio in Wellington</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="border-y border-border/60 bg-card/90">
+          <div className="mx-auto w-full max-w-6xl px-6 py-20 text-center">
+            <h2 className="marketing-display text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+              Ready to build your community?
+            </h2>
+            <p className="mx-auto mt-4 max-w-2xl text-lg leading-relaxed text-muted-foreground">
+              Join studios who care more about their people than their software vendor.
+              Free to start, no credit card required.
+            </p>
+            <div className="mt-8 flex flex-wrap justify-center gap-4">
+              <Button asChild size="lg" className="h-12 rounded-full px-8">
+                <Link href="/login?mode=signup">Get started - it&apos;s free</Link>
+              </Button>
+              <Button variant="outline" size="lg" asChild className="h-12 rounded-full border-2 px-8">
                 <Link href="/demo">See the demo</Link>
               </Button>
             </div>
           </div>
+        </section>
+      </main>
 
-          {/* Hero image */}
-          <div className="hidden lg:block">
-            <div className="rounded-xl shadow-2xl border border-border/50 overflow-hidden">
-              <img
-                src="/empire/hero.jpg"
-                alt="Aerial arts class at Empire Aerial Arts — pole, silks, and hoop in a welcoming studio"
-                className="w-full h-auto object-cover"
-              />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Mobile hero image */}
-      <div className="lg:hidden max-w-6xl mx-auto px-6 pb-12">
-        <div className="rounded-xl overflow-hidden shadow-xl border border-border/50">
-          <img
-            src="/empire/hero.jpg"
-            alt="Aerial arts class at Empire Aerial Arts — pole, silks, and hoop in a welcoming studio"
-            className="w-full h-auto object-cover"
-          />
-        </div>
-      </div>
-
-      {/* Social proof bar */}
-      <section className="border-y bg-card">
-        <div className="max-w-6xl mx-auto px-6 py-6 flex flex-wrap items-center justify-center gap-8 sm:gap-16 text-center">
-          <div>
-            <div className="text-2xl font-bold">20+</div>
-            <div className="text-xs text-muted-foreground uppercase tracking-wider">Active members</div>
-          </div>
-          <div className="w-px h-8 bg-border hidden sm:block" />
-          <div>
-            <div className="text-2xl font-bold">10</div>
-            <div className="text-xs text-muted-foreground uppercase tracking-wider">Weekly classes</div>
-          </div>
-          <div className="w-px h-8 bg-border hidden sm:block" />
-          <div>
-            <div className="text-2xl font-bold">30s</div>
-            <div className="text-xs text-muted-foreground uppercase tracking-wider">Check-in time</div>
-          </div>
-          <div className="w-px h-8 bg-border hidden sm:block" />
-          <div>
-            <div className="text-2xl font-bold">$0</div>
-            <div className="text-xs text-muted-foreground uppercase tracking-wider">To get started</div>
-          </div>
-        </div>
-      </section>
-
-      {/* How it works */}
-      <section className="max-w-6xl mx-auto px-6 py-20">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl sm:text-4xl font-bold mb-4">How it works</h2>
-          <p className="text-lg text-muted-foreground max-w-xl mx-auto">
-            Get your studio running on Co-op in under 5 minutes.
-          </p>
-        </div>
-        <div className="grid md:grid-cols-3 gap-12">
-          <StepCard
-            step="1"
-            title="Set up your studio"
-            description="Add your name, schedule, and invite your teachers. Your public page goes live instantly."
-          />
-          <StepCard
-            step="2"
-            title="Members book classes"
-            description="Share your link. Members sign up, browse the schedule, and book with a tap from their phone."
-          />
-          <StepCard
-            step="3"
-            title="Teach and connect"
-            description="Check in students with a photo grid. After class, members share wins in the private class feed."
-          />
-        </div>
-      </section>
-
-      {/* Features */}
-      <section className="bg-card border-y">
-        <div className="max-w-6xl mx-auto px-6 py-20">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">Everything your studio needs</h2>
-            <p className="text-lg text-muted-foreground max-w-xl mx-auto">
-              No bloat. No enterprise pricing. Just the tools that actually matter.
-            </p>
-          </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            <FeatureCard
-              icon={<CalendarIcon />}
-              title="Class Scheduling"
-              description="Recurring templates, one-offs, capacity limits, waitlists. Your schedule, your rules."
-            />
-            <FeatureCard
-              icon={<UsersIcon />}
-              title="Member Community"
-              description="Post-class feeds visible only to attendees. Real connections, not public performativity."
-            />
-            <FeatureCard
-              icon={<CheckCircleIcon />}
-              title="Photo Check-in"
-              description="Tap faces to mark present. Teachers check in an entire class in under 30 seconds."
-            />
-            <FeatureCard
-              icon={<PhoneIcon />}
-              title="Mobile First"
-              description="Members book from their phones. Teachers check in from theirs. No app download required."
-            />
-            <FeatureCard
-              icon={<ShieldIcon />}
-              title="Privacy by Default"
-              description="Class feeds locked to attendees. Your community stays in your community."
-            />
-            <FeatureCard
-              icon={<SparklesIcon />}
-              title="Built for Indies"
-              description="Pole, aerial, BJJ, yoga, dance — built by studio people, for studio people."
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* Testimonial / use case */}
-      <section className="max-w-6xl mx-auto px-6 py-20">
-        <div className="rounded-2xl bg-secondary/50 border p-8 sm:p-12 text-center max-w-3xl mx-auto">
-          <div className="text-4xl mb-6">&#x1F3AA;</div>
-          <blockquote className="text-xl sm:text-2xl font-medium leading-relaxed mb-6">
-            &ldquo;We wanted something that felt like our studio — warm, personal, community-first.
-            Not another generic gym platform.&rdquo;
-          </blockquote>
-          <div className="text-muted-foreground">
-            <span className="font-medium text-foreground">Empire Aerial Arts</span>
-            <span className="mx-2">&middot;</span>
-            Cuba Street, Wellington NZ
-          </div>
-        </div>
-      </section>
-
-      {/* CTA */}
-      <section className="border-t bg-card">
-        <div className="max-w-6xl mx-auto px-6 py-20 text-center">
-          <h2 className="text-3xl sm:text-4xl font-bold mb-4">Ready to build your community?</h2>
-          <p className="text-lg text-muted-foreground mb-8 max-w-xl mx-auto">
-            Join studios who care more about their people than their software vendor.
-            Free to start, no credit card required.
-          </p>
-          <div className="flex flex-wrap gap-4 justify-center">
-            <Button asChild size="lg" className="text-base px-8 h-12">
-              <Link href="/login?mode=signup">Get started — it&apos;s free</Link>
-            </Button>
-            <Button variant="outline" size="lg" asChild className="text-base px-8 h-12">
-              <Link href="/demo">See the demo</Link>
-            </Button>
-          </div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="border-t">
-        <div className="max-w-6xl mx-auto px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
+      <footer className="border-t border-border/60">
+        <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-4 px-6 py-8 text-sm text-muted-foreground sm:flex-row">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-primary rounded flex items-center justify-center">
-              <span className="text-white font-bold text-[10px]">SC</span>
+            <div className="flex h-6 w-6 items-center justify-center rounded bg-primary">
+              <span className="text-[10px] font-bold text-white">SC</span>
             </div>
             <span>Studio Co-op</span>
           </div>
           <div className="flex items-center gap-4">
-            <Link href="/legal/terms" className="hover:text-foreground transition-colors">Terms</Link>
-            <Link href="/legal/privacy" className="hover:text-foreground transition-colors">Privacy</Link>
+            <Link href="/legal/terms" className="transition-colors hover:text-foreground">Terms</Link>
+            <Link href="/legal/privacy" className="transition-colors hover:text-foreground">Privacy</Link>
             <span>Made in Aotearoa</span>
           </div>
         </div>
@@ -230,27 +376,74 @@ export default function LandingPage() {
   )
 }
 
-function StepCard({ step, title, description }: { step: string; title: string; description: string }) {
+function StepCard({
+  step,
+  title,
+  description,
+  delay,
+}: {
+  step: string
+  title: string
+  description: string
+  delay: number
+}) {
   return (
-    <div className="text-center">
-      <div className="w-12 h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-lg font-bold mx-auto mb-4">
+    <article
+      className="marketing-reveal rounded-3xl border border-white/70 bg-background/70 p-6 shadow-sm [animation-delay:130ms]"
+      style={{ animationDelay: `${130 + delay * 80}ms` }}
+    >
+      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-lg font-semibold text-primary-foreground">
         {step}
       </div>
-      <h3 className="font-semibold text-lg mb-2">{title}</h3>
-      <p className="text-muted-foreground text-sm leading-relaxed">{description}</p>
-    </div>
+      <h3 className="marketing-display mt-5 text-2xl font-semibold tracking-tight text-foreground">{title}</h3>
+      <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{description}</p>
+    </article>
   )
 }
 
-function FeatureCard({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
+function FeatureCard({
+  icon,
+  title,
+  description,
+  delay,
+}: {
+  icon: ReactNode
+  title: string
+  description: string
+  delay: number
+}) {
   return (
-    <div className="rounded-xl border bg-background p-6 hover:border-primary/30 transition-colors">
-      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-4">
+    <article
+      className="marketing-reveal group rounded-2xl border border-white/70 bg-card/70 p-6 shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md [animation-delay:120ms]"
+      style={{ animationDelay: `${130 + delay * 60}ms` }}
+    >
+      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-white">
         {icon}
       </div>
-      <h3 className="font-semibold text-lg mb-2">{title}</h3>
-      <p className="text-muted-foreground text-sm leading-relaxed">{description}</p>
-    </div>
+      <h3 className="marketing-display mt-4 text-xl font-semibold tracking-tight text-foreground">{title}</h3>
+      <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{description}</p>
+    </article>
+  )
+}
+
+function ScreenshotCard({
+  className,
+  imageSrc,
+  imageAlt,
+  title,
+}: {
+  className?: string
+  imageSrc: string
+  imageAlt: string
+  title: string
+}) {
+  return (
+    <article className={`rounded-2xl border border-white/80 bg-card p-3 shadow-sm ${className ?? ''}`}>
+      <div className="overflow-hidden rounded-xl border border-[#EDE6DD] bg-[#F8F5F1]">
+        <img src={imageSrc} alt={imageAlt} className="h-auto w-full" />
+      </div>
+      <p className="mt-3 px-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{title}</p>
+    </article>
   )
 }
 

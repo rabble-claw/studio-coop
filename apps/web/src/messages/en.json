@@ -25,6 +25,7 @@
       "members": "Members",
       "money": "Money",
       "reports": "Reports",
+      "copilot": "Copilot",
       "settings": "Settings"
     },
     "demoBanner": "You're viewing the demo.",

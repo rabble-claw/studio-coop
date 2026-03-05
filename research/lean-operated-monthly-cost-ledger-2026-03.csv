@@ -1,0 +1,11 @@
+line_item,status,source,monthly_cost_nzd,confidence,notes
+Cloudflare zone plan (studio.coop),API-confirmed,Cloudflare API zone plan,0,High,Zone plan is Free Website
+Cloudflare Workers request overage,API-confirmed,Cloudflare GraphQL workersInvocationsAdaptive,0,High,22245 requests in last 30 days across studio-coop and studio-coop-api
+Supabase usage overage (db/storage/egress),API-confirmed usage+invoice pending,Supabase inspect db db-stats,0,Medium,DB size observed at 12 MB
+Supabase base plan fee,Invoice-required,Supabase billing invoice,0,Low,Replace with actual monthly plan/add-on amount
+Resend plan fee,Invoice-required,Resend billing invoice,0,Low,Replace with actual monthly plan amount
+Sentry plan fee,Invoice-required,Sentry billing invoice,0,Low,Replace with actual monthly plan amount
+Expo/EAS plan fee,Auth-required,Expo account billing,0,Low,EAS CLI not authenticated on this machine
+Apple Developer membership (amortized),Market-price-derived,Apple developer program annual fee,13.7,Medium,USD 99/year at 1.66 FX
+Lean support/onboarding/ops labor residual,Derived-from-baseline,Baseline residual to tmc_nzd,2286.3,Medium,Residual to align with selected lean baseline
+TOTAL,Computed,Sum of monthly_cost_nzd,=D2+D3+D4+D5+D6+D7+D8+D9+D10,Medium,Should equal lean baseline tmc_nzd

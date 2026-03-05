@@ -18,11 +18,29 @@ type StudioRow = {
   discipline: string
   description: string | null
   logo_url: string | null
+  settings: Record<string, unknown> | null
   country_code: string | null
   region: string | null
   city: string | null
   latitude: number | null
   longitude: number | null
+}
+
+function isLikelyPlaceholderStudio(studio: Pick<StudioRow, 'name' | 'slug' | 'description'>) {
+  const name = studio.name.trim().toLowerCase()
+  const slug = studio.slug.trim().toLowerCase()
+  const description = (studio.description ?? '').trim().toLowerCase()
+
+  const genericNamePattern = /\b(test|done|skip|sample|temp|dummy)\b/
+  const longNumericSuffixPattern = /\b\d{8,}\b/
+  const genericSlugPattern = /\b(test|seed|demo|tmp|temp)\b/
+
+  if (genericNamePattern.test(name)) return true
+  if (longNumericSuffixPattern.test(studio.name)) return true
+  if (genericSlugPattern.test(slug) && !description) return true
+  if (description.includes('test studio')) return true
+
+  return false
 }
 
 const DISCIPLINE_META: Record<string, { emoji: string; color: string; bg: string }> = {
@@ -39,6 +57,42 @@ function getDisciplineMeta(discipline: string) {
   return DISCIPLINE_META[discipline.toLowerCase()] ?? { emoji: '\u{2B50}', color: '#7c3aed', bg: '#f3e8ff' }
 }
 
+function firstNonEmptyString(...values: Array<unknown>): string | null {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim().length > 0) return value
+  }
+  return null
+}
+
+function isEmpireStudio(studio: Pick<StudioRow, 'name' | 'slug'>) {
+  const name = studio.name.toLowerCase()
+  const slug = studio.slug.toLowerCase()
+  return name.includes('empire aerial arts') || slug.includes('empire')
+}
+
+function getStudioPhotoUrl(studio: Pick<StudioRow, 'name' | 'slug' | 'settings'>) {
+  const settings = (studio.settings ?? {}) as Record<string, unknown>
+  const configuredPhoto = firstNonEmptyString(
+    settings.cover_image_url,
+    settings.hero_image_url,
+    settings.photo_url,
+    settings.image_url,
+    settings.banner_url,
+    settings.studio_photo_url
+  )
+  if (configuredPhoto) return configuredPhoto
+  if (isEmpireStudio(studio)) return '/empire/hero.jpg'
+  return '/assets/studio-photo.png'
+}
+
+function getStudioLogoUrl(studio: Pick<StudioRow, 'name' | 'slug' | 'logo_url' | 'settings'>) {
+  const settings = (studio.settings ?? {}) as Record<string, unknown>
+  const configuredLogo = firstNonEmptyString(studio.logo_url, settings.logo_url)
+  if (configuredLogo) return configuredLogo
+  if (isEmpireStudio(studio)) return '/empire/logo.jpg'
+  return null
+}
+
 async function getStudios(searchParams: { q?: string; discipline?: string; city?: string; country?: string; region?: string }) {
   try {
     const { createClient } = await import('@/lib/supabase/server')
@@ -46,7 +100,7 @@ async function getStudios(searchParams: { q?: string; discipline?: string; city?
 
     let query = supabase
       .from('studios')
-      .select('id, name, slug, discipline, description, logo_url, country_code, region, city, address, latitude, longitude')
+      .select('id, name, slug, discipline, description, logo_url, settings, country_code, region, city, address, latitude, longitude')
 
     if (searchParams.discipline) {
       query = query.eq('discipline', searchParams.discipline)
@@ -70,7 +124,17 @@ async function getStudios(searchParams: { q?: string; discipline?: string; city?
 
     if (!studios || studios.length === 0) return []
 
-    const studioIds = studios.map((s) => s.id)
+    const publicStudios = studios.filter((s) =>
+      !isLikelyPlaceholderStudio({
+        name: s.name,
+        slug: s.slug,
+        description: s.description,
+      })
+    )
+
+    if (publicStudios.length === 0) return []
+
+    const studioIds = publicStudios.map((s) => s.id)
 
     const { data: memberships } = await supabase
       .from('memberships')
@@ -96,7 +160,7 @@ async function getStudios(searchParams: { q?: string; discipline?: string; city?
       classCountMap[ci.studio_id] = (classCountMap[ci.studio_id] ?? 0) + 1
     }
 
-    return studios
+    return publicStudios
       .map((s: StudioRow) => ({
         id: s.id,
         name: s.name,
@@ -104,6 +168,7 @@ async function getStudios(searchParams: { q?: string; discipline?: string; city?
         discipline: s.discipline,
         description: s.description,
         logo_url: s.logo_url,
+        settings: s.settings,
         city: s.city ?? null,
         country_code: s.country_code ?? null,
         region: s.region ?? null,
@@ -127,11 +192,19 @@ async function getLocations(): Promise<LocationGroup[]> {
   try {
     const { createClient } = await import('@/lib/supabase/server')
     const supabase = await createClient()
-    const { data: studios } = await supabase.from('studios').select('country_code, region, city')
+    const { data: studios } = await supabase
+      .from('studios')
+      .select('name, slug, description, country_code, region, city')
 
     const countryMap = new Map<string, { regions: Set<string>; cities: Set<string> }>()
 
     for (const s of studios ?? []) {
+      const name = (s as Record<string, unknown>).name as string | null
+      const slug = (s as Record<string, unknown>).slug as string | null
+      const description = (s as Record<string, unknown>).description as string | null
+      if (!name || !slug) continue
+      if (isLikelyPlaceholderStudio({ name, slug, description })) continue
+
       const cc = (s as Record<string, unknown>).country_code as string | null
       if (!cc) continue
       if (!countryMap.has(cc)) {
@@ -166,98 +239,133 @@ export default async function ExplorePage({
   const [studios, locations] = await Promise.all([getStudios(params), getLocations()])
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Nav */}
-      <nav className="flex items-center justify-between px-6 py-4 max-w-6xl mx-auto">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-sm">SC</span>
-          </div>
-          <span className="font-bold text-lg">Studio Co-op</span>
-        </Link>
-        <div className="flex items-center gap-4">
-          <Link href="/login" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-            Log in
+    <div className="marketing-page relative isolate min-h-screen bg-background">
+      <div className="pointer-events-none absolute inset-x-0 top-[-9rem] h-[24rem] marketing-glow opacity-80" />
+      <div className="pointer-events-none absolute right-[-9rem] top-28 h-72 w-72 rounded-full bg-[#2E7D6D]/15 blur-3xl" />
+
+      <header className="sticky top-0 z-20 border-b border-white/50 bg-background/90 backdrop-blur">
+        <nav className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
+          <Link href="/" className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
+              <span className="text-sm font-bold text-white">SC</span>
+            </div>
+            <span className="marketing-display text-lg font-semibold tracking-tight">Studio Co-op</span>
           </Link>
+          <div className="flex items-center gap-4">
+            <Link href="/" className="hidden text-sm text-muted-foreground transition-colors hover:text-foreground sm:inline-flex">
+              Home
+            </Link>
+            <Link href="/login" className="text-sm text-muted-foreground transition-colors hover:text-foreground">
+              Log in
+            </Link>
+          </div>
+        </nav>
+      </header>
+
+      <section className="mx-auto max-w-6xl px-6 pb-8 pt-14">
+        <div className="mx-auto max-w-3xl text-center">
+          <p className="inline-flex items-center rounded-full border border-primary/20 bg-card/80 px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-primary">
+            Discover independent studios
+          </p>
+          <h1 className="marketing-display mt-5 text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
+            Find Your Studio
+          </h1>
+          <p className="mt-4 text-lg leading-relaxed text-muted-foreground">
+            Browse indie fitness and movement studios. Find your community.
+          </p>
         </div>
-      </nav>
 
-      {/* Hero */}
-      <section className="max-w-6xl mx-auto px-6 pt-12 pb-8">
-        <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-center mb-4">
-          Find Your Studio
-        </h1>
-        <p className="text-lg text-muted-foreground text-center max-w-xl mx-auto mb-8">
-          Browse indie fitness and movement studios. Find your community.
-        </p>
-
-        <StudioSearch
-          currentSearch={params.q ?? ''}
-          currentDiscipline={params.discipline ?? ''}
-          currentCity={params.city ?? ''}
-          currentCountry={params.country ?? ''}
-          currentRegion={params.region ?? ''}
-          locations={locations}
-        />
+        <div className="marketing-reveal mt-10 rounded-[1.75rem] border border-white/70 bg-card/75 p-5 shadow-[0_20px_60px_-40px_rgba(16,24,40,0.45)] sm:p-7">
+          <StudioSearch
+            currentSearch={params.q ?? ''}
+            currentDiscipline={params.discipline ?? ''}
+            currentCity={params.city ?? ''}
+            currentCountry={params.country ?? ''}
+            currentRegion={params.region ?? ''}
+            locations={locations}
+          />
+        </div>
       </section>
 
-      {/* Results count */}
       {studios.length > 0 && (
-        <div className="max-w-6xl mx-auto px-6 pb-4">
-          <p className="text-sm text-muted-foreground">
+        <div className="mx-auto max-w-6xl px-6 pb-5">
+          <div className="rounded-full border border-border/70 bg-card/80 px-4 py-2 text-sm text-muted-foreground">
             {studios.length} studio{studios.length !== 1 ? 's' : ''}
             {params.discipline ? ` \u00B7 ${params.discipline}` : ''}
             {params.country ? ` \u00B7 ${params.country}` : ''}
             {params.region ? ` \u00B7 ${params.region}` : ''}
             {params.city ? ` \u00B7 ${params.city}` : ''}
-          </p>
+          </div>
         </div>
       )}
 
-      {/* Studio grid */}
-      <section className="max-w-6xl mx-auto px-6 pb-20">
+      {studios.length === 1 && !params.q && !params.discipline && !params.city && !params.country && !params.region && (
+        <div className="mx-auto max-w-6xl px-6 pb-5">
+          <div className="rounded-2xl border border-border/70 bg-card/80 px-4 py-3 text-sm text-muted-foreground">
+            We&apos;re onboarding more studios now. For the moment, this is our featured partner studio.
+          </div>
+        </div>
+      )}
+
+      <section className="mx-auto max-w-6xl px-6 pb-24">
         {studios.length === 0 ? (
-          <div className="text-center py-20">
-            <div className="text-4xl mb-4">{'\u{1F3AA}'}</div>
-            <p className="text-muted-foreground text-lg">
+          <div className="rounded-3xl border border-dashed border-border/80 bg-card/65 px-6 py-20 text-center">
+            <div className="text-4xl">{'\u{1F3AA}'}</div>
+            <p className="mx-auto mt-4 max-w-xl text-lg text-muted-foreground">
               {params.q || params.discipline || params.city || params.country || params.region
                 ? 'No studios found matching your search.'
                 : 'No studios available yet. Check back soon!'}
             </p>
           </div>
         ) : (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {studios.map((studio) => {
               const meta = getDisciplineMeta(studio.discipline)
+              const photoUrl = getStudioPhotoUrl(studio)
+              const logoUrl = getStudioLogoUrl(studio)
+              const initials = studio.name
+                .split(/\s+/)
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((word) => word[0]?.toUpperCase() ?? '')
+                .join('')
+
               return (
                 <Link
                   key={studio.id}
                   href={`/${studio.slug}`}
-                  className="group rounded-xl border bg-card overflow-hidden hover:border-primary/30 hover:shadow-md transition-all"
+                  className="group relative overflow-hidden rounded-2xl border border-white/70 bg-card/85 shadow-sm transition-all hover:-translate-y-1 hover:border-primary/30 hover:shadow-lg"
                 >
-                  {/* Colored discipline accent */}
-                  <div className="h-1" style={{ backgroundColor: meta.color }} />
+                  <div className="h-1.5" style={{ backgroundColor: meta.color }} />
+                  <div className="relative overflow-hidden border-b border-border/60">
+                    <img
+                      src={photoUrl}
+                      alt={`${studio.name} studio`}
+                      className="aspect-[16/9] w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-black/0 to-transparent" />
+                  </div>
                   <div className="p-5">
-                    <div className="flex items-center gap-3 mb-3">
-                      {studio.logo_url ? (
+                    <div className="mb-3 flex items-center gap-3">
+                      {logoUrl ? (
                         <img
-                          src={studio.logo_url}
+                          src={logoUrl}
                           alt={studio.name}
-                          className="w-12 h-12 rounded-xl object-cover"
+                          className="h-12 w-12 rounded-xl object-cover"
                         />
                       ) : (
                         <div
-                          className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl"
+                          className="flex h-12 w-12 items-center justify-center rounded-xl text-sm font-semibold text-foreground"
                           style={{ backgroundColor: meta.bg }}
                         >
-                          {meta.emoji}
+                          {initials || 'SC'}
                         </div>
                       )}
                       <div>
-                        <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors">
+                        <h3 className="marketing-display text-xl font-semibold tracking-tight text-foreground transition-colors group-hover:text-primary">
                           {studio.name}
                         </h3>
-                        <p className="text-xs text-muted-foreground capitalize">
+                        <p className="text-xs capitalize text-muted-foreground">
                           {studio.discipline}
                           {studio.city ? ` \u00B7 ${studio.city}` : ''}
                           {studio.region ? `, ${studio.region}` : ''}
@@ -266,17 +374,20 @@ export default async function ExplorePage({
                       </div>
                     </div>
                     {studio.description && (
-                      <p className="text-sm text-muted-foreground line-clamp-2 mb-3">
+                      <p className="mb-3 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
                         {studio.description}
                       </p>
                     )}
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                      <span>{studio.member_count} member{studio.member_count !== 1 ? 's' : ''}</span>
-                      {studio.upcoming_class_count > 0 && (
-                        <span>
-                          {studio.upcoming_class_count} upcoming class{studio.upcoming_class_count !== 1 ? 'es' : ''}
-                        </span>
-                      )}
+                    <div className="flex items-center justify-between pt-2 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-4">
+                        <span>{studio.member_count} member{studio.member_count !== 1 ? 's' : ''}</span>
+                        {studio.upcoming_class_count > 0 && (
+                          <span>
+                            {studio.upcoming_class_count} upcoming class{studio.upcoming_class_count !== 1 ? 'es' : ''}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-primary transition-transform group-hover:translate-x-1">Explore</span>
                     </div>
                   </div>
                 </Link>
@@ -286,12 +397,11 @@ export default async function ExplorePage({
         )}
       </section>
 
-      {/* Footer */}
-      <footer className="border-t">
-        <div className="max-w-6xl mx-auto px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
+      <footer className="border-t border-border/60">
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 py-8 text-sm text-muted-foreground sm:flex-row">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-primary rounded flex items-center justify-center">
-              <span className="text-white font-bold text-[10px]">SC</span>
+            <div className="flex h-6 w-6 items-center justify-center rounded bg-primary">
+              <span className="text-[10px] font-bold text-white">SC</span>
             </div>
             <span>Studio Co-op</span>
           </div>

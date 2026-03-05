@@ -18,6 +18,7 @@ const navItems = [
   { path: '/members', labelKey: 'members', icon: '👥' },
   { path: '/money', labelKey: 'money', icon: '💰' },
   { path: '/reports', labelKey: 'reports', icon: '📊' },
+  { path: '/copilot', labelKey: 'copilot', icon: '✨' },
   { path: '/settings', labelKey: 'settings', icon: '⚙️' },
 ] as const
 

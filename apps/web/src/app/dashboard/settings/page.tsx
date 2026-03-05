@@ -20,6 +20,26 @@ const COUNTRIES = [
   { code: 'OTHER', name: 'Other' },
 ]
 
+type TeacherSpotlight = {
+  name: string
+  role: string
+  bio: string
+  photo_url: string
+  instagram: string
+  tiktok: string
+  facebook: string
+  youtube: string
+  media_urls_text: string
+}
+
+function asString(value: unknown, fallback = ''): string {
+  return typeof value === 'string' ? value : fallback
+}
+
+function asCoordinate(value: unknown): string | number {
+  return typeof value === 'number' ? value : ''
+}
+
 export default function SettingsPage() {
   const { studioId, loading: studioLoading } = useStudioId()
   const [loading, setLoading] = useState(true)
@@ -31,8 +51,12 @@ export default function SettingsPage() {
     name: '', slug: '', description: '',
     address: '', city: '', country: '', region: '',
     timezone: 'Pacific/Auckland', phone: '', email: '', website: '',
+    instagram: '', tiktok: '', facebook: '', youtube: '',
+    logo_url: '', hero_image_url: '',
     latitude: '' as string | number, longitude: '' as string | number,
   })
+  const [teacherSpotlights, setTeacherSpotlights] = useState<TeacherSpotlight[]>([])
+  const [socialGalleryText, setSocialGalleryText] = useState('')
 
   const [notifications, setNotifications] = useState({
     booking_confirmation: true, booking_reminder: true, reminder_hours: 2,
@@ -123,15 +147,54 @@ export default function SettingsPage() {
     async function load() {
       try {
         const settings = await studioApi.getSettings(sid)
-        const g = settings.general as Record<string, string>
+        const g = settings.general as Record<string, unknown>
         setStudio({
-          name: g.name ?? '', slug: g.slug ?? '', description: g.description ?? '',
-          address: g.address ?? '', city: g.city ?? '', country: g.country ?? '',
-          region: g.region ?? '',
-          timezone: g.timezone ?? 'Pacific/Auckland', phone: g.phone ?? '',
-          email: g.email ?? '', website: g.website ?? '',
-          latitude: g.latitude ?? '', longitude: g.longitude ?? '',
+          name: asString(g.name),
+          slug: asString(g.slug),
+          description: asString(g.description),
+          address: asString(g.address),
+          city: asString(g.city),
+          country: asString(g.country),
+          region: asString(g.region),
+          timezone: asString(g.timezone, 'Pacific/Auckland'),
+          phone: asString(g.phone),
+          email: asString(g.email),
+          website: asString(g.website),
+          instagram: asString(g.instagram),
+          tiktok: asString(g.tiktok),
+          facebook: asString(g.facebook),
+          youtube: asString(g.youtube),
+          logo_url: asString(g.logo_url),
+          hero_image_url: asString(g.hero_image_url),
+          latitude: asCoordinate(g.latitude),
+          longitude: asCoordinate(g.longitude),
         })
+        const teacherRaw = Array.isArray(g.teacher_spotlights) ? g.teacher_spotlights : []
+        setTeacherSpotlights(
+          teacherRaw
+            .map((entry) => {
+              const row = entry as Record<string, unknown>
+              const name = typeof row.name === 'string' ? row.name.trim() : ''
+              if (!name) return null
+              const mediaUrls = Array.isArray(row.media_urls) ? row.media_urls.filter((v): v is string => typeof v === 'string') : []
+              return {
+                name,
+                role: typeof row.role === 'string' ? row.role : '',
+                bio: typeof row.bio === 'string' ? row.bio : '',
+                photo_url: typeof row.photo_url === 'string' ? row.photo_url : '',
+                instagram: typeof row.instagram === 'string' ? row.instagram : '',
+                tiktok: typeof row.tiktok === 'string' ? row.tiktok : '',
+                facebook: typeof row.facebook === 'string' ? row.facebook : '',
+                youtube: typeof row.youtube === 'string' ? row.youtube : '',
+                media_urls_text: mediaUrls.join('\n'),
+              } satisfies TeacherSpotlight
+            })
+            .filter((profile): profile is TeacherSpotlight => Boolean(profile))
+        )
+        const socialGallery = Array.isArray(g.social_gallery)
+          ? g.social_gallery.filter((v): v is string => typeof v === 'string')
+          : []
+        setSocialGalleryText(socialGallery.join('\n'))
         const n = settings.notifications as Record<string, unknown>
         setNotifications(prev => ({ ...prev, ...n }))
         const ca = settings.cancellation as Record<string, unknown>
@@ -256,10 +319,34 @@ export default function SettingsPage() {
     setSaving(true)
     setSaveMessage('')
     try {
+      const teacherSpotlightsPayload = teacherSpotlights
+        .map((teacher) => ({
+          name: teacher.name.trim(),
+          role: teacher.role.trim(),
+          bio: teacher.bio.trim(),
+          photo_url: teacher.photo_url.trim(),
+          instagram: teacher.instagram.trim(),
+          tiktok: teacher.tiktok.trim(),
+          facebook: teacher.facebook.trim(),
+          youtube: teacher.youtube.trim(),
+          media_urls: teacher.media_urls_text
+            .split('\n')
+            .map((line) => line.trim())
+            .filter((line) => line.length > 0),
+        }))
+        .filter((teacher) => teacher.name.length > 0)
+
+      const socialGalleryPayload = socialGalleryText
+        .split('\n')
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0)
+
       const payload = {
         ...studio,
         latitude: studio.latitude !== '' ? Number(studio.latitude) : undefined,
         longitude: studio.longitude !== '' ? Number(studio.longitude) : undefined,
+        teacher_spotlights: teacherSpotlightsPayload,
+        social_gallery: socialGalleryPayload,
       }
       await studioApi.updateGeneral(studioId, payload)
       setSaveMessage('Settings saved!')
@@ -325,6 +412,33 @@ export default function SettingsPage() {
     }
     setSaving(false)
     setTimeout(() => setSaveMessage(''), 3000)
+  }
+
+  function addTeacherSpotlight() {
+    setTeacherSpotlights((prev) => ([
+      ...prev,
+      {
+        name: '',
+        role: '',
+        bio: '',
+        photo_url: '',
+        instagram: '',
+        tiktok: '',
+        facebook: '',
+        youtube: '',
+        media_urls_text: '',
+      },
+    ]))
+  }
+
+  function updateTeacherSpotlight(index: number, updates: Partial<TeacherSpotlight>) {
+    setTeacherSpotlights((prev) =>
+      prev.map((teacher, i) => (i === index ? { ...teacher, ...updates } : teacher))
+    )
+  }
+
+  function removeTeacherSpotlight(index: number) {
+    setTeacherSpotlights((prev) => prev.filter((_, i) => i !== index))
   }
 
   if (loading) return <div className="py-20 text-center text-muted-foreground" aria-busy="true" role="status">Loading settings...</div>
@@ -439,6 +553,126 @@ export default function SettingsPage() {
                     <Input id="studio-longitude" type="number" step="any" value={studio.longitude} onChange={e => setStudio({...studio, longitude: e.target.value})} placeholder="174.7762" />
                   </div>
                 </div>
+              </div>
+
+              <div className="pt-3 border-t">
+                <h3 className="font-medium text-sm mb-3">Public Social Profiles</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="studio-instagram" className="text-sm font-medium">Instagram</label>
+                    <Input id="studio-instagram" value={studio.instagram} onChange={e => setStudio({...studio, instagram: e.target.value})} placeholder="@empireaerialarts or full URL" />
+                  </div>
+                  <div>
+                    <label htmlFor="studio-tiktok" className="text-sm font-medium">TikTok</label>
+                    <Input id="studio-tiktok" value={studio.tiktok} onChange={e => setStudio({...studio, tiktok: e.target.value})} placeholder="@studiohandle or full URL" />
+                  </div>
+                  <div>
+                    <label htmlFor="studio-facebook" className="text-sm font-medium">Facebook</label>
+                    <Input id="studio-facebook" value={studio.facebook} onChange={e => setStudio({...studio, facebook: e.target.value})} placeholder="facebook page URL or handle" />
+                  </div>
+                  <div>
+                    <label htmlFor="studio-youtube" className="text-sm font-medium">YouTube</label>
+                    <Input id="studio-youtube" value={studio.youtube} onChange={e => setStudio({...studio, youtube: e.target.value})} placeholder="@channel or full URL" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t">
+                <h3 className="font-medium text-sm mb-3">Public Website Media</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="studio-logo-url" className="text-sm font-medium">Logo URL</label>
+                    <Input id="studio-logo-url" value={studio.logo_url} onChange={e => setStudio({...studio, logo_url: e.target.value})} placeholder="https://..." />
+                  </div>
+                  <div>
+                    <label htmlFor="studio-hero-url" className="text-sm font-medium">Hero Image URL</label>
+                    <Input id="studio-hero-url" value={studio.hero_image_url} onChange={e => setStudio({...studio, hero_image_url: e.target.value})} placeholder="https://..." />
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <label htmlFor="studio-social-gallery" className="text-sm font-medium">Social Media Gallery URLs</label>
+                  <p className="text-xs text-muted-foreground mb-2">One URL per line (Instagram post, TikTok, YouTube, image, or video URL)</p>
+                  <textarea
+                    id="studio-social-gallery"
+                    className="w-full border rounded-md px-3 py-2 text-sm min-h-[96px]"
+                    value={socialGalleryText}
+                    onChange={e => setSocialGalleryText(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="pt-3 border-t">
+                <div className="flex items-center justify-between">
+                  <h3 className="font-medium text-sm">Teacher Spotlights</h3>
+                  <Button type="button" variant="outline" size="sm" onClick={addTeacherSpotlight}>
+                    Add Teacher
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1 mb-3">Show who teaches at your studio, with optional public social links.</p>
+
+                {teacherSpotlights.length === 0 ? (
+                  <div className="rounded-md border border-dashed px-3 py-4 text-sm text-muted-foreground">
+                    No teacher spotlights yet.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {teacherSpotlights.map((teacher, index) => (
+                      <div key={`${teacher.name}-${index}`} className="rounded-lg border p-4 space-y-3">
+                        <div className="flex items-center justify-between gap-4">
+                          <p className="text-sm font-medium">Teacher {index + 1}</p>
+                          <Button type="button" variant="outline" size="sm" onClick={() => removeTeacherSpotlight(index)}>
+                            Remove
+                          </Button>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-xs text-muted-foreground">Name</label>
+                            <Input value={teacher.name} onChange={e => updateTeacherSpotlight(index, { name: e.target.value })} />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground">Role</label>
+                            <Input value={teacher.role} onChange={e => updateTeacherSpotlight(index, { role: e.target.value })} placeholder="Head coach" />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground">Bio</label>
+                          <textarea className="w-full border rounded-md px-3 py-2 text-sm min-h-[70px]" value={teacher.bio} onChange={e => updateTeacherSpotlight(index, { bio: e.target.value })} />
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground">Photo URL</label>
+                          <Input value={teacher.photo_url} onChange={e => updateTeacherSpotlight(index, { photo_url: e.target.value })} placeholder="https://..." />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-xs text-muted-foreground">Instagram</label>
+                            <Input value={teacher.instagram} onChange={e => updateTeacherSpotlight(index, { instagram: e.target.value })} placeholder="@name or URL" />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground">TikTok</label>
+                            <Input value={teacher.tiktok} onChange={e => updateTeacherSpotlight(index, { tiktok: e.target.value })} placeholder="@name or URL" />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground">Facebook</label>
+                            <Input value={teacher.facebook} onChange={e => updateTeacherSpotlight(index, { facebook: e.target.value })} />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground">YouTube</label>
+                            <Input value={teacher.youtube} onChange={e => updateTeacherSpotlight(index, { youtube: e.target.value })} />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground">Teacher Media URLs</label>
+                          <textarea
+                            className="w-full border rounded-md px-3 py-2 text-sm min-h-[84px]"
+                            value={teacher.media_urls_text}
+                            onChange={e => updateTeacherSpotlight(index, { media_urls_text: e.target.value })}
+                            placeholder="One URL per line"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               <Button onClick={handleSaveGeneral} disabled={saving}>{saving ? 'Saving...' : 'Save Changes'}</Button>
             </CardContent>

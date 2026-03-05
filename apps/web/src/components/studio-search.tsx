@@ -127,20 +127,19 @@ export function StudioSearch({
   const selectedLocation = locations.find((l) => l.country_code === currentCountry)
 
   return (
-    <div className="space-y-5">
-      {/* Search input */}
-      <form onSubmit={handleSearchSubmit} className="max-w-xl mx-auto">
+    <div className="space-y-6">
+      <form onSubmit={handleSearchSubmit} className="mx-auto max-w-xl">
         <div className="relative">
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search studios by name or discipline..."
-            className="w-full rounded-xl border bg-card px-4 py-3 pr-12 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+            className="w-full rounded-2xl border border-border/70 bg-background/90 px-4 py-3.5 pr-12 text-foreground shadow-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
           />
           <button
             type="submit"
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground transition-colors hover:text-foreground"
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
@@ -149,12 +148,11 @@ export function StudioSearch({
         </div>
       </form>
 
-      {/* Near Me button */}
-      <div className="flex justify-center">
+      <div className="space-y-2 text-center">
         <button
           onClick={handleNearMe}
           disabled={geoLoading}
-          className="rounded-full px-5 py-2.5 text-sm font-medium border-2 border-primary bg-primary/5 text-primary hover:bg-primary hover:text-white transition-colors flex items-center gap-2 disabled:opacity-50"
+          className="inline-flex items-center gap-2 rounded-full border-2 border-primary/70 bg-primary/5 px-5 py-2.5 text-sm font-medium text-primary transition-colors hover:border-primary hover:bg-primary hover:text-white disabled:opacity-50"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="3" />
@@ -163,16 +161,15 @@ export function StudioSearch({
           {geoLoading ? 'Locating...' : 'Near Me'}
         </button>
         {geoError && (
-          <p role="alert" className="text-sm text-red-600 mt-1">{geoError}</p>
+          <p role="alert" className="text-sm text-red-600">{geoError}</p>
         )}
       </div>
 
-      {/* Discipline filter -- visual pills with emoji */}
       <div>
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 text-center">
+        <p className="mb-2 text-center text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
           By Type
         </p>
-        <div className="flex flex-wrap justify-center gap-2">
+        <div className="flex flex-wrap justify-center gap-2.5">
           {DISCIPLINES.map((d) => {
             const isActive = currentDiscipline
               ? d.toLowerCase() === currentDiscipline.toLowerCase()
@@ -184,10 +181,10 @@ export function StudioSearch({
                 <button
                   key={d}
                   onClick={() => updateParams({ discipline: 'All' })}
-                  className={`rounded-full px-4 py-2 text-sm font-medium border-2 transition-colors ${
+                  className={`rounded-full border-2 px-4 py-2 text-sm font-medium transition-colors ${
                     isActive
-                      ? 'bg-primary text-white border-primary'
-                      : 'bg-card text-foreground border-border hover:border-primary/30'
+                      ? 'border-primary bg-primary text-white'
+                      : 'border-border bg-background text-foreground hover:border-primary/30'
                   }`}
                 >
                   All
@@ -199,7 +196,7 @@ export function StudioSearch({
               <button
                 key={d}
                 onClick={() => updateParams({ discipline: d })}
-                className="rounded-full px-4 py-2 text-sm font-medium border-2 transition-colors flex items-center gap-1.5"
+                className="flex items-center gap-1.5 rounded-full border-2 border-border bg-background px-4 py-2 text-sm font-medium transition-colors hover:border-primary/30"
                 style={{
                   borderColor: isActive ? (meta?.color ?? '#7c3aed') : undefined,
                   backgroundColor: isActive ? (meta?.bg ?? '#f3e8ff') : undefined,
@@ -214,19 +211,17 @@ export function StudioSearch({
         </div>
       </div>
 
-      {/* Location filter */}
       {locations.length > 0 && (
         <div>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 text-center">
+          <p className="mb-2 text-center text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
             By Location
           </p>
 
-          {/* Breadcrumb navigation */}
           {(currentCountry || currentRegion) && (
-            <div className="flex items-center justify-center gap-1.5 text-sm text-muted-foreground mb-3">
+            <div className="mb-3 flex items-center justify-center gap-1.5 text-sm text-muted-foreground">
               <button
                 onClick={() => updateParams({ country: 'All', region: 'All', city: 'All' })}
-                className="hover:text-foreground transition-colors underline"
+                className="underline transition-colors hover:text-foreground"
               >
                 All
               </button>
@@ -235,7 +230,7 @@ export function StudioSearch({
                   <span>&gt;</span>
                   <button
                     onClick={() => updateParams({ region: 'All', city: 'All' })}
-                    className={`transition-colors ${currentRegion ? 'hover:text-foreground underline' : 'text-foreground font-medium'}`}
+                    className={`transition-colors ${currentRegion ? 'underline hover:text-foreground' : 'font-medium text-foreground'}`}
                   >
                     {COUNTRY_INFO[currentCountry]?.flag ?? ''} {COUNTRY_INFO[currentCountry]?.name ?? currentCountry}
                   </button>
@@ -244,19 +239,18 @@ export function StudioSearch({
               {currentRegion && (
                 <>
                   <span>&gt;</span>
-                  <span className="text-foreground font-medium">{currentRegion}</span>
+                  <span className="font-medium text-foreground">{currentRegion}</span>
                 </>
               )}
             </div>
           )}
 
           <div className="flex flex-wrap justify-center gap-2">
-            {/* When no country is selected, show country pills */}
             {!currentCountry && (
               <>
                 <button
                   onClick={() => updateParams({ country: 'All', region: 'All', city: 'All' })}
-                  className="rounded-full px-4 py-2 text-sm font-medium border-2 transition-colors bg-primary text-white border-primary"
+                  className="rounded-full border-2 border-primary bg-primary px-4 py-2 text-sm font-medium text-white transition-colors"
                 >
                   All Locations
                 </button>
@@ -266,7 +260,7 @@ export function StudioSearch({
                     <button
                       key={loc.country_code}
                       onClick={() => updateParams({ country: loc.country_code, region: 'All', city: 'All' })}
-                      className="rounded-full px-4 py-2 text-sm font-medium border-2 transition-colors flex items-center gap-1.5 bg-card text-foreground border-border hover:border-primary/30"
+                      className="flex items-center gap-1.5 rounded-full border-2 border-border bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/30"
                     >
                       <span>{info?.flag ?? '\u{1F30D}'}</span>
                       {info?.name ?? loc.country_code}
@@ -276,12 +270,11 @@ export function StudioSearch({
               </>
             )}
 
-            {/* When a country is selected but no region, show regions for that country */}
             {currentCountry && !currentRegion && selectedLocation && selectedLocation.regions.length > 0 && (
               <>
                 <button
                   onClick={() => updateParams({ country: 'All', region: 'All', city: 'All' })}
-                  className="rounded-full px-4 py-2 text-sm font-medium border-2 transition-colors bg-card text-foreground border-border hover:border-primary/30"
+                  className="rounded-full border-2 border-border bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/30"
                 >
                   All Regions
                 </button>
@@ -289,7 +282,7 @@ export function StudioSearch({
                   <button
                     key={r}
                     onClick={() => updateParams({ region: r, city: 'All' })}
-                    className="rounded-full px-4 py-2 text-sm font-medium border-2 transition-colors flex items-center gap-1.5 bg-card text-foreground border-border hover:border-primary/30"
+                    className="flex items-center gap-1.5 rounded-full border-2 border-border bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/30"
                   >
                     <span>{'\u{1F4CD}'}</span>
                     {r}
@@ -298,15 +291,14 @@ export function StudioSearch({
               </>
             )}
 
-            {/* When country is selected and region is selected, show cities */}
             {currentCountry && currentRegion && selectedLocation && selectedLocation.cities.length > 0 && (
               <>
                 <button
                   onClick={() => updateParams({ city: 'All' })}
-                  className={`rounded-full px-4 py-2 text-sm font-medium border-2 transition-colors ${
+                  className={`rounded-full border-2 px-4 py-2 text-sm font-medium transition-colors ${
                     !currentCity
-                      ? 'bg-primary text-white border-primary'
-                      : 'bg-card text-foreground border-border hover:border-primary/30'
+                      ? 'border-primary bg-primary text-white'
+                      : 'border-border bg-background text-foreground hover:border-primary/30'
                   }`}
                 >
                   All Cities
@@ -317,10 +309,10 @@ export function StudioSearch({
                     <button
                       key={c}
                       onClick={() => updateParams({ city: c })}
-                      className={`rounded-full px-4 py-2 text-sm font-medium border-2 transition-colors flex items-center gap-1.5 ${
+                      className={`flex items-center gap-1.5 rounded-full border-2 px-4 py-2 text-sm font-medium transition-colors ${
                         isActive
                           ? 'border-primary bg-primary/5 text-primary'
-                          : 'bg-card text-foreground border-border hover:border-primary/30'
+                          : 'border-border bg-background text-foreground hover:border-primary/30'
                       }`}
                     >
                       <span>{'\u{1F4CD}'}</span>
