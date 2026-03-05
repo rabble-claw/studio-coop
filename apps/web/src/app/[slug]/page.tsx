@@ -1,8 +1,9 @@
 import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
+import { notFound, permanentRedirect } from 'next/navigation'
 import { formatTime, formatDate } from '@/lib/utils'
 import Link from 'next/link'
 import { CouponInput } from '@/components/coupon-input'
+import { resolveStudioSlug } from '@/lib/studio-slugs'
 
 type MembershipPlan = {
   id: string
@@ -566,8 +567,9 @@ const RESERVED_SLUGS = ['api', 'login', 'dashboard', 'demo', 'admin', 'signup', 
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
-  if (RESERVED_SLUGS.includes(slug)) return {}
-  const data = await getStudioData(slug)
+  const canonicalSlug = resolveStudioSlug(slug)
+  if (RESERVED_SLUGS.includes(canonicalSlug)) return {}
+  const data = await getStudioData(canonicalSlug)
   if (!data) return {}
   const { studio } = data
   const settings = (studio.settings ?? {}) as Record<string, unknown>
@@ -587,8 +589,12 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function PublicStudioPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  if (RESERVED_SLUGS.includes(slug)) notFound()
-  const data = await getStudioData(slug)
+  const canonicalSlug = resolveStudioSlug(slug)
+  if (canonicalSlug !== slug) {
+    permanentRedirect(`/${canonicalSlug}`)
+  }
+  if (RESERVED_SLUGS.includes(canonicalSlug)) notFound()
+  const data = await getStudioData(canonicalSlug)
   if (!data) notFound()
   const { studio, classesByDate, plans } = data
   const settings = (studio.settings ?? {}) as Record<string, unknown>
@@ -752,7 +758,7 @@ export default async function PublicStudioPage({ params }: { params: Promise<{ s
     ...(address ? { address: { '@type': 'PostalAddress', streetAddress: address } } : {}),
     ...(logoUrl ? { image: logoUrl } : {}),
     ...(studioEmail ? { email: studioEmail } : {}),
-    url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://studio.coop'}/${slug}`,
+    url: `${process.env.NEXT_PUBLIC_APP_URL || 'https://studio.coop'}/${canonicalSlug}`,
   }
 
   return (
@@ -780,7 +786,7 @@ export default async function PublicStudioPage({ params }: { params: Promise<{ s
               </a>
             )}
             <Link
-              href={`/login?studio=${slug}`}
+              href={`/login?studio=${canonicalSlug}`}
               className="inline-flex items-center rounded-full bg-primary px-5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
             >
               Book Now
@@ -813,7 +819,7 @@ export default async function PublicStudioPage({ params }: { params: Promise<{ s
 
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
-                href={`/login?studio=${slug}`}
+                href={`/login?studio=${canonicalSlug}`}
                 className="inline-flex items-center rounded-full bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
               >
                 Book your first class
@@ -943,7 +949,7 @@ export default async function PublicStudioPage({ params }: { params: Promise<{ s
                           </div>
                         </div>
                         <Link
-                          href={`/${slug}/teachers/${toTeacherSlug(heroTeacher.name)}`}
+                          href={`/${canonicalSlug}/teachers/${toTeacherSlug(heroTeacher.name)}`}
                           className="inline-flex items-center rounded-full border border-border/70 bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary/35"
                         >
                           View full profile
@@ -975,7 +981,7 @@ export default async function PublicStudioPage({ params }: { params: Promise<{ s
                   {supportingTeachers.length > 0 ? (
                     supportingTeachers.map((teacher) => {
                       const teacherPhoto = getTeacherPhotoSrc(teacher)
-                      const teacherProfileHref = `/${slug}/teachers/${toTeacherSlug(teacher.name)}`
+                      const teacherProfileHref = `/${canonicalSlug}/teachers/${toTeacherSlug(teacher.name)}`
                       const initials = teacher.name
                         .replace(/\./g, '')
                         .split(/\s+/)
@@ -1174,7 +1180,7 @@ export default async function PublicStudioPage({ params }: { params: Promise<{ s
                                   <>
                                     {' · '}
                                     <Link
-                                      href={`/${slug}/teachers/${toTeacherSlug(cls.teacher.name)}`}
+                                      href={`/${canonicalSlug}/teachers/${toTeacherSlug(cls.teacher.name)}`}
                                       className="font-medium text-foreground transition-colors hover:text-primary"
                                     >
                                       {cls.teacher.name}
@@ -1188,7 +1194,7 @@ export default async function PublicStudioPage({ params }: { params: Promise<{ s
                                 {availableSpots === null ? 'Spots available' : `${availableSpots} spots left`}
                               </span>
                               <Link
-                                href={`/login?studio=${slug}`}
+                                href={`/login?studio=${canonicalSlug}`}
                                 className="inline-flex items-center rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
                               >
                                 Book
@@ -1248,7 +1254,7 @@ export default async function PublicStudioPage({ params }: { params: Promise<{ s
                         <p className="mt-1 text-xs text-muted-foreground">Up to {plan.class_limit} classes / month</p>
                       )}
                       <Link
-                        href={`/login?studio=${slug}`}
+                        href={`/login?studio=${canonicalSlug}`}
                         className={`mt-6 inline-flex items-center justify-center rounded-full px-5 py-2.5 text-sm font-semibold transition-colors ${
                           isUnlimited
                             ? 'bg-primary text-primary-foreground hover:bg-primary/90'

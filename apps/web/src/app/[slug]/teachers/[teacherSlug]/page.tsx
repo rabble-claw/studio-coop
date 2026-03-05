@@ -1,6 +1,7 @@
-import { notFound } from 'next/navigation'
+import { notFound, permanentRedirect } from 'next/navigation'
 import Link from 'next/link'
 import { formatDate, formatTime } from '@/lib/utils'
+import { resolveStudioSlug } from '@/lib/studio-slugs'
 
 type PublicClassForDisplay = {
   id: string
@@ -604,9 +605,13 @@ const RESERVED_SLUGS = ['api', 'login', 'dashboard', 'demo', 'admin', 'signup', 
 
 export default async function PublicTeacherPage({ params }: { params: Promise<{ slug: string; teacherSlug: string }> }) {
   const { slug, teacherSlug } = await params
-  if (RESERVED_SLUGS.includes(slug)) notFound()
+  const canonicalSlug = resolveStudioSlug(slug)
+  if (canonicalSlug !== slug) {
+    permanentRedirect(`/${canonicalSlug}/teachers/${teacherSlug}`)
+  }
+  if (RESERVED_SLUGS.includes(canonicalSlug)) notFound()
 
-  const data = await getTeacherPageData(slug, teacherSlug)
+  const data = await getTeacherPageData(canonicalSlug, teacherSlug)
   if (!data || !data.teacher) notFound()
 
   const { studio, logoUrl, heroImageUrl, teacher, classesByDate, socialHighlights } = data
@@ -623,7 +628,7 @@ export default async function PublicTeacherPage({ params }: { params: Promise<{ 
     <div className="marketing-page min-h-screen text-foreground">
       <header className="sticky top-0 z-20 border-b border-white/50 bg-background/90 backdrop-blur">
         <nav className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
-          <Link href={`/${slug}`} className="flex items-center gap-3">
+          <Link href={`/${canonicalSlug}`} className="flex items-center gap-3">
             {logoUrl ? (
               <img src={logoUrl} alt={studio.name} className="h-9 w-9 rounded-full object-cover" />
             ) : (
@@ -635,13 +640,13 @@ export default async function PublicTeacherPage({ params }: { params: Promise<{ 
           </Link>
           <div className="flex items-center gap-3">
             <Link
-              href={`/${slug}#schedule`}
+              href={`/${canonicalSlug}#schedule`}
               className="inline-flex items-center rounded-full border border-border bg-card px-4 py-2 text-xs font-semibold uppercase tracking-[0.12em] text-foreground transition-colors hover:border-primary/35"
             >
               All classes
             </Link>
             <Link
-              href={`/login?studio=${slug}&teacher=${encodeURIComponent(teacher.name)}`}
+              href={`/login?studio=${canonicalSlug}&teacher=${encodeURIComponent(teacher.name)}`}
               className="inline-flex items-center rounded-full bg-primary px-5 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
             >
               Book with {teacher.name.split(' ')[0]}
@@ -813,7 +818,7 @@ export default async function PublicTeacherPage({ params }: { params: Promise<{ 
                                 {availableSpots === null ? 'Spots available' : `${availableSpots} spots left`}
                               </span>
                               <Link
-                                href={`/login?studio=${slug}&teacher=${encodeURIComponent(teacher.name)}`}
+                                href={`/login?studio=${canonicalSlug}&teacher=${encodeURIComponent(teacher.name)}`}
                                 className="inline-flex items-center rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
                               >
                                 Book now
@@ -831,7 +836,7 @@ export default async function PublicTeacherPage({ params }: { params: Promise<{ 
 
           <div className="mt-10 text-center">
             <Link
-              href={`/${slug}`}
+              href={`/${canonicalSlug}`}
               className="inline-flex items-center rounded-full border border-border bg-card px-5 py-2 text-sm font-medium text-foreground transition-colors hover:border-primary/35"
             >
               Back to studio page
