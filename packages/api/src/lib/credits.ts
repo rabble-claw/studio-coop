@@ -63,7 +63,6 @@ export async function checkBookingCredits(
     .eq('studio_id', studioId)
     .eq('status', 'active')
     .order('created_at', { ascending: false })
-    .limit(1)
     .maybeSingle()
 
   if (subscription) {
