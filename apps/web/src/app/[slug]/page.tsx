@@ -38,6 +38,25 @@ type EmpireWeeklyClassTemplate = {
   end_time: string
 }
 
+type ImportedSocialMedia = {
+  provider: string
+  provider_media_id: string
+  owner_display_name?: string | null
+  caption?: string | null
+  permalink_url: string
+  media_type?: string | null
+  media_url?: string | null
+  thumbnail_url?: string | null
+  published_at?: string | null
+}
+
+type ImportedTeacherSocialProfile = {
+  teacher_name: string
+  provider: string
+  provider_username: string
+  profile_url: string
+}
+
 function formatPlanPrice(plan: MembershipPlan): string {
   const amount = (plan.price_cents / 100).toFixed(2).replace(/\.00$/, '')
   const currency = plan.currency.toUpperCase()
@@ -410,6 +429,13 @@ function getMediaTitle(url: string, type: ReturnType<typeof getMediaType>) {
   }
 }
 
+function getCaptionTitle(caption: string | null | undefined, fallback = 'Instagram post') {
+  if (!caption) return fallback
+  const singleLine = caption.replace(/\s+/g, ' ').trim()
+  if (!singleLine) return fallback
+  return singleLine.length > 88 ? `${singleLine.slice(0, 85)}...` : singleLine
+}
+
 function getEmpireTeacherFallbacks(studio: { name: string; slug: string }) {
   if (!isEmpireStudio(studio)) return [] as TeacherPublicProfile[]
 
@@ -545,6 +571,21 @@ async function getStudioData(slug: string) {
     .eq('active', true)
     .order('sort_order')
 
+  const socialMediaResult = await supabase
+    .from('studio_social_media')
+    .select('provider, provider_media_id, owner_display_name, caption, permalink_url, media_type, media_url, thumbnail_url, published_at')
+    .eq('studio_id', studio.id)
+    .eq('provider', 'instagram')
+    .eq('is_active', true)
+    .order('published_at', { ascending: false })
+    .limit(24)
+
+  const teacherSocialProfilesResult = await supabase
+    .from('studio_teacher_social_profiles')
+    .select('teacher_name, provider, provider_username, profile_url')
+    .eq('studio_id', studio.id)
+    .eq('provider', 'instagram')
+
   const dbClasses = ((classes ?? []) as PublicClassForDisplay[])
   const classesForDisplay = isEmpireStudio(studio)
     ? mergeDisplayClasses(dbClasses, buildEmpireMindbodyImportedClasses())
@@ -560,6 +601,8 @@ async function getStudioData(slug: string) {
     studio,
     classesByDate,
     plans: (plans ?? []) as MembershipPlan[],
+    importedSocialMedia: socialMediaResult.error ? [] : ((socialMediaResult.data ?? []) as ImportedSocialMedia[]),
+    importedTeacherSocialProfiles: teacherSocialProfilesResult.error ? [] : ((teacherSocialProfilesResult.data ?? []) as ImportedTeacherSocialProfile[]),
   }
 }
 
@@ -596,7 +639,7 @@ export default async function PublicStudioPage({ params }: { params: Promise<{ s
   if (RESERVED_SLUGS.includes(canonicalSlug)) notFound()
   const data = await getStudioData(canonicalSlug)
   if (!data) notFound()
-  const { studio, classesByDate, plans } = data
+  const { studio, classesByDate, plans, importedSocialMedia, importedTeacherSocialProfiles } = data
   const settings = (studio.settings ?? {}) as Record<string, unknown>
   const address = settings.address as string | undefined
   const studioEmail = settings.email as string | undefined
@@ -613,7 +656,13 @@ export default async function PublicStudioPage({ params }: { params: Promise<{ s
   const upcomingClassCount = Object.values(classesByDate).reduce((total, dayClasses) => total + (dayClasses?.length ?? 0), 0)
   const empireFallbackInstagram = isEmpireStudio(studio) ? 'https://www.instagram.com/empireaerialarts/' : undefined
   const empireFallbackWebsite = isEmpireStudio(studio) ? 'https://linktr.ee/Emma_Lou_Empire' : undefined
-  const instagramUrl = normalizeSocialUrl(instagram, 'instagram') ?? empireFallbackInstagram
+  const importedStudioInstagramHandle = firstNonEmpty(
+    ...importedSocialMedia.map((item) => item.owner_display_name)
+  )
+  const importedStudioInstagramUrl = importedStudioInstagramHandle
+    ? `https://www.instagram.com/${importedStudioInstagramHandle}/`
+    : undefined
+  const instagramUrl = normalizeSocialUrl(instagram, 'instagram') ?? importedStudioInstagramUrl ?? empireFallbackInstagram
   const tiktokUrl = normalizeSocialUrl(tiktok, 'tiktok')
   const facebookUrl = normalizeSocialUrl(facebook, 'facebook')
   const youtubeUrl = normalizeSocialUrl(youtube, 'youtube')
@@ -632,6 +681,16 @@ export default async function PublicStudioPage({ params }: { params: Promise<{ s
     configuredTeacherByName.set(normalizedKey, teacher)
   }
 
+  const importedTeacherInstagramByName = new Map<string, string>()
+  for (const profile of importedTeacherSocialProfiles) {
+    if (profile.provider !== 'instagram') continue
+    const normalizedKey = normalizePersonKey(profile.teacher_name)
+    const url = normalizeSocialUrl(profile.profile_url, 'instagram')
+      ?? normalizeSocialUrl(profile.provider_username, 'instagram')
+    if (!normalizedKey || !url) continue
+    importedTeacherInstagramByName.set(normalizedKey, url)
+  }
+
   const socialLinks = [
     { label: 'Instagram', url: instagramUrl, blurb: 'Class clips and studio highlights' },
     { label: 'TikTok', url: tiktokUrl, blurb: 'Teacher demos and in-studio moments' },
@@ -643,8 +702,11 @@ export default async function PublicStudioPage({ params }: { params: Promise<{ s
   const teacherSpotlightMap = new Map<string, TeacherSpotlight>()
 
   for (const profile of teacherProfiles) {
-    const instagramProfileUrl = normalizeSocialUrl(profile.instagram, 'instagram') ?? ''
-    teacherSpotlightMap.set(normalizePersonKey(profile.name), {
+    const profileKey = normalizePersonKey(profile.name)
+    const instagramProfileUrl = normalizeSocialUrl(profile.instagram, 'instagram')
+      ?? importedTeacherInstagramByName.get(profileKey)
+      ?? ''
+    teacherSpotlightMap.set(profileKey, {
       name: profile.name,
       classCount: 0,
       nextClassLabel: '',
@@ -676,7 +738,9 @@ export default async function PublicStudioPage({ params }: { params: Promise<{ s
     }
 
     const configured = configuredTeacherByName.get(teacherKey)
-    const instagramProfileUrl = normalizeSocialUrl(configured?.instagram, 'instagram') ?? ''
+    const instagramProfileUrl = normalizeSocialUrl(configured?.instagram, 'instagram')
+      ?? importedTeacherInstagramByName.get(teacherKey)
+      ?? ''
     teacherSpotlightMap.set(teacherKey, {
       name: configured?.name ?? teacherName,
       classCount: 1,
@@ -710,7 +774,19 @@ export default async function PublicStudioPage({ params }: { params: Promise<{ s
     ...teacherSpotlights.filter((teacher) => teacher.classCount === 0 && teacher.name !== heroTeacher?.name),
   ].slice(0, 3)
 
-  const socialGallery = [
+  const importedSocialHighlights = importedSocialMedia
+    .filter((item) => item.provider === 'instagram' && typeof item.permalink_url === 'string' && item.permalink_url.length > 0)
+    .map((item) => ({
+      url: item.permalink_url,
+      type: 'instagram' as const,
+      label: 'Instagram',
+      title: getCaptionTitle(item.caption, 'Instagram post'),
+      host: item.owner_display_name ? `@${item.owner_display_name}` : 'instagram.com',
+      embedUrl: getSocialEmbedUrl(item.permalink_url, 'instagram'),
+      previewImage: firstNonEmpty(item.thumbnail_url, item.media_url, getLocalInstagramAvatarUrl(item.permalink_url)),
+    }))
+
+  const fallbackSocialGallery = [
     ...getMediaUrlsFromSettings(settings),
     ...teacherSpotlights.flatMap((teacher) => teacher.mediaUrls),
     ...socialLinks.map((social) => social.url),
@@ -718,7 +794,7 @@ export default async function PublicStudioPage({ params }: { params: Promise<{ s
     .filter((url, index, arr) => arr.findIndex((candidate) => candidate.toLowerCase() === url.toLowerCase()) === index)
     .slice(0, 12)
 
-  const socialHighlights = socialGallery.map((url) => {
+  const fallbackSocialHighlights = fallbackSocialGallery.map((url) => {
     const type = getMediaType(url)
     return {
       url,
@@ -730,6 +806,10 @@ export default async function PublicStudioPage({ params }: { params: Promise<{ s
       previewImage: type === 'image' ? url : type === 'instagram' ? getLocalInstagramAvatarUrl(url) : null,
     }
   })
+
+  const socialHighlights = importedSocialHighlights.length > 0
+    ? importedSocialHighlights
+    : fallbackSocialHighlights
 
   const getTeacherPhotoSrc = (
     teacher: Pick<TeacherSpotlight, 'photoUrl' | 'socials'>,

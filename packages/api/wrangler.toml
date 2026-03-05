@@ -20,6 +20,9 @@ WEB_URL = "https://studio.coop"
 # STRIPE_CONNECT_CLIENT_ID
 # RESEND_API_KEY
 # SENTRY_DSN
+# INSTAGRAM_CLIENT_ID
+# INSTAGRAM_CLIENT_SECRET
+# INSTAGRAM_REDIRECT_URI
 
 # Custom domain — auto-creates DNS record
 [[routes]]

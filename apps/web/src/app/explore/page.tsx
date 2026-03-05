@@ -26,6 +26,21 @@ type StudioRow = {
   longitude: number | null
 }
 
+type ExploreStudioCard = {
+  id: string
+  name: string
+  slug: string
+  discipline: string
+  description: string | null
+  logo_url: string | null
+  settings: Record<string, unknown> | null
+  city: string | null
+  country_code: string | null
+  region: string | null
+  member_count: number
+  upcoming_class_count: number
+}
+
 function isLikelyPlaceholderStudio(studio: Pick<StudioRow, 'name' | 'slug' | 'description'>) {
   const name = studio.name.trim().toLowerCase()
   const slug = studio.slug.trim().toLowerCase()
@@ -93,6 +108,40 @@ function getStudioLogoUrl(studio: Pick<StudioRow, 'name' | 'slug' | 'logo_url' |
   return null
 }
 
+function getFallbackStudios(searchParams: { q?: string; discipline?: string; city?: string; country?: string; region?: string }): ExploreStudioCard[] {
+  const featured: ExploreStudioCard = {
+    id: 'featured-empire-aerial-arts',
+    name: 'Empire Aerial Arts',
+    slug: 'empire-aerial-arts',
+    discipline: 'Aerial',
+    description: "Wellington's home for pole, aerial, and circus arts. Cuba Street vibes, all levels welcome.",
+    logo_url: '/empire/logo.jpg',
+    settings: { hero_image_url: '/empire/hero.jpg' },
+    city: 'Wellington',
+    country_code: 'NZ',
+    region: 'Wellington',
+    member_count: 0,
+    upcoming_class_count: 10,
+  }
+
+  const q = (searchParams.q ?? '').trim().toLowerCase()
+  const discipline = (searchParams.discipline ?? '').trim().toLowerCase()
+  const city = (searchParams.city ?? '').trim().toLowerCase()
+  const country = (searchParams.country ?? '').trim().toUpperCase()
+  const region = (searchParams.region ?? '').trim().toLowerCase()
+
+  if (discipline && featured.discipline.toLowerCase() !== discipline) return []
+  if (city && !featured.city?.toLowerCase().includes(city)) return []
+  if (country && featured.country_code !== country) return []
+  if (region && featured.region?.toLowerCase() !== region) return []
+  if (q) {
+    const haystack = `${featured.name} ${featured.description ?? ''} ${featured.discipline}`.toLowerCase()
+    if (!haystack.includes(q)) return []
+  }
+
+  return [featured]
+}
+
 async function getStudios(searchParams: { q?: string; discipline?: string; city?: string; country?: string; region?: string }) {
   try {
     const { createClient } = await import('@/lib/supabase/server')
@@ -122,7 +171,7 @@ async function getStudios(searchParams: { q?: string; discipline?: string; city?
 
     const { data: studios } = await query
 
-    if (!studios || studios.length === 0) return []
+    if (!studios || studios.length === 0) return getFallbackStudios(searchParams)
 
     const publicStudios = studios.filter((s) =>
       !isLikelyPlaceholderStudio({
@@ -132,7 +181,7 @@ async function getStudios(searchParams: { q?: string; discipline?: string; city?
       })
     )
 
-    if (publicStudios.length === 0) return []
+    if (publicStudios.length === 0) return getFallbackStudios(searchParams)
 
     const studioIds = publicStudios.map((s) => s.id)
 
@@ -161,7 +210,7 @@ async function getStudios(searchParams: { q?: string; discipline?: string; city?
     }
 
     return publicStudios
-      .map((s: StudioRow) => ({
+      .map((s: StudioRow): ExploreStudioCard => ({
         id: s.id,
         name: s.name,
         slug: s.slug,
@@ -178,7 +227,7 @@ async function getStudios(searchParams: { q?: string; discipline?: string; city?
       .sort((a, b) => b.member_count - a.member_count)
   } catch {
     console.error('Failed to fetch studios — Supabase may be unavailable')
-    return []
+    return getFallbackStudios(searchParams)
   }
 }
 
@@ -237,6 +286,8 @@ export default async function ExplorePage({
 }) {
   const params = await searchParams
   const [studios, locations] = await Promise.all([getStudios(params), getLocations()])
+  const fallbackStudios = getFallbackStudios(params)
+  const displayStudios = studios.length > 0 ? studios : fallbackStudios
 
   return (
     <div className="marketing-page relative isolate min-h-screen bg-background">
@@ -287,10 +338,10 @@ export default async function ExplorePage({
         </div>
       </section>
 
-      {studios.length > 0 && (
+      {displayStudios.length > 0 && (
         <div className="mx-auto max-w-6xl px-6 pb-5">
           <div className="rounded-full border border-border/70 bg-card/80 px-4 py-2 text-sm text-muted-foreground">
-            {studios.length} studio{studios.length !== 1 ? 's' : ''}
+            {displayStudios.length} studio{displayStudios.length !== 1 ? 's' : ''}
             {params.discipline ? ` \u00B7 ${params.discipline}` : ''}
             {params.country ? ` \u00B7 ${params.country}` : ''}
             {params.region ? ` \u00B7 ${params.region}` : ''}
@@ -299,7 +350,7 @@ export default async function ExplorePage({
         </div>
       )}
 
-      {studios.length === 1 && !params.q && !params.discipline && !params.city && !params.country && !params.region && (
+      {displayStudios.length === 1 && !params.q && !params.discipline && !params.city && !params.country && !params.region && (
         <div className="mx-auto max-w-6xl px-6 pb-5">
           <div className="rounded-2xl border border-border/70 bg-card/80 px-4 py-3 text-sm text-muted-foreground">
             We&apos;re onboarding more studios now. For the moment, this is our featured partner studio.
@@ -308,7 +359,7 @@ export default async function ExplorePage({
       )}
 
       <section className="mx-auto max-w-6xl px-6 pb-24">
-        {studios.length === 0 ? (
+        {displayStudios.length === 0 ? (
           <div className="rounded-3xl border border-dashed border-border/80 bg-card/65 px-6 py-20 text-center">
             <div className="text-4xl">{'\u{1F3AA}'}</div>
             <p className="mx-auto mt-4 max-w-xl text-lg text-muted-foreground">
@@ -319,7 +370,7 @@ export default async function ExplorePage({
           </div>
         ) : (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {studios.map((studio) => {
+            {displayStudios.map((studio) => {
               const meta = getDisciplineMeta(studio.discipline)
               const photoUrl = getStudioPhotoUrl(studio)
               const logoUrl = getStudioLogoUrl(studio)
@@ -380,7 +431,11 @@ export default async function ExplorePage({
                     )}
                     <div className="flex items-center justify-between pt-2 text-xs text-muted-foreground">
                       <div className="flex items-center gap-4">
-                        <span>{studio.member_count} member{studio.member_count !== 1 ? 's' : ''}</span>
+                        <span>
+                          {studio.member_count > 0
+                            ? `${studio.member_count} member${studio.member_count !== 1 ? 's' : ''}`
+                            : 'Open to new members'}
+                        </span>
                         {studio.upcoming_class_count > 0 && (
                           <span>
                             {studio.upcoming_class_count} upcoming class{studio.upcoming_class_count !== 1 ? 'es' : ''}

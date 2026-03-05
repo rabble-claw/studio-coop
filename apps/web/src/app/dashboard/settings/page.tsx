@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { studioApi, stripeApi, memberApi, skillApi, calendarApi } from '@/lib/api-client'
-import type { PrivacySettings, CalendarToken } from '@/lib/api-client'
+import { studioApi, stripeApi, memberApi, skillApi, calendarApi, socialApi } from '@/lib/api-client'
+import type { PrivacySettings, CalendarToken, InstagramConnectionStatus } from '@/lib/api-client'
 import { useStudioId } from '@/hooks/use-studio-id'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -109,11 +109,41 @@ export default function SettingsPage() {
 
   const [stripeStatus, setStripeStatus] = useState<{ connected: boolean; accountId?: string; dashboardUrl?: string }>({ connected: false })
   const [stripeLoading, setStripeLoading] = useState(false)
+  const [instagramStatus, setInstagramStatus] = useState<InstagramConnectionStatus>({
+    connected: false,
+    configReady: false,
+    mediaCount: 0,
+    account: null,
+  })
+  const [instagramLoading, setInstagramLoading] = useState(false)
+  const [instagramSyncing, setInstagramSyncing] = useState(false)
 
   // Calendar subscription state
   const [calTokens, setCalTokens] = useState<CalendarToken[]>([])
   const [calLoading, setCalLoading] = useState(false)
   const [calCopied, setCalCopied] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('social') !== 'instagram') return
+
+    const status = params.get('status')
+    const synced = params.get('synced')
+    const username = params.get('username')
+
+    if (status === 'connected') {
+      setSaveMessage(
+        `Instagram connected${username ? ` as @${username}` : ''}${synced ? ` — synced ${synced} posts` : ''}.`
+      )
+    } else {
+      setSaveMessage('Instagram connection failed. Please try again.')
+    }
+
+    const cleanUrl = `${window.location.pathname}${window.location.hash || ''}`
+    window.history.replaceState({}, '', cleanUrl)
+    setTimeout(() => setSaveMessage(''), 4000)
+  }, [])
 
   function handleUseMyLocation() {
     if (!navigator.geolocation) {
@@ -207,6 +237,13 @@ export default function SettingsPage() {
           setStripeStatus(status)
         } catch {
           // Stripe not configured
+        }
+        // Fetch Instagram social integration status
+        try {
+          const status = await socialApi.instagramStatus(sid)
+          setInstagramStatus(status)
+        } catch {
+          // social tables may not exist yet
         }
         // Fetch privacy settings for current user
         try {
@@ -1147,6 +1184,77 @@ export default function SettingsPage() {
                       }}
                     >
                       {stripeLoading ? 'Connecting...' : 'Connect Stripe'}
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center justify-between py-3 border-b">
+                <div>
+                  <div className="font-medium">Instagram</div>
+                  <div className="text-sm text-muted-foreground">Import real posts and reels for your public studio pages</div>
+                  {instagramStatus.connected && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {instagramStatus.account?.provider_username
+                        ? `Connected as @${instagramStatus.account.provider_username}`
+                        : 'Connected'}
+                      {` · ${instagramStatus.mediaCount} active posts`}
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {instagramStatus.connected ? (
+                    <>
+                      <span className="inline-flex items-center gap-1.5 text-sm text-white bg-emerald-700 px-2.5 py-1 rounded-full font-semibold">
+                        <span className="w-2 h-2 rounded-full bg-emerald-300" aria-hidden="true" />
+                        Connected
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={instagramSyncing}
+                        onClick={async () => {
+                          if (!studioId) return
+                          setInstagramSyncing(true)
+                          try {
+                            const result = await socialApi.syncInstagram(studioId)
+                            const refreshed = await socialApi.instagramStatus(studioId)
+                            setInstagramStatus(refreshed)
+                            setSaveMessage(`Instagram sync complete: ${result.synced} posts refreshed.`)
+                            setTimeout(() => setSaveMessage(''), 3000)
+                          } catch (e) {
+                            setSaveMessage(`Error: ${e instanceof Error ? e.message : 'Failed to sync Instagram'}`)
+                            setTimeout(() => setSaveMessage(''), 3000)
+                          }
+                          setInstagramSyncing(false)
+                        }}
+                      >
+                        {instagramSyncing ? 'Syncing...' : 'Sync now'}
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      size="sm"
+                      disabled={instagramLoading || !instagramStatus.configReady}
+                      onClick={async () => {
+                        if (!studioId) return
+                        setInstagramLoading(true)
+                        try {
+                          const result = await socialApi.connectInstagram(studioId, {
+                            redirectPath: '/dashboard/settings',
+                          })
+                          window.location.href = result.authorizeUrl
+                        } catch (e) {
+                          setSaveMessage(`Error: ${e instanceof Error ? e.message : 'Failed to connect Instagram'}`)
+                          setTimeout(() => setSaveMessage(''), 3000)
+                        }
+                        setInstagramLoading(false)
+                      }}
+                    >
+                      {instagramLoading
+                        ? 'Connecting...'
+                        : instagramStatus.configReady
+                          ? 'Connect Instagram'
+                          : 'API not configured'}
                     </Button>
                   )}
                 </div>

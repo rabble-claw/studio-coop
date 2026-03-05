@@ -194,6 +194,30 @@ export const stripeApi = {
   refreshLink: (studioId: string) => api.post<{ url: string }>(`/studios/${studioId}/stripe/refresh-link`),
 }
 
+export interface InstagramConnectionStatus {
+  connected: boolean
+  configReady: boolean
+  mediaCount: number
+  account: {
+    id: string
+    provider_username: string | null
+    status: string
+    token_expires_at: string | null
+    last_synced_at: string | null
+    created_at: string
+    updated_at: string
+  } | null
+}
+
+export const socialApi = {
+  instagramStatus: (studioId: string) =>
+    api.get<InstagramConnectionStatus>(`/studios/${studioId}/social/instagram`),
+  connectInstagram: (studioId: string, data?: { redirectPath?: string }) =>
+    api.post<{ authorizeUrl: string; expiresAt: string; redirectPath: string }>(`/studios/${studioId}/social/instagram/connect`, data ?? {}),
+  syncInstagram: (studioId: string) =>
+    api.post<{ synced: number; username: string | null; lastSyncedAt: string }>(`/studios/${studioId}/social/instagram/sync`),
+}
+
 export const subscriptionApi = {
   getMy: (studioId: string) => api.get(`/studios/${studioId}/my-subscription`),
   cancel: (studioId: string) => api.post(`/studios/${studioId}/my-subscription/cancel`),
