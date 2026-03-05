@@ -58,33 +58,41 @@ export async function checkBookingCredits(
   // ── 2 & 3. Active subscription ────────────────────────────────────────────
   const { data: subscription } = await supabase
     .from('subscriptions')
-    .select('id, plan_id, status, classes_used_this_period, plan:membership_plans(type, class_limit)')
+    .select('id, plan_id, status, classes_used_this_period, current_period_end, stripe_subscription_id, plan:membership_plans(type, class_limit)')
     .eq('user_id', userId)
     .eq('studio_id', studioId)
     .eq('status', 'active')
+    .order('created_at', { ascending: false })
+    .limit(1)
     .maybeSingle()
 
   if (subscription) {
-    const plan = Array.isArray(subscription.plan) ? subscription.plan[0] : subscription.plan
-    if (plan) {
-      // Unlimited subscription
-      if (plan.type === 'unlimited') {
-        return {
-          hasCredits: true,
-          source: 'subscription_unlimited',
-          sourceId: subscription.id,
-        }
-      }
-
-      // Limited subscription — check if classes remain this period
-      if (plan.type === 'limited' && plan.class_limit !== null) {
-        const used = subscription.classes_used_this_period ?? 0
-        if (used < plan.class_limit) {
+    // Expire access when the active period has ended.
+    // This is especially important for manually-marked subscriptions.
+    if (subscription.current_period_end && new Date(subscription.current_period_end) < now) {
+      // Ignore expired subscription and continue to class packs.
+    } else {
+      const plan = Array.isArray(subscription.plan) ? subscription.plan[0] : subscription.plan
+      if (plan) {
+        // Unlimited subscription
+        if (plan.type === 'unlimited') {
           return {
             hasCredits: true,
-            source: 'subscription_limited',
+            source: 'subscription_unlimited',
             sourceId: subscription.id,
-            remainingAfter: plan.class_limit - used - 1,
+          }
+        }
+
+        // Limited subscription — check if classes remain this period
+        if (plan.type === 'limited' && plan.class_limit !== null) {
+          const used = subscription.classes_used_this_period ?? 0
+          if (used < plan.class_limit) {
+            return {
+              hasCredits: true,
+              source: 'subscription_limited',
+              sourceId: subscription.id,
+              remainingAfter: plan.class_limit - used - 1,
+            }
           }
         }
       }

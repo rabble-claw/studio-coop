@@ -86,6 +86,28 @@ export const memberApi = {
   list: (studioId: string, params?: string) => api.get(`/studios/${studioId}/members${params ? `?${params}` : ''}`),
   get: (studioId: string, memberId: string) => api.get(`/studios/${studioId}/members/${memberId}`),
   addNote: (studioId: string, memberId: string, note: string) => api.post(`/studios/${studioId}/members/${memberId}/notes`, { note }),
+  getManualBilling: (studioId: string, memberId: string) =>
+    api.get<{
+      today: string
+      activeRecord: Record<string, unknown> | null
+      records: Array<Record<string, unknown>>
+      subscription?: Record<string, unknown> | null
+    }>(`/studios/${studioId}/members/${memberId}/manual-billing`),
+  markManualBilling: (studioId: string, memberId: string, data: {
+    plan_id: string
+    paid_through_date: string
+    amount_cents?: number
+    currency?: string
+    payment_method: 'cash' | 'bank_transfer' | 'invoice' | 'card_terminal' | 'other'
+    reference?: string | null
+    notes?: string | null
+  }) =>
+    api.post<{
+      today: string
+      activeRecord: Record<string, unknown> | null
+      records: Array<Record<string, unknown>>
+      subscription: Record<string, unknown> | null
+    }>(`/studios/${studioId}/members/${memberId}/manual-billing`, data),
   grantComp: (studioId: string, memberId: string, data: unknown) => api.post(`/studios/${studioId}/members/${memberId}/comp`, data),
   suspend: (studioId: string, userId: string) => api.put(`/studios/${studioId}/members/${userId}/suspend`),
   reactivate: (studioId: string, userId: string) => api.put(`/studios/${studioId}/members/${userId}/reactivate`),
@@ -93,6 +115,15 @@ export const memberApi = {
   revokeComp: (studioId: string, compId: string) => api.delete(`/studios/${studioId}/comps/${compId}`),
   getPrivacy: (studioId: string, memberId: string) => api.get<PrivacySettings>(`/studios/${studioId}/members/${memberId}/privacy`),
   updatePrivacy: (studioId: string, memberId: string, settings: Partial<PrivacySettings>) => api.put<PrivacySettings>(`/studios/${studioId}/members/${memberId}/privacy`, settings),
+  manualBillingReconciliation: (studioId: string) =>
+    api.get<{
+      as_of: string
+      due_soon_cutoff: string
+      totals: { active: number; due_soon: number; overdue: number }
+      active: Array<Record<string, unknown>>
+      due_soon: Array<Record<string, unknown>>
+      overdue: Array<Record<string, unknown>>
+    }>(`/studios/${studioId}/manual-billing/reconciliation`),
 }
 
 export const planApi = {

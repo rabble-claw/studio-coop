@@ -37,6 +37,7 @@ import subRequests from './routes/sub-requests'
 import finances from './routes/finances'
 import calendarFeed from './routes/calendar-feed'
 import exportRoute from './routes/export'
+import manualBilling from './routes/manual-billing'
 import { getConfig } from './lib/config'
 
 // Validate environment configuration at startup (best-effort).
@@ -134,6 +135,7 @@ app.route('/api/studios', achievements)
 app.route('/api/studios', skills)
 app.route('/api/studios', subRequests)
 app.route('/api/studios', finances)
+app.route('/api/studios', manualBilling)
 app.route('/api', calendarFeed)
 app.route('/api', exportRoute)
 

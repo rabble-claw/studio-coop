@@ -74,6 +74,41 @@ interface SubscriptionInfo {
   created_at: string
 }
 
+interface StudioPlanOption {
+  id: string
+  name: string
+  type: string
+  interval: string
+  price_cents: number
+  currency: string
+}
+
+interface ManualBillingRecord {
+  id: string
+  paid_through_date: string
+  amount_cents: number
+  currency: string
+  payment_method: string
+  reference: string | null
+  notes: string | null
+  marked_at: string
+  is_expired: boolean
+  plan: {
+    id: string
+    name: string
+    type: string
+    interval: string
+    price_cents: number
+    currency: string
+    active?: boolean
+  } | null
+  marker: {
+    id: string
+    name: string
+    email: string
+  } | null
+}
+
 interface Achievement {
   id: string
   title: string
@@ -102,6 +137,12 @@ const SKILL_LEVEL_COLORS: Record<string, string> = {
   mastered: 'bg-green-100 text-green-800',
 }
 
+function inThirtyDaysYmd() {
+  const d = new Date()
+  d.setDate(d.getDate() + 30)
+  return d.toISOString().slice(0, 10)
+}
+
 export default function MemberDetailPage() {
   const params  = useParams()
   const router  = useRouter()
@@ -116,7 +157,24 @@ export default function MemberDetailPage() {
   const [loading, setLoading]     = useState(true)
   const [isStaff, setIsStaff]     = useState(false)
   const [isSelf, setIsSelf]       = useState(false)
+  const [canManageManualBilling, setCanManageManualBilling] = useState(false)
   const [privacySettings, setPrivacySettings] = useState<PrivacySettings>(PRIVACY_DEFAULTS)
+
+  // Manual billing state
+  const [studioPlans, setStudioPlans] = useState<StudioPlanOption[]>([])
+  const [manualRecords, setManualRecords] = useState<ManualBillingRecord[]>([])
+  const [manualActiveRecord, setManualActiveRecord] = useState<ManualBillingRecord | null>(null)
+  const [showManualBillingForm, setShowManualBillingForm] = useState(false)
+  const [manualPlanId, setManualPlanId] = useState('')
+  const [manualPaidThroughDate, setManualPaidThroughDate] = useState(inThirtyDaysYmd())
+  const [manualAmount, setManualAmount] = useState('')
+  const [manualCurrency, setManualCurrency] = useState('NZD')
+  const [manualPaymentMethod, setManualPaymentMethod] = useState<'cash' | 'bank_transfer' | 'invoice' | 'card_terminal' | 'other'>('bank_transfer')
+  const [manualReference, setManualReference] = useState('')
+  const [manualNotes, setManualNotes] = useState('')
+  const [manualSaving, setManualSaving] = useState(false)
+  const [manualError, setManualError] = useState<string | null>(null)
+  const [manualSuccess, setManualSuccess] = useState<string | null>(null)
 
   // Grant comp classes form state
   const [showGrantForm, setShowGrantForm] = useState(false)
@@ -206,6 +264,7 @@ export default function MemberDetailPage() {
       const staffRoles = ['teacher', 'admin', 'owner']
       const viewerIsStaff = staffRoles.includes(myRole?.role ?? '')
       setIsStaff(viewerIsStaff)
+      setCanManageManualBilling(['admin', 'owner'].includes(myRole?.role ?? ''))
       setIsSelf(user.id === memberId)
 
       // Fetch privacy settings for the target member
@@ -263,7 +322,38 @@ export default function MemberDetailPage() {
         .limit(1)
         .maybeSingle()
 
-      setSubscription(sub as unknown as SubscriptionInfo | null)
+      const normalizedSub = (sub && sub.current_period_end && new Date(sub.current_period_end) < new Date())
+        ? null
+        : sub
+      setSubscription(normalizedSub as unknown as SubscriptionInfo | null)
+
+      // Staff can view manual billing history; admins/owners can manage it.
+      if (viewerIsStaff) {
+        try {
+          const [manualData, planData] = await Promise.all([
+            memberApi.getManualBilling(membership.studio_id, memberId),
+            supabase
+              .from('membership_plans')
+              .select('id, name, type, interval, price_cents, currency')
+              .eq('studio_id', membership.studio_id)
+              .eq('active', true)
+              .order('sort_order'),
+          ])
+
+          const plans = (planData.data ?? []) as StudioPlanOption[]
+          setStudioPlans(plans)
+          if (plans.length > 0) {
+            setManualPlanId(plans[0].id)
+            setManualAmount((plans[0].price_cents / 100).toFixed(2))
+            setManualCurrency(plans[0].currency ?? 'NZD')
+          }
+
+          setManualRecords((manualData.records ?? []) as unknown as ManualBillingRecord[])
+          setManualActiveRecord((manualData.activeRecord ?? null) as unknown as ManualBillingRecord | null)
+        } catch {
+          // No-op: manual billing may not be initialized in all environments yet.
+        }
+      }
 
       // Fetch achievements
       try {
@@ -292,6 +382,13 @@ export default function MemberDetailPage() {
     }
     load()
   }, [memberId, supabase, router])
+
+  useEffect(() => {
+    const selected = studioPlans.find((p) => p.id === manualPlanId)
+    if (!selected) return
+    setManualAmount((selected.price_cents / 100).toFixed(2))
+    setManualCurrency(selected.currency)
+  }, [manualPlanId, studioPlans])
 
   async function handleGrantComp(e: React.FormEvent) {
     e.preventDefault()
@@ -387,6 +484,52 @@ export default function MemberDetailPage() {
       setNotesError((err as Error).message)
     } finally {
       setSavingNotes(false)
+    }
+  }
+
+  async function handleMarkManualPaid(e: React.FormEvent) {
+    e.preventDefault()
+    if (!member || !manualPlanId) return
+
+    const amountAsNumber = Number(manualAmount)
+    if (!Number.isFinite(amountAsNumber) || amountAsNumber < 0) {
+      setManualError('Amount must be a valid non-negative number')
+      return
+    }
+    if (!manualPaidThroughDate) {
+      setManualError('Paid through date is required')
+      return
+    }
+
+    setManualSaving(true)
+    setManualError(null)
+    setManualSuccess(null)
+
+    try {
+      const result = await memberApi.markManualBilling(member.studio_id, memberId, {
+        plan_id: manualPlanId,
+        paid_through_date: manualPaidThroughDate,
+        amount_cents: Math.round(amountAsNumber * 100),
+        currency: manualCurrency,
+        payment_method: manualPaymentMethod,
+        reference: manualReference.trim() || null,
+        notes: manualNotes.trim() || null,
+      })
+
+      setManualRecords((result.records ?? []) as unknown as ManualBillingRecord[])
+      setManualActiveRecord((result.activeRecord ?? null) as unknown as ManualBillingRecord | null)
+      if (result.subscription) {
+        setSubscription(result.subscription as unknown as SubscriptionInfo)
+      }
+      setManualSuccess('Manual payment recorded and access updated.')
+      setShowManualBillingForm(false)
+      setManualReference('')
+      setManualNotes('')
+      setManualPaidThroughDate(inThirtyDaysYmd())
+    } catch (err) {
+      setManualError((err as Error).message)
+    } finally {
+      setManualSaving(false)
     }
   }
 
@@ -694,6 +837,191 @@ export default function MemberDetailPage() {
                 )}
               </div>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Manual Billing (staff view, admin/owner manage) */}
+      {isStaff && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle>Manual Billing</CardTitle>
+              {canManageManualBilling && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setShowManualBillingForm((v) => !v)
+                    setManualError(null)
+                    setManualSuccess(null)
+                  }}
+                >
+                  {showManualBillingForm ? 'Cancel' : 'Mark Paid'}
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {manualError && <p role="alert" className="text-sm text-red-600">{manualError}</p>}
+            {manualSuccess && <p className="text-sm text-emerald-700">{manualSuccess}</p>}
+
+            {manualActiveRecord ? (
+              <div className="rounded-md border bg-muted/20 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="font-medium">{manualActiveRecord.plan?.name ?? 'Manual plan'}</div>
+                  <Badge variant={manualActiveRecord.is_expired ? 'secondary' : 'default'}>
+                    {manualActiveRecord.is_expired ? 'Expired' : 'Active manual'}
+                  </Badge>
+                </div>
+                <div className="mt-1 text-sm text-muted-foreground">
+                  Paid through {new Date(`${manualActiveRecord.paid_through_date}T00:00:00`).toLocaleDateString()} · {manualActiveRecord.currency} {(manualActiveRecord.amount_cents / 100).toFixed(2)} · {manualActiveRecord.payment_method}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No active manual billing record.</p>
+            )}
+
+            {canManageManualBilling && showManualBillingForm && (
+              <form onSubmit={handleMarkManualPaid} className="space-y-3 rounded-md border p-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-1">
+                    <label htmlFor="manual-plan" className="text-sm font-medium">Plan</label>
+                    <select
+                      id="manual-plan"
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      value={manualPlanId}
+                      onChange={(e) => setManualPlanId(e.target.value)}
+                      required
+                    >
+                      {studioPlans.length === 0 && <option value="">No active plans</option>}
+                      {studioPlans.map((plan) => (
+                        <option key={plan.id} value={plan.id}>
+                          {plan.name} · {plan.currency} {(plan.price_cents / 100).toFixed(2)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label htmlFor="manual-paid-through" className="text-sm font-medium">Paid Through</label>
+                    <Input
+                      id="manual-paid-through"
+                      type="date"
+                      value={manualPaidThroughDate}
+                      onChange={(e) => setManualPaidThroughDate(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label htmlFor="manual-amount" className="text-sm font-medium">Amount</label>
+                    <Input
+                      id="manual-amount"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={manualAmount}
+                      onChange={(e) => setManualAmount(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label htmlFor="manual-currency" className="text-sm font-medium">Currency</label>
+                    <Input
+                      id="manual-currency"
+                      value={manualCurrency}
+                      onChange={(e) => setManualCurrency(e.target.value.toUpperCase())}
+                      maxLength={8}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label htmlFor="manual-method" className="text-sm font-medium">Payment Method</label>
+                    <select
+                      id="manual-method"
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      value={manualPaymentMethod}
+                      onChange={(e) => setManualPaymentMethod(e.target.value as 'cash' | 'bank_transfer' | 'invoice' | 'card_terminal' | 'other')}
+                      required
+                    >
+                      <option value="cash">Cash</option>
+                      <option value="bank_transfer">Bank transfer</option>
+                      <option value="invoice">Invoice</option>
+                      <option value="card_terminal">Card terminal</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label htmlFor="manual-reference" className="text-sm font-medium">Reference (optional)</label>
+                    <Input
+                      id="manual-reference"
+                      value={manualReference}
+                      onChange={(e) => setManualReference(e.target.value)}
+                      placeholder="Invoice #, bank ref, receipt code"
+                      maxLength={120}
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label htmlFor="manual-notes" className="text-sm font-medium">Notes (optional)</label>
+                  <textarea
+                    id="manual-notes"
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    rows={3}
+                    value={manualNotes}
+                    onChange={(e) => setManualNotes(e.target.value)}
+                    maxLength={2000}
+                  />
+                </div>
+
+                <div className="flex justify-end">
+                  <Button type="submit" size="sm" disabled={manualSaving || studioPlans.length === 0}>
+                    {manualSaving ? 'Saving...' : 'Save Manual Payment'}
+                  </Button>
+                </div>
+              </form>
+            )}
+
+            {manualRecords.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-sm font-medium">Recent Records</div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-left">
+                        <th scope="col" className="pb-2 font-medium">Marked</th>
+                        <th scope="col" className="pb-2 font-medium">Plan</th>
+                        <th scope="col" className="pb-2 font-medium">Paid Through</th>
+                        <th scope="col" className="pb-2 font-medium">Amount</th>
+                        <th scope="col" className="pb-2 font-medium">Method</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {manualRecords.slice(0, 8).map((record) => (
+                        <tr key={record.id} className="border-b last:border-0">
+                          <td className="py-2 text-muted-foreground">
+                            {new Date(record.marked_at).toLocaleDateString()}
+                          </td>
+                          <td className="py-2">{record.plan?.name ?? 'Plan'}</td>
+                          <td className="py-2">
+                            {new Date(`${record.paid_through_date}T00:00:00`).toLocaleDateString()}
+                          </td>
+                          <td className="py-2">
+                            {record.currency} {(record.amount_cents / 100).toFixed(2)}
+                          </td>
+                          <td className="py-2 capitalize">{record.payment_method.replace('_', ' ')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

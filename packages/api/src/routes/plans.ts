@@ -356,6 +356,7 @@ plans.get('/:studioId/my-subscription', authMiddleware, requireMember, async (c)
   const studioId = c.req.param('studioId')
   const user = c.get('user' as never) as { id: string; email: string }
   const supabase = createServiceClient()
+  const now = new Date()
 
   const { data: subscription } = await supabase
     .from('subscriptions')
@@ -367,6 +368,12 @@ plans.get('/:studioId/my-subscription', authMiddleware, requireMember, async (c)
     .limit(1)
     .maybeSingle()
 
+  // Auto-expire behavior for manual/legacy active rows:
+  // if the period ended, treat as no active subscription.
+  const normalizedSubscription = (subscription && subscription.current_period_end && new Date(subscription.current_period_end) < now)
+    ? null
+    : (subscription ?? null)
+
   // Class passes
   const { data: passes } = await supabase
     .from('class_passes')
@@ -377,7 +384,7 @@ plans.get('/:studioId/my-subscription', authMiddleware, requireMember, async (c)
     .order('expires_at', { ascending: true })
 
   return c.json({
-    subscription: subscription ?? null,
+    subscription: normalizedSubscription,
     classPasses: passes ?? [],
   })
 })
