@@ -57,6 +57,33 @@ type ImportedTeacherSocialProfile = {
   profile_url: string
 }
 
+type DiscoverStudioApiStudio = {
+  id: string
+  name: string
+  slug: string
+  discipline: string
+  description?: string | null
+  logo_url?: string | null
+  country_code?: string | null
+  region?: string | null
+  city?: string | null
+  address?: string | null
+  latitude?: number | null
+  longitude?: number | null
+  phone?: string | null
+  website?: string | null
+  email?: string | null
+  instagram?: string | null
+  facebook?: string | null
+}
+
+type DiscoverStudioApiResponse = {
+  studio?: DiscoverStudioApiStudio | null
+  classes?: PublicClassForDisplay[] | null
+  plans?: MembershipPlan[] | null
+  member_count?: number
+}
+
 function formatPlanPrice(plan: MembershipPlan): string {
   const amount = (plan.price_cents / 100).toFixed(2).replace(/\.00$/, '')
   const currency = plan.currency.toUpperCase()
@@ -75,6 +102,18 @@ function firstNonEmptyString(...values: Array<unknown>): string | null {
     if (typeof value === 'string' && value.trim().length > 0) return value
   }
   return null
+}
+
+function firstNonEmpty(...values: Array<string | null | undefined>) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim().length > 0) return value
+  }
+  return undefined
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message) return error.message
+  return String(error)
 }
 
 function normalizePersonKey(value: string) {
@@ -547,62 +586,117 @@ function getEmpireTeacherFallbacks(studio: { name: string; slug: string }) {
   ]
 }
 
-async function getStudioData(slug: string) {
-  const { createClient } = await import('@/lib/supabase/server')
-  const supabase = await createClient()
-  const { data: studio } = await supabase.from('studios').select('*').eq('slug', slug).single()
-  if (!studio) return null
-
-  const today = new Date().toISOString().split('T')[0]
-  const { data: classes } = await supabase
-    .from('class_instances')
-    .select('*, teacher:users!class_instances_teacher_id_fkey(name), template:class_templates!class_instances_template_id_fkey(name, description)')
-    .eq('studio_id', studio.id)
-    .eq('status', 'scheduled')
-    .gte('date', today)
-    .order('date')
-    .order('start_time')
-    .limit(20)
-
-  const { data: plans } = await supabase
-    .from('membership_plans')
-    .select('*')
-    .eq('studio_id', studio.id)
-    .eq('active', true)
-    .order('sort_order')
-
-  const socialMediaResult = await supabase
-    .from('studio_social_media')
-    .select('provider, provider_media_id, owner_display_name, caption, permalink_url, media_type, media_url, thumbnail_url, published_at')
-    .eq('studio_id', studio.id)
-    .eq('provider', 'instagram')
-    .eq('is_active', true)
-    .order('published_at', { ascending: false })
-    .limit(24)
-
-  const teacherSocialProfilesResult = await supabase
-    .from('studio_teacher_social_profiles')
-    .select('teacher_name, provider, provider_username, profile_url')
-    .eq('studio_id', studio.id)
-    .eq('provider', 'instagram')
-
-  const dbClasses = ((classes ?? []) as PublicClassForDisplay[])
-  const classesForDisplay = isEmpireStudio(studio)
-    ? mergeDisplayClasses(dbClasses, buildEmpireMindbodyImportedClasses())
-    : dbClasses
-
-  const classesByDate = classesForDisplay.reduce<Record<string, PublicClassForDisplay[]>>((acc, cls) => {
+function groupClassesByDate(classesForDisplay: PublicClassForDisplay[]) {
+  return classesForDisplay.reduce<Record<string, PublicClassForDisplay[]>>((acc, cls) => {
     if (!acc[cls.date]) acc[cls.date] = []
     acc[cls.date]!.push(cls)
     return acc
   }, {})
+}
 
-  return {
-    studio,
-    classesByDate,
-    plans: (plans ?? []) as MembershipPlan[],
-    importedSocialMedia: socialMediaResult.error ? [] : ((socialMediaResult.data ?? []) as ImportedSocialMedia[]),
-    importedTeacherSocialProfiles: teacherSocialProfilesResult.error ? [] : ((teacherSocialProfilesResult.data ?? []) as ImportedTeacherSocialProfile[]),
+async function getStudioDataFromApi(slug: string) {
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'https://api.studio.coop'
+  const url = `${apiBase}/api/discover/studios/${encodeURIComponent(slug)}`
+
+  try {
+    const response = await fetch(url, { next: { revalidate: 60 } })
+    if (!response.ok) return null
+
+    const payload = (await response.json()) as DiscoverStudioApiResponse
+    if (!payload.studio) return null
+
+    const studioSettings: Record<string, unknown> = {}
+    if (payload.studio.phone) studioSettings.phone = payload.studio.phone
+    if (payload.studio.website) studioSettings.website = payload.studio.website
+    if (payload.studio.email) studioSettings.email = payload.studio.email
+    if (payload.studio.instagram) studioSettings.instagram = payload.studio.instagram
+    if (payload.studio.facebook) studioSettings.facebook = payload.studio.facebook
+    if (payload.studio.address) studioSettings.address = payload.studio.address
+
+    const studio = {
+      ...payload.studio,
+      settings: studioSettings,
+    }
+
+    const dbClasses = (payload.classes ?? []) as PublicClassForDisplay[]
+    const classesForDisplay = isEmpireStudio(studio)
+      ? mergeDisplayClasses(dbClasses, buildEmpireMindbodyImportedClasses())
+      : dbClasses
+
+    return {
+      studio,
+      classesByDate: groupClassesByDate(classesForDisplay),
+      plans: (payload.plans ?? []) as MembershipPlan[],
+      importedSocialMedia: [] as ImportedSocialMedia[],
+      importedTeacherSocialProfiles: [] as ImportedTeacherSocialProfile[],
+    }
+  } catch (error) {
+    console.error(`[public-studio] API fallback failed for "${slug}": ${getErrorMessage(error)}`)
+    return null
+  }
+}
+
+async function getStudioData(slug: string) {
+  try {
+    const { createPublicClient } = await import('@/lib/supabase/server')
+    const supabase = createPublicClient()
+    const { data: studio, error: studioError } = await supabase.from('studios').select('*').eq('slug', slug).single()
+
+    if (studioError || !studio) {
+      if (studioError) {
+        console.error(`[public-studio] Supabase studio fetch failed for "${slug}": ${studioError.message}`)
+      }
+      return await getStudioDataFromApi(slug)
+    }
+
+    const today = new Date().toISOString().split('T')[0]
+    const { data: classes } = await supabase
+      .from('class_instances')
+      .select('*, teacher:users!class_instances_teacher_id_fkey(name), template:class_templates!class_instances_template_id_fkey(name, description)')
+      .eq('studio_id', studio.id)
+      .eq('status', 'scheduled')
+      .gte('date', today)
+      .order('date')
+      .order('start_time')
+      .limit(20)
+
+    const { data: plans } = await supabase
+      .from('membership_plans')
+      .select('*')
+      .eq('studio_id', studio.id)
+      .eq('active', true)
+      .order('sort_order')
+
+    const socialMediaResult = await supabase
+      .from('studio_social_media')
+      .select('provider, provider_media_id, owner_display_name, caption, permalink_url, media_type, media_url, thumbnail_url, published_at')
+      .eq('studio_id', studio.id)
+      .eq('provider', 'instagram')
+      .eq('is_active', true)
+      .order('published_at', { ascending: false })
+      .limit(24)
+
+    const teacherSocialProfilesResult = await supabase
+      .from('studio_teacher_social_profiles')
+      .select('teacher_name, provider, provider_username, profile_url')
+      .eq('studio_id', studio.id)
+      .eq('provider', 'instagram')
+
+    const dbClasses = ((classes ?? []) as PublicClassForDisplay[])
+    const classesForDisplay = isEmpireStudio(studio)
+      ? mergeDisplayClasses(dbClasses, buildEmpireMindbodyImportedClasses())
+      : dbClasses
+
+    return {
+      studio,
+      classesByDate: groupClassesByDate(classesForDisplay),
+      plans: (plans ?? []) as MembershipPlan[],
+      importedSocialMedia: socialMediaResult.error ? [] : ((socialMediaResult.data ?? []) as ImportedSocialMedia[]),
+      importedTeacherSocialProfiles: teacherSocialProfilesResult.error ? [] : ((teacherSocialProfilesResult.data ?? []) as ImportedTeacherSocialProfile[]),
+    }
+  } catch (error) {
+    console.error(`[public-studio] Supabase fetch failed for "${slug}": ${getErrorMessage(error)}`)
+    return await getStudioDataFromApi(slug)
   }
 }
 

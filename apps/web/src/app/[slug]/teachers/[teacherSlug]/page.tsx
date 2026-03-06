@@ -45,11 +45,41 @@ type TeacherSpotlight = {
   mediaUrls: string[]
 }
 
+type DiscoverStudioApiStudio = {
+  id: string
+  name: string
+  slug: string
+  discipline: string
+  description?: string | null
+  logo_url?: string | null
+  country_code?: string | null
+  region?: string | null
+  city?: string | null
+  address?: string | null
+  latitude?: number | null
+  longitude?: number | null
+  phone?: string | null
+  website?: string | null
+  email?: string | null
+  instagram?: string | null
+  facebook?: string | null
+}
+
+type DiscoverStudioApiResponse = {
+  studio?: DiscoverStudioApiStudio | null
+  classes?: PublicClassForDisplay[] | null
+}
+
 function firstNonEmptyString(...values: Array<unknown>): string | null {
   for (const value of values) {
     if (typeof value === 'string' && value.trim().length > 0) return value
   }
   return null
+}
+
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message) return error.message
+  return String(error)
 }
 
 function normalizePersonKey(value: string) {
@@ -451,32 +481,24 @@ function getEmpireTeacherFallbacks(studio: { name: string; slug: string }) {
   ]
 }
 
-async function getTeacherPageData(studioSlug: string, teacherSlug: string) {
-  const { createClient } = await import('@/lib/supabase/server')
-  const supabase = await createClient()
-
-  const { data: studio } = await supabase.from('studios').select('*').eq('slug', studioSlug).single()
-  if (!studio) return null
-
-  const today = new Date().toISOString().split('T')[0]
-  const { data: classes } = await supabase
-    .from('class_instances')
-    .select('*, teacher:users!class_instances_teacher_id_fkey(name), template:class_templates!class_instances_template_id_fkey(name, description)')
-    .eq('studio_id', studio.id)
-    .eq('status', 'scheduled')
-    .gte('date', today)
-    .order('date')
-    .order('start_time')
-    .limit(40)
-
+async function buildTeacherPageData(
+  studio: {
+    id: string
+    name: string
+    slug: string
+    logo_url?: string | null
+    settings?: Record<string, unknown> | null
+  },
+  classes: PublicClassForDisplay[],
+  teacherSlug: string
+) {
   const settings = (studio.settings ?? {}) as Record<string, unknown>
   const logoUrl = getStudioLogoUrl({ name: studio.name, slug: studio.slug, logo_url: studio.logo_url }, settings)
   const heroImageUrl = getStudioHeroImageUrl({ name: studio.name, slug: studio.slug }, settings)
 
-  const dbClasses = (classes ?? []) as PublicClassForDisplay[]
   const classesForDisplay = isEmpireStudio(studio)
-    ? mergeDisplayClasses(dbClasses, buildEmpireMindbodyImportedClasses())
-    : dbClasses
+    ? mergeDisplayClasses(classes, buildEmpireMindbodyImportedClasses())
+    : classes
 
   const configuredTeacherProfiles = getTeacherSpotlightsFromSettings(settings)
   const teacherProfiles = configuredTeacherProfiles.length > 0
@@ -598,6 +620,68 @@ async function getTeacherPageData(studioSlug: string, teacherSlug: string) {
     teacher,
     classesByDate,
     socialHighlights,
+  }
+}
+
+async function getTeacherPageDataFromApi(studioSlug: string, teacherSlug: string) {
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'https://api.studio.coop'
+  const url = `${apiBase}/api/discover/studios/${encodeURIComponent(studioSlug)}`
+
+  try {
+    const response = await fetch(url, { next: { revalidate: 60 } })
+    if (!response.ok) return null
+
+    const payload = (await response.json()) as DiscoverStudioApiResponse
+    if (!payload.studio) return null
+
+    const studioSettings: Record<string, unknown> = {}
+    if (payload.studio.phone) studioSettings.phone = payload.studio.phone
+    if (payload.studio.website) studioSettings.website = payload.studio.website
+    if (payload.studio.email) studioSettings.email = payload.studio.email
+    if (payload.studio.instagram) studioSettings.instagram = payload.studio.instagram
+    if (payload.studio.facebook) studioSettings.facebook = payload.studio.facebook
+    if (payload.studio.address) studioSettings.address = payload.studio.address
+
+    const studio = {
+      ...payload.studio,
+      settings: studioSettings,
+    }
+
+    return await buildTeacherPageData(studio, (payload.classes ?? []) as PublicClassForDisplay[], teacherSlug)
+  } catch (error) {
+    console.error(`[public-teacher] API fallback failed for "${studioSlug}": ${getErrorMessage(error)}`)
+    return null
+  }
+}
+
+async function getTeacherPageData(studioSlug: string, teacherSlug: string) {
+  try {
+    const { createPublicClient } = await import('@/lib/supabase/server')
+    const supabase = createPublicClient()
+
+    const { data: studio, error: studioError } = await supabase.from('studios').select('*').eq('slug', studioSlug).single()
+    if (studioError || !studio) {
+      if (studioError) {
+        console.error(`[public-teacher] Supabase studio fetch failed for "${studioSlug}": ${studioError.message}`)
+      }
+      return await getTeacherPageDataFromApi(studioSlug, teacherSlug)
+    }
+
+    const today = new Date().toISOString().split('T')[0]
+    const { data: classes } = await supabase
+      .from('class_instances')
+      .select('*, teacher:users!class_instances_teacher_id_fkey(name), template:class_templates!class_instances_template_id_fkey(name, description)')
+      .eq('studio_id', studio.id)
+      .eq('status', 'scheduled')
+      .gte('date', today)
+      .order('date')
+      .order('start_time')
+      .limit(40)
+
+    return await buildTeacherPageData(studio, (classes ?? []) as PublicClassForDisplay[], teacherSlug)
+  } catch (error) {
+    console.error(`[public-teacher] Supabase fetch failed for "${studioSlug}": ${getErrorMessage(error)}`)
+    return await getTeacherPageDataFromApi(studioSlug, teacherSlug)
   }
 }
 

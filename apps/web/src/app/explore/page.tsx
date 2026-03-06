@@ -144,89 +144,57 @@ function getFallbackStudios(searchParams: { q?: string; discipline?: string; cit
 
 async function getStudios(searchParams: { q?: string; discipline?: string; city?: string; country?: string; region?: string }) {
   try {
-    const { createClient } = await import('@/lib/supabase/server')
-    const supabase = await createClient()
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'https://api.studio.coop'
+    const url = new URL('/api/discover/studios', apiBase)
+    if (searchParams.q) url.searchParams.set('q', searchParams.q)
+    if (searchParams.discipline) url.searchParams.set('discipline', searchParams.discipline)
+    if (searchParams.city) url.searchParams.set('city', searchParams.city)
+    if (searchParams.country) url.searchParams.set('country', searchParams.country)
+    if (searchParams.region) url.searchParams.set('region', searchParams.region)
+    url.searchParams.set('limit', '50')
 
-    let query = supabase
-      .from('studios')
-      .select('id, name, slug, discipline, description, logo_url, settings, country_code, region, city, address, latitude, longitude')
+    const response = await fetch(url.toString(), { next: { revalidate: 60 } })
+    if (!response.ok) return getFallbackStudios(searchParams)
 
-    if (searchParams.discipline) {
-      query = query.eq('discipline', searchParams.discipline)
-    }
-    if (searchParams.city) {
-      query = query.ilike('city', `%${searchParams.city}%`)
-    }
-    if (searchParams.country) {
-      query = query.eq('country_code', searchParams.country)
-    }
-    if (searchParams.region) {
-      query = query.eq('region', searchParams.region)
-    }
-    if (searchParams.q) {
-      query = query.or(
-        `name.ilike.%${searchParams.q}%,description.ilike.%${searchParams.q}%,discipline.ilike.%${searchParams.q}%`
-      )
-    }
+    const payload = (await response.json()) as { studios?: Array<Record<string, unknown>> }
+    const studios = payload.studios ?? []
+    if (studios.length === 0) return getFallbackStudios(searchParams)
 
-    const { data: studios } = await query
+    const publicStudios = studios
+      .map((studio): ExploreStudioCard | null => {
+        const id = typeof studio.id === 'string' ? studio.id : null
+        const name = typeof studio.name === 'string' ? studio.name : null
+        const slug = typeof studio.slug === 'string' ? studio.slug : null
+        if (!id || !name || !slug) return null
 
-    if (!studios || studios.length === 0) return getFallbackStudios(searchParams)
-
-    const publicStudios = studios.filter((s) =>
-      !isLikelyPlaceholderStudio({
-        name: s.name,
-        slug: s.slug,
-        description: s.description,
+        return {
+          id,
+          name,
+          slug,
+          discipline: typeof studio.discipline === 'string' ? studio.discipline : 'fitness',
+          description: typeof studio.description === 'string' ? studio.description : null,
+          logo_url: typeof studio.logo_url === 'string' ? studio.logo_url : null,
+          settings: null,
+          city: typeof studio.city === 'string' ? studio.city : null,
+          country_code: typeof studio.country_code === 'string' ? studio.country_code : null,
+          region: typeof studio.region === 'string' ? studio.region : null,
+          member_count: typeof studio.member_count === 'number' ? studio.member_count : 0,
+          upcoming_class_count: typeof studio.upcoming_class_count === 'number' ? studio.upcoming_class_count : 0,
+        }
       })
-    )
+      .filter((studio): studio is ExploreStudioCard => Boolean(studio))
+      .filter((studio) =>
+        !isLikelyPlaceholderStudio({
+          name: studio.name,
+          slug: studio.slug,
+          description: studio.description,
+        })
+      )
 
     if (publicStudios.length === 0) return getFallbackStudios(searchParams)
-
-    const studioIds = publicStudios.map((s) => s.id)
-
-    const { data: memberships } = await supabase
-      .from('memberships')
-      .select('studio_id')
-      .in('studio_id', studioIds)
-      .eq('status', 'active')
-
-    const memberCountMap: Record<string, number> = {}
-    for (const m of memberships ?? []) {
-      memberCountMap[m.studio_id] = (memberCountMap[m.studio_id] ?? 0) + 1
-    }
-
-    const today = new Date().toISOString().split('T')[0]
-    const { data: classInstances } = await supabase
-      .from('class_instances')
-      .select('studio_id')
-      .in('studio_id', studioIds)
-      .eq('status', 'scheduled')
-      .gte('date', today)
-
-    const classCountMap: Record<string, number> = {}
-    for (const ci of classInstances ?? []) {
-      classCountMap[ci.studio_id] = (classCountMap[ci.studio_id] ?? 0) + 1
-    }
-
-    return publicStudios
-      .map((s: StudioRow): ExploreStudioCard => ({
-        id: s.id,
-        name: s.name,
-        slug: s.slug,
-        discipline: s.discipline,
-        description: s.description,
-        logo_url: s.logo_url,
-        settings: s.settings,
-        city: s.city ?? null,
-        country_code: s.country_code ?? null,
-        region: s.region ?? null,
-        member_count: memberCountMap[s.id] ?? 0,
-        upcoming_class_count: classCountMap[s.id] ?? 0,
-      }))
-      .sort((a, b) => b.member_count - a.member_count)
+    return publicStudios.sort((a, b) => b.member_count - a.member_count)
   } catch {
-    console.error('Failed to fetch studios — Supabase may be unavailable')
+    console.error('Failed to fetch studios — API may be unavailable')
     return getFallbackStudios(searchParams)
   }
 }
@@ -239,42 +207,13 @@ type LocationGroup = {
 
 async function getLocations(): Promise<LocationGroup[]> {
   try {
-    const { createClient } = await import('@/lib/supabase/server')
-    const supabase = await createClient()
-    const { data: studios } = await supabase
-      .from('studios')
-      .select('name, slug, description, country_code, region, city')
-
-    const countryMap = new Map<string, { regions: Set<string>; cities: Set<string> }>()
-
-    for (const s of studios ?? []) {
-      const name = (s as Record<string, unknown>).name as string | null
-      const slug = (s as Record<string, unknown>).slug as string | null
-      const description = (s as Record<string, unknown>).description as string | null
-      if (!name || !slug) continue
-      if (isLikelyPlaceholderStudio({ name, slug, description })) continue
-
-      const cc = (s as Record<string, unknown>).country_code as string | null
-      if (!cc) continue
-      if (!countryMap.has(cc)) {
-        countryMap.set(cc, { regions: new Set(), cities: new Set() })
-      }
-      const entry = countryMap.get(cc)!
-      const region = (s as Record<string, unknown>).region as string | null
-      const city = (s as Record<string, unknown>).city as string | null
-      if (region) entry.regions.add(region)
-      if (city) entry.cities.add(city)
-    }
-
-    return Array.from(countryMap.entries())
-      .map(([country_code, { regions, cities }]) => ({
-        country_code,
-        regions: Array.from(regions).sort(),
-        cities: Array.from(cities).sort(),
-      }))
-      .sort((a, b) => a.country_code.localeCompare(b.country_code))
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'https://api.studio.coop'
+    const response = await fetch(`${apiBase}/api/discover/filters`, { next: { revalidate: 300 } })
+    if (!response.ok) return []
+    const payload = (await response.json()) as { locations?: LocationGroup[] }
+    return payload.locations ?? []
   } catch {
-    console.error('Failed to fetch locations — Supabase may be unavailable')
+    console.error('Failed to fetch locations — API may be unavailable')
     return []
   }
 }
