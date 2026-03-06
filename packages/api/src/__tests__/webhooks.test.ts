@@ -8,6 +8,7 @@ vi.mock('../lib/stripe', () => ({
   constructWebhookEvent: vi.fn(),
 }))
 vi.mock('../lib/notifications', () => ({ sendNotification: vi.fn().mockResolvedValue(undefined) }))
+vi.mock('../lib/onboarding', () => ({ startOnboarding: vi.fn().mockResolvedValue(undefined) }))
 
 import { createServiceClient } from '../lib/supabase'
 import { constructWebhookEvent } from '../lib/stripe'

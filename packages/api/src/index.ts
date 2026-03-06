@@ -39,6 +39,9 @@ import calendarFeed from './routes/calendar-feed'
 import exportRoute from './routes/export'
 import manualBilling from './routes/manual-billing'
 import social from './routes/social'
+import retention from './routes/retention'
+import weeklyBrief from './routes/weekly-brief'
+import scheduleEfficiency from './routes/schedule-efficiency'
 import { getConfig } from './lib/config'
 
 // Validate environment configuration at startup (best-effort).
@@ -138,6 +141,9 @@ app.route('/api/studios', subRequests)
 app.route('/api/studios', finances)
 app.route('/api/studios', manualBilling)
 app.route('/api/studios', social)
+app.route('/api/studios', retention)
+app.route('/api/studios', weeklyBrief)
+app.route('/api/studios', scheduleEfficiency)
 app.route('/api', calendarFeed)
 app.route('/api', exportRoute)
 
@@ -158,6 +164,18 @@ export default {
     if (hour === 0) {
       ctx.waitUntil(Promise.resolve(app.fetch(new Request(`${baseUrl}/api/jobs/reengagement`, { method: 'POST', headers }))))
       ctx.waitUntil(Promise.resolve(app.fetch(new Request(`${baseUrl}/api/jobs/generate-classes`, { method: 'POST', headers }))))
+      ctx.waitUntil(Promise.resolve(app.fetch(new Request(`${baseUrl}/api/jobs/onboarding`, { method: 'POST', headers }))))
+    }
+
+    // Daily retention scoring — run at 1am UTC
+    if (hour === 1) {
+      ctx.waitUntil(Promise.resolve(app.fetch(new Request(`${baseUrl}/api/jobs/retention-scores`, { method: 'POST', headers }))))
+    }
+
+    // Weekly brief — run at 18:00 UTC Sunday (6am Monday NZST)
+    const dayOfWeek = new Date(event.scheduledTime).getUTCDay()
+    if (dayOfWeek === 0 && hour === 18) {
+      ctx.waitUntil(Promise.resolve(app.fetch(new Request(`${baseUrl}/api/jobs/weekly-brief`, { method: 'POST', headers }))))
     }
   },
 }

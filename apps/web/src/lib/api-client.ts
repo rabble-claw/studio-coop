@@ -402,4 +402,66 @@ export const calendarApi = {
   revokeToken: (id: string) => api.delete(`/my/calendar-token/${id}`),
 }
 
+export interface RetentionScore {
+  id: string
+  user_id: string
+  score: number
+  factors: Record<string, { weight: number; value: number; raw: number | string }>
+  stage: string
+  computed_at: string
+  member_name: string | null
+  member_email: string | null
+}
+
+export interface RetentionSummary {
+  total_scored: number
+  avg_score: number
+  stages: Record<string, number>
+  tiers: { low: number; moderate: number; high: number; critical: number }
+}
+
+export interface WeeklyBrief {
+  id: string
+  studio_id: string
+  week_start: string
+  data: Record<string, unknown>
+  narrative: string | null
+  created_at: string
+}
+
+export const retentionApi = {
+  scores: (studioId: string, params?: string) =>
+    api.get<{ scores: RetentionScore[]; count: number }>(`/studios/${studioId}/retention/scores${params ? `?${params}` : ''}`),
+  scoreDetail: (studioId: string, userId: string) =>
+    api.get<{ score: RetentionScore }>(`/studios/${studioId}/retention/scores/${userId}`),
+  summary: (studioId: string) =>
+    api.get<RetentionSummary>(`/studios/${studioId}/retention/summary`),
+}
+
+export const briefApi = {
+  list: (studioId: string, limit?: number) =>
+    api.get<{ briefs: WeeklyBrief[] }>(`/studios/${studioId}/briefs${limit ? `?limit=${limit}` : ''}`),
+  latest: (studioId: string) =>
+    api.get<{ brief: WeeklyBrief }>(`/studios/${studioId}/briefs/latest`),
+  generate: (studioId: string) =>
+    api.post<{ brief: WeeklyBrief }>(`/studios/${studioId}/briefs/generate`),
+}
+
+export const outreachApi = {
+  draft: (data: { memberName: string; stage: string; riskFactors?: Record<string, unknown>; studioId: string; studioName?: string }) =>
+    request<{ draft: { subject: string; body: string; stage: string } }>('/outreach', { method: 'POST', body: data }),
+}
+
+export const scheduleEfficiencyApi = {
+  get: (studioId: string, weeks?: number) =>
+    api.get<{
+      period_weeks: number
+      total_classes: number
+      underbooked: Array<{ templateId: string; name: string; instanceCount: number; avgFillRate: number; avgAttendance: number }>
+      overbooked: Array<{ templateId: string; name: string; instanceCount: number; atCapacityCount: number; avgFillRate: number }>
+      peakGaps: Array<{ hour: number; label: string }>
+      instructorUtilization: Array<{ teacherId: string; name: string; classesInPeriod: number; classesPerWeek: number }>
+    }>(`/studios/${studioId}/schedule/efficiency${weeks ? `?weeks=${weeks}` : ''}`),
+}
+
 export { ApiError }

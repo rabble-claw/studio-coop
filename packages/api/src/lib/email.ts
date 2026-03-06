@@ -78,6 +78,26 @@ const TEMPLATES: Record<string, (body: string) => { html: string; text: string }
     html: wrapHtml('Class Cancelled', `<p>${escHtml(body)}</p><p>We apologise for the inconvenience.</p>`),
     text: `Class Cancelled\n\n${body}\n\nWe apologise for the inconvenience.`,
   }),
+  weekly_brief: (body) => ({
+    html: wrapHtml('Your Weekly Studio Brief', `<div style="white-space:pre-wrap">${escHtml(body)}</div>`),
+    text: `Your Weekly Studio Brief\n\n${body}`,
+  }),
+  onboarding_welcome: (body) => ({
+    html: wrapHtml('Welcome to the Studio!', `<p>${escHtml(body)}</p><p>We can't wait to see you in class!</p>`),
+    text: `Welcome to the Studio!\n\n${body}\n\nWe can't wait to see you in class!`,
+  }),
+  onboarding_class_recommendation: (body) => ({
+    html: wrapHtml('Classes We Think You\'ll Love', `<p>${escHtml(body)}</p><p>Book now to secure your spot!</p>`),
+    text: `Classes We Think You'll Love\n\n${body}\n\nBook now to secure your spot!`,
+  }),
+  onboarding_progress_check: (body) => ({
+    html: wrapHtml('How\'s It Going?', `<p>${escHtml(body)}</p><p>We're here if you need anything.</p>`),
+    text: `How's It Going?\n\n${body}\n\nWe're here if you need anything.`,
+  }),
+  onboarding_milestone: (body) => ({
+    html: wrapHtml('30-Day Milestone! 🎉', `<p>${escHtml(body)}</p><p>Keep up the amazing work!</p>`),
+    text: `30-Day Milestone!\n\n${body}\n\nKeep up the amazing work!`,
+  }),
 }
 
 function getTemplate(type: string, body: string): { html: string; text: string } {

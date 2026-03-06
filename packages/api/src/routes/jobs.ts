@@ -6,11 +6,17 @@
 //   POST /api/jobs/reminders          — class reminder notifications (hourly)
 //   POST /api/jobs/reengagement       — re-engagement emails (daily)
 //   POST /api/jobs/generate-classes   — generate class instances for all studios (daily)
+//   POST /api/jobs/retention-scores   — compute member churn risk scores (daily)
+//   POST /api/jobs/weekly-brief       — generate weekly AI briefs (weekly, Mondays)
+//   POST /api/jobs/onboarding         — advance onboarding sequences (daily)
 
 import { Hono } from 'hono'
 import { createServiceClient } from '../lib/supabase'
 import { sendNotification } from '../lib/notifications'
 import { generateClassInstances } from '../lib/class-generator'
+import { computeRetentionScore } from '../lib/retention'
+import { advanceOnboarding } from '../lib/onboarding'
+import { aggregateBriefData, getWeekStart } from '../routes/weekly-brief'
 
 const jobs = new Hono()
 
@@ -253,6 +259,210 @@ jobs.post('/generate-classes', async (c) => {
   }
 
   return c.json({ studiosProcessed: results.length, totalGenerated, results })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Retention scores — run daily (hour 1)
+// POST /api/jobs/retention-scores
+//
+// Compute churn risk scores for all active members across all studios.
+// ─────────────────────────────────────────────────────────────────────────────
+
+jobs.post('/retention-scores', async (c) => {
+  if (!cronAuth(c)) return c.json({ error: 'Unauthorized' }, 401)
+
+  const supabase = createServiceClient()
+  const now = new Date()
+
+  // Get all studios with active memberships
+  const { data: studios } = await supabase
+    .from('studios')
+    .select('id')
+
+  let totalScored = 0
+
+  for (const studio of studios ?? []) {
+    // Get active members
+    const { data: memberships } = await supabase
+      .from('memberships')
+      .select('user_id, joined_at')
+      .eq('studio_id', studio.id)
+      .eq('status', 'active')
+
+    if (!memberships?.length) continue
+
+    const userIds = memberships.map(m => m.user_id)
+
+    // Get last attendance per user (last 8 weeks)
+    const eightWeeksAgo = new Date(now.getTime() - 56 * 24 * 60 * 60 * 1000).toISOString()
+    const fourWeeksAgo = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000).toISOString()
+
+    const { data: attendance } = await supabase
+      .from('attendance')
+      .select('user_id, checked_in_at')
+      .in('user_id', userIds)
+      .gte('checked_in_at', eightWeeksAgo)
+
+    // Get subscriptions
+    const { data: subs } = await supabase
+      .from('subscriptions')
+      .select('user_id, status, cancel_at_period_end')
+      .in('user_id', userIds)
+      .eq('studio_id', studio.id)
+
+    // Build attendance maps
+    const attendanceByUser: Record<string, string[]> = {}
+    for (const a of attendance ?? []) {
+      if (!attendanceByUser[a.user_id]) attendanceByUser[a.user_id] = []
+      attendanceByUser[a.user_id].push(a.checked_in_at)
+    }
+
+    const subByUser: Record<string, { status: string; cancel_at_period_end: boolean }> = {}
+    for (const s of subs ?? []) {
+      subByUser[s.user_id] = { status: s.status, cancel_at_period_end: s.cancel_at_period_end ?? false }
+    }
+
+    // Score each member
+    const scores: Array<{ studio_id: string; user_id: string; score: number; factors: unknown; stage: string; computed_at: string }> = []
+
+    for (const m of memberships) {
+      const userAttendance = attendanceByUser[m.user_id] ?? []
+      const lastAttendance = userAttendance.length > 0
+        ? new Date(userAttendance.sort().reverse()[0])
+        : null
+      const daysInactive = lastAttendance
+        ? Math.floor((now.getTime() - lastAttendance.getTime()) / (1000 * 60 * 60 * 24))
+        : 999
+
+      const last4 = userAttendance.filter(a => new Date(a) >= new Date(fourWeeksAgo)).length
+      const prior4 = userAttendance.filter(a => new Date(a) < new Date(fourWeeksAgo)).length
+
+      const sub = subByUser[m.user_id]
+      let subStatus: 'active' | 'cancel_at_period_end' | 'cancelled' | 'paused' | 'none' = 'none'
+      if (sub) {
+        if (sub.cancel_at_period_end) subStatus = 'cancel_at_period_end'
+        else if (sub.status === 'active') subStatus = 'active'
+        else if (sub.status === 'paused') subStatus = 'paused'
+        else if (sub.status === 'cancelled') subStatus = 'cancelled'
+      }
+
+      const tenureDays = m.joined_at
+        ? Math.floor((now.getTime() - new Date(m.joined_at).getTime()) / (1000 * 60 * 60 * 24))
+        : 365
+
+      const result = computeRetentionScore({
+        daysInactive,
+        attendanceLast4Weeks: last4,
+        attendancePrior4Weeks: prior4,
+        subscriptionStatus: subStatus,
+        hasPaymentIssues: false, // TODO: check payment failures
+        memberTenureDays: tenureDays,
+        engagementScore: 50, // Default neutral engagement
+      })
+
+      scores.push({
+        studio_id: studio.id,
+        user_id: m.user_id,
+        score: result.score,
+        factors: result.factors,
+        stage: result.stage,
+        computed_at: now.toISOString(),
+      })
+    }
+
+    // Delete old scores for this studio and insert new
+    if (scores.length > 0) {
+      await supabase
+        .from('member_risk_scores')
+        .delete()
+        .eq('studio_id', studio.id)
+
+      await supabase
+        .from('member_risk_scores')
+        .insert(scores)
+
+      totalScored += scores.length
+    }
+  }
+
+  return c.json({ studiosProcessed: (studios ?? []).length, membersScored: totalScored })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Weekly brief — run weekly (Monday 6am NZST = Sunday 18:00 UTC)
+// POST /api/jobs/weekly-brief
+//
+// Generate weekly AI briefs for all studios with active memberships.
+// ─────────────────────────────────────────────────────────────────────────────
+
+jobs.post('/weekly-brief', async (c) => {
+  if (!cronAuth(c)) return c.json({ error: 'Unauthorized' }, 401)
+
+  const supabase = createServiceClient()
+
+  const { data: studios } = await supabase
+    .from('studios')
+    .select('id, name')
+
+  let generated = 0
+  const weekStart = getWeekStart()
+
+  for (const studio of studios ?? []) {
+    try {
+      const data = await aggregateBriefData(studio.id)
+
+      await supabase
+        .from('weekly_briefs')
+        .upsert(
+          { studio_id: studio.id, week_start: weekStart, data },
+          { onConflict: 'studio_id,week_start' }
+        )
+
+      generated++
+    } catch (err) {
+      console.error(`[weekly-brief] Error for studio ${studio.id}:`, err)
+    }
+  }
+
+  return c.json({ studiosProcessed: (studios ?? []).length, briefsGenerated: generated })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Onboarding — run daily
+// POST /api/jobs/onboarding
+//
+// Advance active onboarding sequences for all members.
+// ─────────────────────────────────────────────────────────────────────────────
+
+jobs.post('/onboarding', async (c) => {
+  if (!cronAuth(c)) return c.json({ error: 'Unauthorized' }, 401)
+
+  const supabase = createServiceClient()
+
+  const { data: sequences } = await supabase
+    .from('onboarding_sequences')
+    .select('studio_id, user_id, step, started_at')
+    .eq('status', 'active')
+
+  let advanced = 0
+  let completed = 0
+
+  for (const seq of sequences ?? []) {
+    try {
+      const result = await advanceOnboarding(
+        seq.studio_id,
+        seq.user_id,
+        seq.step,
+        seq.started_at
+      )
+      if (result.advanced) advanced++
+      if (result.completed) completed++
+    } catch (err) {
+      console.error(`[onboarding] Error for ${seq.user_id}:`, err)
+    }
+  }
+
+  return c.json({ sequencesProcessed: (sequences ?? []).length, advanced, completed })
 })
 
 export { jobs }

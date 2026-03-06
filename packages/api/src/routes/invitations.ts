@@ -10,6 +10,7 @@ import { Hono } from 'hono'
 import { authMiddleware } from '../middleware/auth'
 import { requireAdmin, requireOwner } from '../middleware/studio-access'
 import { createServiceClient } from '../lib/supabase'
+import { startOnboarding } from '../lib/onboarding'
 import { badRequest, notFound } from '../lib/errors'
 import { sendNotification } from '../lib/notifications'
 
@@ -103,6 +104,11 @@ invitations.post('/:studioId/members/invite', authMiddleware, requireAdmin, asyn
       channels: ['email', 'in_app'],
     }).catch(() => {})
 
+    // Start onboarding sequence for new member (fire-and-forget)
+    if (role === 'member') {
+      startOnboarding(studioId, existingUser.id).catch(() => {})
+    }
+
     return c.json({
       invited: true,
       userExists: true,
@@ -151,6 +157,11 @@ invitations.post('/:studioId/members/invite', authMiddleware, requireAdmin, asyn
         data: { studioId },
         channels: ['email', 'in_app'],
       }).catch(() => {})
+
+      // Start onboarding sequence for new member (fire-and-forget)
+      if (role === 'member') {
+        startOnboarding(studioId, newUser.user.id).catch(() => {})
+      }
     }
 
     return c.json({

@@ -3,6 +3,7 @@ import { createServiceClient } from '../lib/supabase'
 import { constructWebhookEvent } from '../lib/stripe'
 import { badRequest } from '../lib/errors'
 import { sendNotification } from '../lib/notifications'
+import { startOnboarding } from '../lib/onboarding'
 
 // Mounted at /api/webhooks
 const webhooks = new Hono()
@@ -96,6 +97,9 @@ webhooks.post('/stripe', async (c) => {
             body: `Your payment of $${((session.amount_total ?? 0) / 100).toFixed(2)} has been processed.`,
             channels: ['email', 'in_app'],
           }).catch(() => {})
+
+          // Start onboarding sequence for new subscriber (fire-and-forget)
+          startOnboarding(studioId, userId).catch(() => {})
         }
       }
       break
