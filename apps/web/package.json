@@ -15,8 +15,8 @@
     "build:static": "NEXT_CONFIG_FILE=next.config.static.ts next build",
     "build:worker": "npx @opennextjs/cloudflare build",
     "preview:cf": "npx @opennextjs/cloudflare build && npx wrangler dev",
-    "deploy": "npx @opennextjs/cloudflare build && npx wrangler deploy",
-    "ship": "npx @opennextjs/cloudflare build && npx wrangler deploy"
+    "deploy": "set -a; . ./.env.production; set +a; npx @opennextjs/cloudflare build && npx wrangler deploy",
+    "ship": "set -a; . ./.env.production; set +a; npx @opennextjs/cloudflare build && npx wrangler deploy"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.58",

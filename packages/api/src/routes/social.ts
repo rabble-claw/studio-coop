@@ -61,10 +61,12 @@ function normalizeRedirectPath(value: unknown): string {
 function getInstagramConfig() {
   const clientId = process.env.INSTAGRAM_CLIENT_ID?.trim()
   const clientSecret = process.env.INSTAGRAM_CLIENT_SECRET?.trim()
-  const redirectUri = process.env.INSTAGRAM_REDIRECT_URI?.trim()
+  const apiUrl = process.env.API_URL?.trim() || 'https://api.studio.coop'
+  const defaultRedirectUri = `${apiUrl.replace(/\/+$/, '')}/api/studios/social/instagram/callback`
+  const redirectUri = process.env.INSTAGRAM_REDIRECT_URI?.trim() || defaultRedirectUri
   const scopes = process.env.INSTAGRAM_SCOPES?.trim() || DEFAULT_INSTAGRAM_SCOPES
 
-  if (!clientId || !clientSecret || !redirectUri) {
+  if (!clientId || !clientSecret) {
     throw new Error('Missing Instagram OAuth configuration')
   }
 
@@ -379,7 +381,6 @@ social.get('/:studioId/social/instagram', authMiddleware, requireAdmin, async (c
     configReady: Boolean(
       process.env.INSTAGRAM_CLIENT_ID
       && process.env.INSTAGRAM_CLIENT_SECRET
-      && process.env.INSTAGRAM_REDIRECT_URI
     ),
     mediaCount: mediaCount ?? 0,
     account: account ?? null,
