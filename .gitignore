@@ -16,3 +16,11 @@ playwright-report/
 test-results/
 blob-report/
 e2e/.auth/
+
+# Local artifacts
+.DS_Store
+firebase-debug.log
+.private-journal/
+.wrangler/
+2026-03-06/
+apps/web/e2e/.auth/
