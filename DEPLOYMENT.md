@@ -57,6 +57,40 @@ This starts Postgres, the API, and the web app together.
 
 ## Production Deployment
 
+### Preferred Deploy Commands (root scripts)
+
+Run from repo root:
+
+```bash
+# Web (studio.coop)
+pnpm run deploy:web
+
+# API (api.studio.coop)
+pnpm run deploy:api
+
+# Both
+pnpm run deploy:all
+```
+
+Dry-runs:
+
+```bash
+pnpm run deploy:web:dry
+pnpm run deploy:api:dry
+pnpm run deploy:all:dry
+```
+
+From any subdirectory, use root-targeted commands:
+
+```bash
+pnpm --dir "$(git rev-parse --show-toplevel)" run deploy:web
+pnpm --dir "$(git rev-parse --show-toplevel)" run deploy:api
+
+# npm equivalents
+npm --prefix "$(git rev-parse --show-toplevel)" run deploy:web
+npm --prefix "$(git rev-parse --show-toplevel)" run deploy:api
+```
+
 ### Database (Supabase)
 
 1. Create a project at [supabase.com](https://supabase.com)
@@ -76,9 +110,8 @@ This starts Postgres, the API, and the web app together.
 The Hono API deploys as a Cloudflare Worker with a custom esbuild step:
 
 ```bash
-cd packages/api
-
 # Set secrets (first time only)
+cd packages/api
 wrangler secret put SUPABASE_URL
 wrangler secret put SUPABASE_SERVICE_ROLE_KEY
 wrangler secret put SUPABASE_ANON_KEY
@@ -87,8 +120,12 @@ wrangler secret put STRIPE_SECRET_KEY
 wrangler secret put STRIPE_WEBHOOK_SECRET
 wrangler secret put RESEND_API_KEY
 
-# Deploy
+# Deploy (direct wrangler)
 wrangler deploy --env=""
+
+# Deploy (recommended root script)
+cd "$(git rev-parse --show-toplevel)"
+pnpm run deploy:api
 ```
 
 The build uses `build.mjs` (esbuild) to bundle for Workers, externalizing Node builtins (provided by `nodejs_compat`) and `expo-server-sdk` (dynamically imported for push notifications).
@@ -96,13 +133,15 @@ The build uses `build.mjs` (esbuild) to bundle for Workers, externalizing Node b
 ### Web App (Cloudflare Workers via OpenNext)
 
 ```bash
+# Deploy (recommended root script)
+cd "$(git rev-parse --show-toplevel)"
+pnpm run deploy:web
+
+# Dry-run
+pnpm run deploy:web:dry
+
+# Direct wrangler (still supported)
 cd apps/web
-
-# Build and deploy
-npx @opennextjs/cloudflare build
-npx wrangler deploy
-
-# Or use the shorthand:
 pnpm deploy
 ```
 

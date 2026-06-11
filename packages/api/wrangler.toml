@@ -5,7 +5,7 @@ compatibility_flags = ["nodejs_compat", "nodejs_compat_populate_process_env"]
 workers_dev = false
 
 [build]
-command = "node build.mjs"
+command = "ROOT=$(git rev-parse --show-toplevel) && cd \"$ROOT/packages/api\" && node build.mjs"
 
 [vars]
 ENVIRONMENT = "production"
