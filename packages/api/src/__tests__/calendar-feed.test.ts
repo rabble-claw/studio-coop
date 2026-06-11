@@ -91,7 +91,7 @@ describe('GET /api/cal/:token', () => {
       status: 'booked',
       class_instance: {
         id: 'ci-1',
-        date: '2026-03-10',
+        date: '2099-03-10', // far future — feed drops events older than 7 days
         start_time: '09:00:00',
         template: { name: 'Yoga', duration_min: 60, description: null },
         teacher: { name: 'Jane' },
@@ -135,7 +135,7 @@ describe('GET /api/cal/:token', () => {
     expect(body).toContain('BEGIN:VEVENT')
     expect(body).toContain('UID:booking-b-1@studiocoop')
     expect(body).toContain('SUMMARY:Yoga')
-    expect(body).toContain('DTSTART;TZID=Pacific/Auckland:20260310T090000')
+    expect(body).toContain('DTSTART;TZID=Pacific/Auckland:20990310T090000')
     expect(body).toContain('DESCRIPTION:Class with Jane')
     expect(body).toContain('END:VCALENDAR')
   })

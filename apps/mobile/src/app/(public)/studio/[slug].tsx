@@ -7,9 +7,24 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Linking,
+  Alert,
 } from 'react-native'
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router'
 import { discoverApi } from '@/lib/api'
+import { socialUrl, type SocialKind } from '@/lib/social-links'
+
+async function openSocialLink(kind: SocialKind, value: string) {
+  const url = socialUrl(kind, value)
+  if (!url) {
+    Alert.alert('Link unavailable', "This studio's link looks invalid.")
+    return
+  }
+  try {
+    await Linking.openURL(url)
+  } catch {
+    Alert.alert('Could not open link', url)
+  }
+}
 
 type ClassItem = {
   id: string
@@ -152,23 +167,17 @@ export default function PublicStudioProfileScreen() {
             {/* Social links */}
             <View className="flex-row items-center gap-4 mt-3">
               {studio.instagram && (
-                <TouchableOpacity onPress={async () => {
-                  try { await Linking.openURL(studio.instagram!) } catch { /* invalid URL */ }
-                }}>
+                <TouchableOpacity onPress={() => openSocialLink('instagram', studio.instagram!)}>
                   <Text className="text-primary text-sm">Instagram</Text>
                 </TouchableOpacity>
               )}
               {studio.facebook && (
-                <TouchableOpacity onPress={async () => {
-                  try { await Linking.openURL(studio.facebook!) } catch { /* invalid URL */ }
-                }}>
+                <TouchableOpacity onPress={() => openSocialLink('facebook', studio.facebook!)}>
                   <Text className="text-primary text-sm">Facebook</Text>
                 </TouchableOpacity>
               )}
               {studio.website && (
-                <TouchableOpacity onPress={async () => {
-                  try { await Linking.openURL(studio.website!) } catch { /* invalid URL */ }
-                }}>
+                <TouchableOpacity onPress={() => openSocialLink('website', studio.website!)}>
                   <Text className="text-primary text-sm">Website</Text>
                 </TouchableOpacity>
               )}

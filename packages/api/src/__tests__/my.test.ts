@@ -135,6 +135,36 @@ describe('DELETE /api/bookings/:bookingId', () => {
     expect(body.error.message).toMatch(/already cancelled/i)
   })
 
+  it('returns 403 when studio has disabled self-cancellation', async () => {
+    const mock = {
+      from: vi.fn(() => makeAsyncChain({
+        data: makeBookingData({
+          class_instance: {
+            id: 'ci-1',
+            studio_id: 'studio-abc',
+            date: futureDate,
+            start_time: '18:00:00',
+            studio: { settings: { cancellation: { hours_before: 12, allow_self_cancel: false } }, timezone: 'Pacific/Auckland', name: 'Studio A' },
+            template: { name: 'Yoga', location: 'Room 1', duration_min: 60 },
+            teacher: { name: 'Jane' },
+          },
+        }),
+        error: null,
+      })),
+    }
+    vi.mocked(createServiceClient).mockReturnValue(mock as any)
+
+    const app = makeApp()
+    const res = await app.request('/api/bookings/booking-1', {
+      method: 'DELETE',
+      headers: { Authorization: 'Bearer tok' },
+    })
+    expect(res.status).toBe(403)
+    const body = await res.json() as any
+    expect(body.error.message).toMatch(/contact the studio/i)
+    expect(refundCredit).not.toHaveBeenCalled()
+  })
+
   it('cancels and refunds credit when within cancellation window', async () => {
     const updateChain = {
       eq: vi.fn().mockResolvedValue({ error: null }),

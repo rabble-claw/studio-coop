@@ -58,6 +58,9 @@ my.delete('/bookings/:bookingId', authMiddleware, async (c) => {
   // ── 2. Cancellation window check ──────────────────────────────────────────
   const settings = (studio?.settings ?? {}) as Record<string, unknown>
   const cancellation = (settings.cancellation ?? {}) as Record<string, unknown>
+  if (cancellation.allow_self_cancel === false) {
+    throw forbidden('This studio handles cancellations directly — please contact the studio')
+  }
   const windowHours = typeof cancellation.hours_before === 'number'
     ? cancellation.hours_before
     : 12

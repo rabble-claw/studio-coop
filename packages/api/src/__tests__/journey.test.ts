@@ -236,7 +236,7 @@ describe('Full User Journey', () => {
         id: SID,
         name: 'Journey Dance Studio',
         slug: journeyState.studioSlug,
-        settings: { notifications: { email: true }, cancellation: { window_hours: 12 } },
+        settings: { notifications: { email: true }, cancellation: { hours_before: 12 } },
       }
       const mock = {
         from: vi.fn(() => makeAsyncChain({ data: studioData, error: null })),
