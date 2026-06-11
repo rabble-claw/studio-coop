@@ -14,9 +14,9 @@ test.describe('1. Landing & Explore', () => {
     await page.goto('/')
     await waitForPageLoad(page)
 
-    // Hero headline
+    // Hero headline (lines are <br/>-separated, so text content has no spaces between them)
     await expect(page.getByRole('heading', { level: 1 })).toContainText(
-      'Your studio, your community, your platform',
+      /Your studio,\s*your community,\s*your platform/,
     )
 
     // CTA buttons (may appear twice — hero + footer CTA)

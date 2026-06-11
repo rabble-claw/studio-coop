@@ -114,17 +114,23 @@ export default async function globalSetup(config: FullConfig) {
 
   console.log('[global-setup] Ensuring auth users...')
   const roles: SeedRole[] = ['owner', 'teacher', 'member']
-  for (const role of roles) {
-    const user = SEED[role]
-    const authId = await ensureAuthUser(user.email, user.password, user.name)
-    if (authId) {
-      console.log(`[global-setup] ${role}: ${user.email} (auth id: ${authId})`)
-      await linkAuthToSeedData(role, authId)
-    } else {
-      console.warn(`[global-setup] Failed to create/find ${role} user`)
+  try {
+    for (const role of roles) {
+      const user = SEED[role]
+      const authId = await ensureAuthUser(user.email, user.password, user.name)
+      if (authId) {
+        console.log(`[global-setup] ${role}: ${user.email} (auth id: ${authId})`)
+        await linkAuthToSeedData(role, authId)
+      } else {
+        console.warn(`[global-setup] Failed to create/find ${role} user`)
+      }
     }
-  }
 
-  console.log('[global-setup] Saving auth states...')
-  await saveAuthStates(config)
+    console.log('[global-setup] Saving auth states...')
+    await saveAuthStates(config)
+  } catch (err) {
+    // Supabase unreachable (e.g. local stack not running). Demo-project tests
+    // don't need auth state — warn and let @auth tests fail individually.
+    console.warn('[global-setup] Supabase unreachable — skipping auth setup. @auth tests will fail; demo tests are unaffected.', err)
+  }
 }
