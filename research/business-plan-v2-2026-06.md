@@ -83,18 +83,20 @@ Four conflicting pricing stories currently exist in public/internal surfaces:
 | research/studio-coop-marketing.md | $69/$99/$149 USD tiers |
 | Business plan v1 (Decision Lock, Mar 6) | **NZD 99/139/189 tiers**, ARPS 132 |
 
-### Recommendation: Option B — single flat price with a founding-member rate
+### DECIDED (Rabble directive, 2026-06-12): price competitively low — "this is cheap to run"
 
-**NZD 139/month per studio location (ex GST), everything included.** Founding members (first 10 studios) pay **NZD 99/month, locked for 24 months**. Payment processing pass-through at cost. AU pricing A$129 when we cross the Tasman.
+**Working number: NZD 69/month per studio location (ex GST), flat, everything included.** One price for everyone; founding studios get founding governance status and patronage seniority rather than a discount. Payment processing pass-through at Stripe's 2.65% + 30c. AU entry at A$59–69 when we cross the Tasman.
 
-Why single-price over the v1 three-tier lock:
+Why NZD 69:
 
-1. **It keeps the public promise true.** The marketing site, pitch deck, and co-op formation docs all already say "one price, everything included." Feature-gated tiers would force us to gate AI or community features — contradicting both our differentiation and v1's own guardrail #1 ("no hidden add-ons for core features").
-2. **Tier ladders are what we attack competitors for.** "Flat price that doesn't punish growth" is cleaner when there's literally one number.
-3. **Simpler to operate and govern.** One price, one vote, one patronage formula. Tier-mix forecasting (30/60/10) was speculative anyway — we have zero customers to base a mix on.
-4. **The economics are close enough.** See §5 — break-even moves from 22 to ~24 studios with the founding discount, 21 without.
+1. **It undercuts every full-featured competitor in NZ:** Punchpass entry ≈ NZD 97 (and no native app), Mindbody Go ≈ NZD 97 (AU only), GymMaster 129, TeamUp ≈ 195, Momence effective 330+. Only lightweight booking tools (Bookwhen NZD 24–69) sit near it, and they aren't studio management. ≈ USD 42 — globally cheap, not just locally.
+2. **It's the honest co-op price.** Vendor infrastructure for the *entire platform* is ~NZD 150/mo; the marginal cost of a studio is a few dollars. A cost-plus cooperative charging 139 while costs are this low would be extraction with extra steps. 69 prices in future support labor, not fantasy margin.
+3. **It's not suspicious-cheap.** NZD 49 anchors below sustainability once paid support exists (25 studios × 49 = 1,225/mo vs 2,300 lean costs) and reads "too cheap to trust." 69 is a confident statement, not a clearance sale.
+4. **The co-op structure de-risks underpricing.** The published cost-plus formula and one-studio-one-vote governance mean the price follows costs *by covenant* — adjusting later isn't a bait-and-switch, it's the mechanism members signed up for. And when revenue overshoots costs, patronage returns the difference, pushing the *net effective* price into the 50s at scale.
 
-If Rabble prefers to keep the v1 tier lock (Option A), §5 carries both columns. Either way, **all public surfaces must converge on one story** — list of files to update in §10.
+Superseded options kept for the record: v1 three-tier lock (NZD 99/139/189, ARPS 132) and the interim flat-139 recommendation. Single-price reasoning from that recommendation still applies: no feature gates, no tier ladders, one vote, one formula.
+
+**All public surfaces must converge on "NZD 69 flat, everything included"** — file list in §10.
 
 GST note: an NZ entity must add 15% GST for NZ customers; publish prices as "ex GST" from day one to avoid a later effective price rise.
 
@@ -108,18 +110,21 @@ GST note: an NZ entity must add 15% GST for NZ customers; publish prices as "ex 
 
 ## 5. Unit Economics (Rebased)
 
-Baseline unchanged: lean-operated `TMC = NZD 2,300/mo` ([ledger](lean-operated-monthly-cost-ledger-2026-03.md)), resilience factor 25% → required monthly revenue **NZD 2,875**.
+Two cost stages matter (both from the [March ledger](lean-operated-monthly-cost-ledger-2026-03.md), resilience factor 25%):
 
-| Scenario | ARPS | Break-even studios |
-|---|---|---|
-| A: v1 tiers, 30/60/10 mix | 132 | 22 |
-| B: flat 139, no discounts | 139 | 21 |
-| **B with 10 founders at 99** | blended | **24** (10×99 + 14×139 = NZD 2,936) |
-| Flat 99 only (if we never raise) | 99 | 29 |
+| Stage | TMC | Required revenue | Break-even at NZD 69 |
+|---|---|---|---|
+| **Founder-operated** (vendor stack only, labor subsidized) | ~150 | ~190 | **3 studios** |
+| **Lean-operated** (paid part-time support/ops) | 2,300 | 2,875 | **42 studios** |
 
-Interpretation (unchanged from v1, still true): infra is trivial (tech-only break-even: 2 studios); support and onboarding labor drive viability; the business case rests on reaching ~24 active studios with ≥85% day-90 retention. The founding-member discount costs ~2 extra studios of break-even and buys champion loyalty + urgency — acceptable.
+How to read this at the flat-69 price:
 
-Sensitivity to watch: TMC was estimated in March and includes lean ops labor. Re-tighten from real invoices at first revenue (30-minute exercise per [cost baseline doc](current-stack-cost-baseline-2026-03.md)).
+1. **Cash-positive on hard costs almost immediately** — 3 studios covers every invoice. From studio #4, the platform pays for itself while Rabble's labor is the subsidy (which it is regardless of price at this stage).
+2. **Paid support becomes affordable at ~42 studios.** That's the real break-even and lands roughly mid-to-late 2027 on the §8 adoption gates. Until then, support labor is founder-subsidized or part-funded — the deliberate trade: the low price is the growth engine that gets us to 42 faster than 139 would have gotten us to 21, because price becomes a headline weapon ("half of GymMaster, a third of TeamUp, no take-rate").
+3. **At scale the surplus comes back.** 100 studios → NZD 6,900/mo against perhaps 4,000–4,500 of costs → patronage pool pushes net effective price into the 50s. The cheaper-than-everyone price *and* a rebate is an unanswerable combination for PE-owned rivals.
+4. **Safety valve:** the cost-plus floor formula is published and member-voted. If real costs exceed the model, the price follows the formula — pre-agreed, not sprung.
+
+Sensitivity to watch: TMC was estimated in March and includes lean ops labor. Re-tighten from real invoices at first revenue (30-minute exercise per [cost baseline doc](current-stack-cost-baseline-2026-03.md)). If lean TMC lands nearer 1,500, lean break-even drops to ~27 studios.
 
 ---
 
@@ -161,7 +166,7 @@ Referral mechanics, anti-spam rules, and activation-gated rewards: unchanged fro
 | **1 — First proof** | Aug 31, 2026 | Empire live & paying (manual billing OK); parallel run complete; scorecard ≥ "would recommend" + 1 measurable ops win; 2 warm intros | **Hard stop & reassess** — if we can't land the friendly anchor customer, the model is unproven at its easiest point |
 | **2 — Cluster** | Oct 31, 2026 | 5 active studios; ≥80% day-14 activation; ≥1 unprompted referral | Warm-intro loop broken — diagnose (product? onboarding labor? pricing?) before adding studios |
 | **3 — Cohort retention** | Dec 20, 2026 | 10–12 active studios; day-90 retention ≥85% for first cohort; founding co-op membership ratified | Retention < 85% → stop growth, fix churn causes |
-| **4 — Break-even** | Mar 31, 2027 | 22–24 active studios; floor coverage ≥1.05 sustained; first patronage policy vote | Re-examine TMC and ARPS assumptions with a year of real data |
+| **4 — Scale** | Mar 31, 2027 | 25+ active studios (hard-cost break-even passed at 3; on the path to lean break-even at 42); floor coverage formula published; first patronage policy vote | Re-examine TMC and adoption assumptions with a year of real data |
 
 These gates are ~6 months later than v1's. That is the honest cost of the March–June stall; compressing them again without removing the ops bottleneck would just repeat it.
 
@@ -182,7 +187,7 @@ These gates are ~6 months later than v1's. That is the honest cost of the March�
 
 ## 10. Decisions Needed From Rabble
 
-1. **Pricing:** adopt Option B (flat NZD 139, founders NZD 99×24mo) or keep v1 tiers? Then update, in one pass: README (done — placeholder consistent with either), marketing-site/index.html + docs/index.html ($99 AUD flat), pitch-deck/index.html, marketing-site/cooperative.html, docs/cooperative-formation.md ($99 AUD), research/studio-coop-marketing.md (USD tiers).
+1. **Pricing:** ~~decide model~~ → *Decided 2026-06-12: competitive flat pricing (Rabble: "this is cheap to run"). Working number NZD 69/mo ex GST — confirm the number, then converge all surfaces in one pass: web landing (add pricing section), marketing-site/index.html + docs/index.html ($99 AUD flat), pitch-deck/index.html, marketing-site/cooperative.html, docs/cooperative-formation.md ($99 AUD), research/studio-coop-marketing.md (USD tiers).*
 2. **Entity:** NZ-first recommendation (§6) — confirm and start incorporation + bank + Stripe within 2 weeks.
 3. **Emma:** ~~book the interview~~ → *Update 2026-06-11: Emma is ready to test (per Rabble). Pilot is GO — run the discovery interview as part of test onboarding; Gate 0's Emma item is effectively met early.*
 4. **Product freeze:** approve "no new feature areas until Empire is live and paying."
