@@ -10,19 +10,85 @@ const HERO_METRICS = [
 
 const OUTCOME_PILLARS = [
   {
-    title: 'No corporate bloat',
-    description: 'Scheduling, check-in, and community in one workflow built for independents.',
-    stat: 'Lean stack',
+    title: 'Community that keeps members',
+    description:
+      'Private, attendees-only class feeds turn classmates into friends — and friends keep showing up. No competitor offers this.',
+    stat: 'Retention',
   },
   {
-    title: 'Community-first retention',
-    description: 'Private class feeds keep connection inside your studio after every session.',
-    stat: 'Higher return visits',
+    title: 'Confirmations that rescue spots',
+    description:
+      'One-tap “still coming?” prompts before every class re-open spots while there’s still time for the waitlist to fill them.',
+    stat: 'Fewer no-shows',
   },
   {
-    title: 'Mobile by default',
-    description: 'Teachers and members both run daily operations from a phone, not a front desk.',
-    stat: 'No app install needed',
+    title: 'Switching without the meltdown',
+    description:
+      'We move your members, passes, and schedule from Mindbody or Vagaro — dry-run first, cut over only when everything matches.',
+    stat: '48-hour migration',
+  },
+]
+
+const DISCIPLINES = [
+  {
+    name: 'Pole & Aerial',
+    hue: '#d94f35',
+    hook: 'Progress is the product — and progress needs privacy.',
+    points: [
+      'Level systems built in (Pole 1–5, hoop, silks) with teacher-verified skill tracking',
+      'Pick-your-pole spot booking, so regulars stop racing for position eight',
+      'Class feeds only attendees can see — share the invert video without posting it to the world',
+    ],
+  },
+  {
+    name: 'Yoga & Pilates',
+    hue: '#25655a',
+    hook: 'Fill every mat and reformer without front-desk friction.',
+    points: [
+      'Class packs, intro offers, and memberships that handle themselves',
+      'Mat and reformer spot selection at booking',
+      'Gentle waitlists that auto-promote and confirm, no 7am phone calls',
+    ],
+  },
+  {
+    name: 'Dance',
+    hue: '#b9851f',
+    hook: 'Open timetables, casual drop-ins, choreo that stays in the room.',
+    points: [
+      'No-terms scheduling — members attend any class, any week',
+      'Drop-ins and casual passes alongside memberships',
+      'Private class feeds for choreography videos and recap notes',
+    ],
+  },
+  {
+    name: 'BJJ & Martial Arts',
+    hue: '#25655a',
+    hook: 'Track the journey from white belt to black, on the mats and in the app.',
+    points: [
+      'Discipline-aware skill and grading progressions, verified by coaches',
+      'Attendance streaks and history every member can see',
+      'Open-mat and seminar scheduling with capacity control',
+    ],
+  },
+  {
+    name: 'CrossFit & Strength',
+    hue: '#d94f35',
+    hook: 'Capped classes, accountable athletes, zero no-show chaos.',
+    points: [
+      'Hard capacity caps with waitlist auto-promotion',
+      'Smart confirmations that recover spots before class, not after',
+      'Late-cancel and no-show policies you control, enforced automatically',
+    ],
+  },
+  {
+    name: 'Cycle & Bootcamp',
+    hue: '#b9851f',
+    hook: 'Every bike booked, every session confirmed.',
+    points: [
+      'Bike and station spot picker at booking',
+      'One-tap “still coming?” confirmations before every session',
+      'Walk-in friendly check-in when someone grabs a free bike',
+    ],
   },
 ]
 
@@ -124,8 +190,9 @@ export default function LandingPage() {
             </h1>
 
             <p className="marketing-reveal mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground [animation-delay:210ms] sm:text-xl">
-              Studio Co-op is the management platform that puts relationships first. Run scheduling,
-              attendance, and private community in one place without enterprise software overhead.
+              Booking, payments, check-in, and private class communities in one calm platform —
+              <span className="font-semibold text-foreground"> owned by the studios that use it</span>,
+              not by private equity.
             </p>
 
             <div className="marketing-reveal mt-9 flex flex-wrap items-center gap-4 [animation-delay:310ms]">
@@ -197,6 +264,25 @@ export default function LandingPage() {
                 </h2>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{pillar.description}</p>
               </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="mx-auto w-full max-w-6xl px-6 py-20">
+          <div className="max-w-3xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">For your discipline</p>
+            <h2 className="marketing-display mt-3 text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
+              Made for movement — <span className="italic">whatever yours is</span>
+            </h2>
+            <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground">
+              Generic gym software flattens every studio into the same checkout flow. Studio Co-op
+              ships with the level systems, spot booking, and community shapes your discipline
+              actually runs on.
+            </p>
+          </div>
+          <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {DISCIPLINES.map((d, index) => (
+              <DisciplineCard key={d.name} discipline={d} delay={index} />
             ))}
           </div>
         </section>
@@ -417,6 +503,39 @@ export default function LandingPage() {
         </div>
       </footer>
     </div>
+  )
+}
+
+function DisciplineCard({
+  discipline,
+  delay,
+}: {
+  discipline: (typeof DISCIPLINES)[number]
+  delay: number
+}) {
+  return (
+    <article
+      className="marketing-reveal group relative overflow-hidden rounded-2xl border border-border/70 bg-card p-6 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+      style={{ animationDelay: `${140 + delay * 70}ms` }}
+    >
+      <div className="absolute inset-y-0 left-0 w-1" style={{ backgroundColor: discipline.hue }} aria-hidden="true" />
+      <h3 className="marketing-display text-2xl font-semibold tracking-tight" style={{ color: discipline.hue }}>
+        {discipline.name}
+      </h3>
+      <p className="mt-2 text-sm font-medium leading-snug text-foreground">{discipline.hook}</p>
+      <ul className="mt-4 space-y-2.5">
+        {discipline.points.map((point) => (
+          <li key={point} className="flex items-start gap-2.5 text-sm leading-relaxed text-muted-foreground">
+            <span
+              className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full"
+              style={{ backgroundColor: discipline.hue }}
+              aria-hidden="true"
+            />
+            <span>{point}</span>
+          </li>
+        ))}
+      </ul>
+    </article>
   )
 }
 
