@@ -104,17 +104,14 @@ describe('i18n locale file', () => {
   it('should have nav labels matching dashboard-shell navItems', () => {
     const nav = (msgs as Record<string, MessageTree>).common.nav
     expect(nav).toBeDefined()
+    // Must match navItems in components/dashboard-shell.tsx
     const expectedNavKeys = [
       'overview',
       'schedule',
       'members',
-      'plans',
-      'feed',
-      'network',
-      'coupons',
-      'bookings',
+      'money',
       'reports',
-      'migrate',
+      'copilot',
       'settings',
     ]
     for (const key of expectedNavKeys) {

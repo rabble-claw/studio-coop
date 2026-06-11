@@ -16,6 +16,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "test": "jest",
+    "test:run": "jest",
     "test:watch": "jest --watch"
   },
   "dependencies": {

@@ -16,6 +16,9 @@
       "dependsOn": ["^build"],
       "outputs": []
     },
+    "test:run": {
+      "outputs": []
+    },
     "ship": {
       "dependsOn": ["^build"],
       "cache": false
