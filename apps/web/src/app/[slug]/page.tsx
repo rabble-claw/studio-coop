@@ -247,28 +247,35 @@ function getTeacherInstagramUrl(socials: Array<{ label: string; url: string }>) 
   return socials.find((social) => social.label === 'Instagram')?.url
 }
 
+// Emergency display fallback only — the real schedule lives in the DB
+// (migration 027). Refreshed from the Mindbody consumer API 2026-06-12.
 const EMPIRE_MINDBODY_WEEKLY_CLASSES: EmpireWeeklyClassTemplate[] = [
-  { weekday: 6, name: 'Pole Level 1 & 2', teacher: 'Emma Louise', start_time: '10:00', end_time: '11:00' },
-  { weekday: 6, name: 'Lyra Technique Level 2', teacher: 'V .', start_time: '10:00', end_time: '11:00' },
-  { weekday: 6, name: 'Lyra Technique Level 1', teacher: 'Emma Louise', start_time: '11:10', end_time: '12:10' },
-  { weekday: 6, name: 'Strong & Flippy Pole L3+', teacher: 'V .', start_time: '11:10', end_time: '12:10' },
   { weekday: 0, name: 'Open Pole Training', teacher: 'Emma Louise', start_time: '10:00', end_time: '11:30' },
   { weekday: 0, name: 'Mobility Bootcamp!', teacher: 'Emma Louise', start_time: '10:00', end_time: '11:30' },
-  { weekday: 1, name: 'Splits Blitz!', teacher: 'Laura Oakley', start_time: '17:25', end_time: '18:25' },
+  { weekday: 1, name: 'Foxie Flow', teacher: 'Foxie .', start_time: '17:25', end_time: '18:25' },
   { weekday: 1, name: 'Pole Level 3', teacher: 'James .', start_time: '18:35', end_time: '19:35' },
+  { weekday: 1, name: 'Marco Polo Floor Choreo', teacher: 'Marco Polo', start_time: '18:35', end_time: '19:35' },
   { weekday: 1, name: 'Pole Level 5 Social', teacher: 'Emma Louise', start_time: '19:45', end_time: '20:45' },
   { weekday: 2, name: 'Pole Level 4', teacher: 'Andie .', start_time: '17:25', end_time: '18:25' },
-  { weekday: 2, name: 'Atomic Combos', teacher: 'Andie .', start_time: '18:35', end_time: '19:35' },
+  { weekday: 2, name: 'Base & Floor work (L2+)', teacher: 'Andie .', start_time: '18:35', end_time: '19:35' },
   { weekday: 2, name: 'Unwind & Release', teacher: 'James .', start_time: '19:45', end_time: '20:45' },
+  { weekday: 3, name: 'Dance with Daniela', teacher: 'Daniela Leccisi', start_time: '17:25', end_time: '18:25' },
   { weekday: 3, name: 'Grounded Aerials', teacher: 'Emma Louise', start_time: '17:25', end_time: '18:25' },
   { weekday: 3, name: 'Pole Level 1', teacher: 'Amy Grace Laura .', start_time: '18:35', end_time: '19:35' },
   { weekday: 3, name: 'Booty!', teacher: 'Emma Louise', start_time: '18:35', end_time: '19:35' },
   { weekday: 3, name: 'Pole Level 2', teacher: 'Amy Grace Laura .', start_time: '19:45', end_time: '20:45' },
+  { weekday: 4, name: 'S Worker Only - SW Sessions', teacher: 'Lucy Furr', start_time: '12:00', end_time: '13:00' },
   { weekday: 4, name: 'Progressions Pole (L2+)', teacher: 'Emma Louise', start_time: '17:25', end_time: '18:25' },
   { weekday: 4, name: 'Open Lyra Training', teacher: 'Emma Louise', start_time: '17:25', end_time: '18:25' },
   { weekday: 4, name: 'Aerial Development', teacher: 'Emma Louise', start_time: '18:35', end_time: '19:35' },
   { weekday: 4, name: 'Pole Level 2', teacher: 'Katie Leticia', start_time: '18:35', end_time: '19:35' },
   { weekday: 4, name: 'Pole Level 1', teacher: 'Katie Leticia', start_time: '19:45', end_time: '20:45' },
+  { weekday: 4, name: 'Unwind & Release', teacher: 'James .', start_time: '19:45', end_time: '20:45' },
+  { weekday: 5, name: 'Open Pole Training', teacher: 'Chloe .', start_time: '11:00', end_time: '12:00' },
+  { weekday: 6, name: 'Pole Level 1 & 2', teacher: 'Emma Louise', start_time: '10:00', end_time: '11:00' },
+  { weekday: 6, name: 'Lyra Technique Level 2', teacher: 'V .', start_time: '10:00', end_time: '11:00' },
+  { weekday: 6, name: 'Lyra Technique Level 1', teacher: 'Emma Louise', start_time: '11:10', end_time: '12:10' },
+  { weekday: 6, name: 'Strong & Flippy Pole L3+', teacher: 'V .', start_time: '11:10', end_time: '12:10' },
 ]
 
 function formatLocalDate(date: Date) {
@@ -619,9 +626,12 @@ async function getStudioDataFromApi(slug: string) {
     }
 
     const dbClasses = (payload.classes ?? []) as PublicClassForDisplay[]
-    const classesForDisplay = isEmpireStudio(studio)
+    // Real schedule lives in the DB (migration 027, synced from Mindbody).
+    // The hardcoded weekly fallback only renders if the DB has no upcoming
+    // classes — merging both would resurrect stale Mindbody entries.
+    const classesForDisplay = isEmpireStudio(studio) && dbClasses.length === 0
       ? mergeDisplayClasses(dbClasses, buildEmpireMindbodyImportedClasses())
-      : dbClasses
+      : dbClasses.slice(0, 30)
 
     return {
       studio,
@@ -649,16 +659,35 @@ async function getStudioData(slug: string) {
       return await getStudioDataFromApi(slug)
     }
 
-    const today = new Date().toISOString().split('T')[0]
-    const { data: classes } = await supabase
-      .from('class_instances')
-      .select('*, teacher:users!class_instances_teacher_id_fkey(name), template:class_templates!class_instances_template_id_fkey(name, description)')
-      .eq('studio_id', studio.id)
-      .eq('status', 'scheduled')
-      .gte('date', today)
-      .order('date')
-      .order('start_time')
-      .limit(20)
+    // Fetch classes via the API (service role) — anon RLS hides the
+    // users/class_templates joins, which strips teacher and class names.
+    let classes: PublicClassForDisplay[] | null = null
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || 'https://api.studio.coop'
+      const response = await fetch(`${apiBase}/api/discover/studios/${encodeURIComponent(slug)}`, {
+        next: { revalidate: 60 },
+      })
+      if (response.ok) {
+        const payload = (await response.json()) as DiscoverStudioApiResponse
+        classes = (payload.classes ?? []) as PublicClassForDisplay[]
+      }
+    } catch (error) {
+      console.error(`[public-studio] API classes fetch failed for "${slug}": ${getErrorMessage(error)}`)
+    }
+    if (classes === null) {
+      // Last resort: direct query (teacher/template names will be null for anon)
+      const today = new Date().toISOString().split('T')[0]
+      const { data } = await supabase
+        .from('class_instances')
+        .select('*, teacher:users!class_instances_teacher_id_fkey(name), template:class_templates!class_instances_template_id_fkey(name, description)')
+        .eq('studio_id', studio.id)
+        .eq('status', 'scheduled')
+        .gte('date', today)
+        .order('date')
+        .order('start_time')
+        .limit(20)
+      classes = (data ?? []) as PublicClassForDisplay[]
+    }
 
     const { data: plans } = await supabase
       .from('membership_plans')
@@ -683,9 +712,12 @@ async function getStudioData(slug: string) {
       .eq('provider', 'instagram')
 
     const dbClasses = ((classes ?? []) as PublicClassForDisplay[])
-    const classesForDisplay = isEmpireStudio(studio)
+    // Real schedule lives in the DB (migration 027, synced from Mindbody).
+    // The hardcoded weekly fallback only renders if the DB has no upcoming
+    // classes — merging both would resurrect stale Mindbody entries.
+    const classesForDisplay = isEmpireStudio(studio) && dbClasses.length === 0
       ? mergeDisplayClasses(dbClasses, buildEmpireMindbodyImportedClasses())
-      : dbClasses
+      : dbClasses.slice(0, 30)
 
     return {
       studio,
@@ -1331,7 +1363,8 @@ export default async function PublicStudioPage({ params }: { params: Promise<{ s
             <p className="py-14 text-center text-muted-foreground">No upcoming classes scheduled.</p>
           ) : (
             <div className="mt-10 space-y-8">
-              {Object.entries(classesByDate).slice(0, 5).map(([date, dayClasses]) => (
+              {/* 7 days so the full weekly timetable is always visible */}
+              {Object.entries(classesByDate).slice(0, 7).map(([date, dayClasses]) => (
                 <div key={date}>
                   <h3 className="mb-3 text-sm font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                     {formatDate(date)}

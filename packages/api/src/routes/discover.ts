@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { createServiceClient } from '../lib/supabase'
 import { notFound } from '../lib/errors'
+import { todayInTimezone } from '../lib/timezone'
 
 // Haversine distance in km between two lat/lng points
 function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -189,8 +190,9 @@ discover.get('/studios/:slug', async (c) => {
 
   if (!studio) throw notFound('studio')
 
-  // Upcoming classes (next 20)
-  const today = new Date().toISOString().split('T')[0]
+  // Upcoming classes — "today" in the studio's own timezone, not UTC
+  // (a UTC cutoff shows yesterday's classes to NZ/AU studios every morning)
+  const today = todayInTimezone((studio.timezone as string) ?? 'UTC')
   const { data: classes } = await supabase
     .from('class_instances')
     .select('id, date, start_time, end_time, max_capacity, booked_count, status, teacher:users!class_instances_teacher_id_fkey(name), template:class_templates!class_instances_template_id_fkey(name, description)')
@@ -199,7 +201,7 @@ discover.get('/studios/:slug', async (c) => {
     .gte('date', today)
     .order('date')
     .order('start_time')
-    .limit(20)
+    .limit(60)
 
   // Active membership plans
   const { data: plans } = await supabase
