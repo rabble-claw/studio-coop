@@ -11,15 +11,25 @@ import { notificationApi } from '@/lib/api-client'
 import { Button } from '@/components/ui/button'
 import { StudioSwitcher } from '@/components/studio-switcher'
 import { useStudioId } from '@/hooks/use-studio-id'
+import {
+  Home,
+  CalendarDays,
+  Users,
+  Wallet,
+  BarChart3,
+  Sparkles,
+  Settings,
+  Bell,
+} from 'lucide-react'
 
 const navItems = [
-  { path: '', labelKey: 'overview', icon: '🏠' },
-  { path: '/schedule', labelKey: 'schedule', icon: '📅' },
-  { path: '/members', labelKey: 'members', icon: '👥' },
-  { path: '/money', labelKey: 'money', icon: '💰' },
-  { path: '/reports', labelKey: 'reports', icon: '📊' },
-  { path: '/copilot', labelKey: 'copilot', icon: '✨' },
-  { path: '/settings', labelKey: 'settings', icon: '⚙️' },
+  { path: '', labelKey: 'overview', Icon: Home },
+  { path: '/schedule', labelKey: 'schedule', Icon: CalendarDays },
+  { path: '/members', labelKey: 'members', Icon: Users },
+  { path: '/money', labelKey: 'money', Icon: Wallet },
+  { path: '/reports', labelKey: 'reports', Icon: BarChart3 },
+  { path: '/copilot', labelKey: 'copilot', Icon: Sparkles },
+  { path: '/settings', labelKey: 'settings', Icon: Settings },
 ] as const
 
 interface DashboardShellProps {
@@ -86,10 +96,10 @@ export function DashboardShell({ children, mode = 'live', basePath = '/dashboard
         <div className="flex items-center px-4 sm:px-6 h-14">
           <div className="flex items-center gap-3 shrink-0">
             <Link href={basePath} className="flex items-center gap-2" aria-label="Studio Co-op home">
-              <div className="w-7 h-7 bg-primary rounded-md flex items-center justify-center" aria-hidden="true">
-                <span className="text-white font-bold text-xs">SC</span>
+              <div className="w-7 h-7 bg-primary rounded-md rounded-tr-xl flex items-center justify-center shadow-[2px_2px_0_0_var(--color-accent)]" aria-hidden="true">
+                <span className="text-primary-foreground font-display italic font-semibold text-sm leading-none">S</span>
               </div>
-              <span className="font-semibold hidden sm:inline">{t('appName')}</span>
+              <span className="font-display font-semibold tracking-tight hidden sm:inline">{t('appName')}</span>
             </Link>
             {mode === 'live' && (
               <StudioSwitcher
@@ -109,13 +119,13 @@ export function DashboardShell({ children, mode = 'live', basePath = '/dashboard
                   href={href}
                   aria-current={active ? 'page' : undefined}
                   className={cn(
-                    'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors whitespace-nowrap min-h-[44px] min-w-[44px] justify-center focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                    'relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors whitespace-nowrap min-h-[44px] min-w-[44px] justify-center focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                     active
-                      ? 'bg-secondary text-foreground font-medium'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
+                      ? 'text-primary font-semibold after:absolute after:left-3 after:right-3 after:-bottom-px after:h-0.5 after:rounded-full after:bg-primary'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary/60'
                   )}
                 >
-                  <span className="text-base" aria-hidden="true">{item.icon}</span>
+                  <item.Icon size={16} strokeWidth={active ? 2.4 : 2} aria-hidden="true" />
                   <span className="hidden lg:inline">{nav(item.labelKey)}</span>
                   <span className="lg:hidden sr-only">{nav(item.labelKey)}</span>
                 </Link>
@@ -128,7 +138,7 @@ export function DashboardShell({ children, mode = 'live', basePath = '/dashboard
               className="relative p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               aria-label={displayCount > 0 ? `Notifications (${displayCount} unread)` : 'Notifications'}
             >
-              <span className="text-lg" aria-hidden="true">🔔</span>
+              <Bell size={18} aria-hidden="true" />
               {displayCount > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-primary text-primary-foreground text-[10px] font-bold rounded-full flex items-center justify-center" aria-hidden="true">
                   {displayCount}

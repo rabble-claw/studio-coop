@@ -87,8 +87,8 @@ export default function LandingPage() {
       <header className="sticky top-0 z-30 border-b border-white/50 bg-background/85 backdrop-blur">
         <nav className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
           <Link href="/" className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary shadow-sm">
-              <span className="text-sm font-bold text-white">SC</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg rounded-tr-2xl bg-primary shadow-[3px_3px_0_0_var(--color-accent)]">
+              <span className="marketing-display text-base italic font-semibold text-primary-foreground leading-none">S</span>
             </div>
             <span className="marketing-display text-lg font-semibold tracking-tight">Studio Co-op</span>
           </Link>
@@ -120,7 +120,7 @@ export default function LandingPage() {
               <br />
               your community,
               <br />
-              your <span className="text-primary">platform</span>.
+              your <span className="italic text-primary">platform</span>.
             </h1>
 
             <p className="marketing-reveal mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground [animation-delay:210ms] sm:text-xl">
@@ -198,6 +198,50 @@ export default function LandingPage() {
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{pillar.description}</p>
               </div>
             ))}
+          </div>
+        </section>
+
+        <section className="relative overflow-hidden bg-[#22302b] text-[#f3efe7]">
+          <div className="pointer-events-none absolute -left-24 top-0 h-80 w-80 rounded-full bg-[#d94f35]/20 blur-3xl" />
+          <div className="pointer-events-none absolute -right-20 bottom-0 h-72 w-72 rounded-full bg-[#f3c64f]/15 blur-3xl" />
+          <div className="relative mx-auto w-full max-w-6xl px-6 py-20">
+            <div className="max-w-3xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#f3c64f]">Why &ldquo;co-op&rdquo; isn&apos;t just a name</p>
+              <h2 className="marketing-display mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
+                Owned by the studios <span className="italic text-[#f08b72]">that use it</span>
+              </h2>
+              <p className="mt-4 max-w-2xl text-base leading-relaxed text-[#cfc8ba]">
+                Every other studio platform answers to investors. Studio Co-op is a platform cooperative:
+                member studios govern it, surplus flows back to them, and it can never be sold out from
+                under the people who depend on it.
+              </p>
+            </div>
+            <div className="mt-12 grid gap-5 md:grid-cols-3">
+              <article className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm">
+                <p className="marketing-display text-3xl font-semibold text-[#f3c64f]">0%</p>
+                <h3 className="marketing-display mt-3 text-xl font-semibold tracking-tight">No take-rate, ever</h3>
+                <p className="mt-2 text-sm leading-relaxed text-[#cfc8ba]">
+                  One flat monthly price. We never take a percentage of your revenue, and payment
+                  processing passes through at Stripe&apos;s own rate — zero markup.
+                </p>
+              </article>
+              <article className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm">
+                <p className="marketing-display text-3xl font-semibold text-[#f3c64f]">1 = 1</p>
+                <h3 className="marketing-display mt-3 text-xl font-semibold tracking-tight">One studio, one vote</h3>
+                <p className="mt-2 text-sm leading-relaxed text-[#cfc8ba]">
+                  Member studios vote on pricing and direction. When the co-op runs a surplus,
+                  it returns to members as patronage — not to shareholders.
+                </p>
+              </article>
+              <article className="rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm">
+                <p className="marketing-display text-3xl font-semibold text-[#f3c64f]">Yours</p>
+                <h3 className="marketing-display mt-3 text-xl font-semibold tracking-tight">Your data, your exit</h3>
+                <p className="mt-2 text-sm leading-relaxed text-[#cfc8ba]">
+                  Full data export, any time, no questions. A cooperative can&apos;t be acquired
+                  against its members&apos; wishes — your platform won&apos;t vanish in a merger.
+                </p>
+              </article>
+            </div>
           </div>
         </section>
 
@@ -360,8 +404,8 @@ export default function LandingPage() {
       <footer className="border-t border-border/60">
         <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-4 px-6 py-8 text-sm text-muted-foreground sm:flex-row">
           <div className="flex items-center gap-2">
-            <div className="flex h-6 w-6 items-center justify-center rounded bg-primary">
-              <span className="text-[10px] font-bold text-white">SC</span>
+            <div className="flex h-6 w-6 items-center justify-center rounded rounded-tr-lg bg-primary">
+              <span className="marketing-display text-[11px] italic font-semibold text-primary-foreground leading-none">S</span>
             </div>
             <span>Studio Co-op</span>
           </div>
