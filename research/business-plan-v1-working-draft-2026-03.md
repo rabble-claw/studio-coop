@@ -1,5 +1,7 @@
 # Business Plan v1 Working Draft (March 2026)
 
+> **Superseded (2026-06-11):** see [business-plan-v2-2026-06.md](business-plan-v2-2026-06.md). Kept for the assumption history; the March stage gates in §7 were missed and have been rebased in v2.
+
 Audience: founder team + first studio-owner champions.
 
 Goal: run a non-extractive platform co-op that is financially stable and understandable to small business owners.

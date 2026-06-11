@@ -1,6 +1,8 @@
 # Studio Co-op — Remaining Work Roadmap
 
-Last updated: 2026-03-01
+Last updated: 2026-06-11
+
+> **Active direction now lives in [docs/plans/2026-06-11-product-plan-v2.md](docs/plans/2026-06-11-product-plan-v2.md)** (pilot-first, feature freeze) and [research/business-plan-v2-2026-06.md](research/business-plan-v2-2026-06.md). The bug table below remains valid; M8 and M19 are scheduled in Product Plan v2 Phase 0.
 
 ## Status Summary
 
@@ -18,9 +20,10 @@ Last updated: 2026-03-01
 |---|-------|----------|---------|
 | D4 | Custom Domain — "Coming soon" | P1 | `apps/web/src/app/dashboard/settings/page.tsx` |
 | D5 | Custom Email Domain — "Coming soon" | P1 | `apps/web/src/app/dashboard/settings/page.tsx` |
-| E5 | Social links error handling | P2 | `apps/mobile/src/app/(public)/studio/[slug].tsx` |
-| M8 | Cancellation settings path mismatch | P2 | `my.ts` reads wrong settings key for cancellation window |
-| M19 | Private booking type mapping | P2 | "Corporate Event" maps to `party` instead of `group` |
+| ~~E5~~ | ~~Social links error handling~~ | done | Fixed 2026-06-11: `socialUrl()` normalizer + alert feedback, 7 tests |
+| ~~M8~~ | ~~Cancellation settings path mismatch~~ | done | Was already fixed in commit `7838585` with regression test |
+| ~~M19~~ | ~~Private booking type mapping~~ | done | Was already fixed with regression tests in `private-bookings.test.ts` |
+| NEW | `allow_self_cancel` not enforced | fixed | 2026-06-11: member cancel route now returns 403 when studio disables self-cancel |
 
 ---
 

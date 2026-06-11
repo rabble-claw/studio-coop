@@ -16,10 +16,12 @@ Studio Co-op is an open-source studio management platform that combines:
 
 Existing studio software (Mindbody, etc.) is expensive, cross-advertises your competitors to your members, and has zero community features. Studio Co-op works *for* studios, never against them.
 
-- **Free tier** for studios up to 100 members
-- **$19/mo** for unlimited members + full features
-- **$39/mo** for branded app + multi-location
+- **Flat monthly price, everything included** — no feature gates, no per-member price ladder
+- **Zero take-rate** — we never take a percentage of your studio's revenue
 - **Payment processing at cost** (Stripe's rate, zero markup)
+- **Surplus returned to member studios** via patronage rebates
+
+Current pricing model and economics: [research/business-plan-v2-2026-06.md](research/business-plan-v2-2026-06.md)
 
 ## Tech Stack
 
