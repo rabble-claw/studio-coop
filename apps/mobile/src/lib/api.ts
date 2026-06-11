@@ -1,5 +1,7 @@
 import { Platform } from 'react-native'
 import { supabase } from './supabase'
+import { handleDemoApiRequest } from './demo-api'
+import { getDemoModeRole } from './demo-mode'
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001'
 
@@ -16,6 +18,11 @@ async function getToken(): Promise<string | null> {
 }
 
 async function request<T>(path: string, opts: { method?: string; body?: unknown } = {}): Promise<T> {
+  const demoRole = getDemoModeRole()
+  if (demoRole) {
+    return handleDemoApiRequest<T>(path, opts, demoRole)
+  }
+
   const token = await getToken()
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (token) headers['Authorization'] = `Bearer ${token}`
@@ -82,6 +89,11 @@ export const feedApi = {
 // Upload
 export const uploadApi = {
   uploadImage: async (studioId: string, classId: string, uri: string, mimeType: string): Promise<{ url: string }> => {
+    const demoRole = getDemoModeRole()
+    if (demoRole) {
+      return { url: uri }
+    }
+
     const token = await getToken()
     const formData = new FormData()
     const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg'

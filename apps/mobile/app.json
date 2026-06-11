@@ -7,13 +7,20 @@
     "icon": "./assets/icon.png",
     "scheme": "studio-coop",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "splash": {
       "backgroundColor": "#faf8f5"
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "coop.studio.app"
+      "buildNumber": "5",
+      "bundleIdentifier": "coop.studio.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Allow Studio Co-op to use your camera to share photos and videos with your studio.",
+        "NSPhotoLibraryUsageDescription": "Allow Studio Co-op to access your photo library to share photos and videos with your studio.",
+        "NSPhotoLibraryAddUsageDescription": "Allow Studio Co-op to save photos and videos to your library.",
+        "NSLocationWhenInUseUsageDescription": "Allow Studio Co-op to access your location to show nearby studios and local class details."
+      }
     },
     "android": {
       "adaptiveIcon": {

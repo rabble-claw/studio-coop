@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, Modal, FlatList } from 'react-native'
 import AsyncStorage from '@react-native-async-storage/async-storage'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/lib/auth-context'
+import { getDemoStudios } from '@/lib/demo-mode'
 
 const STUDIO_STORAGE_KEY = 'selected_studio_id'
 
@@ -26,15 +27,26 @@ const disciplineEmoji: Record<string, string> = {
 }
 
 export function useStudioSwitcher() {
-  const { user, studioId, refreshStudio } = useAuth()
+  const { user, studioId, demoRole, refreshStudio } = useAuth()
   const [studios, setStudios] = useState<Studio[]>([])
   const [currentStudio, setCurrentStudio] = useState<Studio | null>(null)
   const [showPicker, setShowPicker] = useState(false)
 
   useEffect(() => {
-    if (!user) return
+    if (demoRole) {
+      const demoStudios = getDemoStudios(demoRole)
+      setStudios(demoStudios)
+      setCurrentStudio(demoStudios.find((studio) => studio.id === studioId) ?? demoStudios[0] ?? null)
+      return
+    }
+
+    if (!user) {
+      setStudios([])
+      setCurrentStudio(null)
+      return
+    }
     loadStudios()
-  }, [user])
+  }, [user, studioId, demoRole])
 
   useEffect(() => {
     if (studioId && studios.length > 0) {
@@ -44,7 +56,7 @@ export function useStudioSwitcher() {
   }, [studioId, studios])
 
   async function loadStudios() {
-    if (!user) return
+    if (!user || demoRole) return
     const { data } = await supabase
       .from('memberships')
       .select('role, studio:studios!memberships_studio_id_fkey(id, name, discipline)')

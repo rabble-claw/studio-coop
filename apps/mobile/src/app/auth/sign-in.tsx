@@ -3,13 +3,15 @@ import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform
 import { Link } from 'expo-router'
 import { useAuth } from '@/lib/auth-context'
 import { supabase } from '@/lib/supabase'
+import { DemoRole } from '@/lib/demo-mode'
 
 export default function SignInScreen() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [demoLoadingRole, setDemoLoadingRole] = useState<DemoRole | null>(null)
   const [error, setError] = useState('')
-  const { signIn } = useAuth()
+  const { signIn, startDemo } = useAuth()
 
   // Forgot password state
   const [forgotMode, setForgotMode] = useState(false)
@@ -24,6 +26,18 @@ export default function SignInScreen() {
     const { error } = await signIn(email, password)
     if (error) setError(error.message)
     setLoading(false)
+  }
+
+  async function handleStartDemo(role: DemoRole) {
+    setDemoLoadingRole(role)
+    setError('')
+    try {
+      await startDemo(role)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to start demo mode')
+    } finally {
+      setDemoLoadingRole(null)
+    }
   }
 
   async function handleResetPassword() {
@@ -179,6 +193,27 @@ export default function SignInScreen() {
                 <Text className="text-muted">Browse Studios</Text>
               </TouchableOpacity>
             </Link>
+          </View>
+
+          <View className="mt-6 pt-4 border-t border-border">
+            <Text className="text-center text-muted text-sm mb-3">Try Demo Mode</Text>
+            {([
+              { role: 'owner', label: 'Continue as Owner' },
+              { role: 'teacher', label: 'Continue as Teacher' },
+              { role: 'student', label: 'Continue as Student' },
+            ] as Array<{ role: DemoRole; label: string }>).map((option) => (
+              <TouchableOpacity
+                key={option.role}
+                className="border border-border rounded-xl py-3 items-center mt-2 bg-card"
+                onPress={() => handleStartDemo(option.role)}
+                disabled={loading || demoLoadingRole !== null}
+                activeOpacity={0.8}
+              >
+                <Text className="text-foreground font-medium">
+                  {demoLoadingRole === option.role ? 'Starting demo...' : option.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </View>
       </ScrollView>

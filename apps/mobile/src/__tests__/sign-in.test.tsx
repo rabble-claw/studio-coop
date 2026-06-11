@@ -3,9 +3,11 @@ import { render, fireEvent, waitFor } from '@testing-library/react-native'
 
 // Mock auth context
 const mockSignIn = jest.fn().mockResolvedValue({ error: null })
+const mockStartDemo = jest.fn().mockResolvedValue(undefined)
 jest.mock('@/lib/auth-context', () => ({
   useAuth: () => ({
     signIn: mockSignIn,
+    startDemo: mockStartDemo,
     session: null,
     user: null,
     loading: false,
@@ -44,6 +46,10 @@ describe('SignInScreen', () => {
     expect(getByPlaceholderText('Password')).toBeTruthy()
     expect(getByText('Sign in')).toBeTruthy()
     expect(getByText('Forgot password?')).toBeTruthy()
+    expect(getByText('Try Demo Mode')).toBeTruthy()
+    expect(getByText('Continue as Owner')).toBeTruthy()
+    expect(getByText('Continue as Teacher')).toBeTruthy()
+    expect(getByText('Continue as Student')).toBeTruthy()
   })
 
   it('shows error on failed sign in', async () => {
@@ -114,6 +120,15 @@ describe('SignInScreen', () => {
 
     await waitFor(() => {
       expect(getByText('Studio Co-op')).toBeTruthy()
+    })
+  })
+
+  it('starts demo mode for selected role', async () => {
+    const { getByText } = render(<SignInScreen />)
+    fireEvent.press(getByText('Continue as Owner'))
+
+    await waitFor(() => {
+      expect(mockStartDemo).toHaveBeenCalledWith('owner')
     })
   })
 })
