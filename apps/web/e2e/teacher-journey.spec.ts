@@ -30,7 +30,9 @@ test.describe('Teacher Journey (Demo)', () => {
     // At least one member name and status badge visible in the roster
     const activePanel = page.locator('[role="tabpanel"][data-state="active"]')
     await expect(activePanel).toBeVisible()
-    await expect(activePanel.locator('text=Confirmed').first().or(activePanel.locator('text=Booked').first())).toBeVisible()
+    // .first() must apply to the combined locator — chaining .first().or(.first())
+    // is a strict-mode violation when the roster has both badge types
+    await expect(activePanel.locator('text=Confirmed').or(activePanel.locator('text=Booked')).first()).toBeVisible()
   })
 
   test('check-in tab: click member toggles check-in state', async ({ demoPage: page }) => {
